@@ -31,8 +31,7 @@ public class MainActivity extends Activity {
             "https://www.donationalerts.com/r/vladdonat99";
 
     private static final String SERVER_URL =
-            "https://script.google.com/macros/s/AKfycbx3Vqy2HgRFjirc0Ym1C82nzGeUDkSo8bPFK7lj0gZllFsAzQVLrjI4QVPKz9UGTv9LDQ/exec";
-
+            https://script.google.com/macros/s/AKfycbz9_7ApvKuZDZj8EGWNYvRaMxRi3DYQgsGigCrGLW3u9cthlqr7Q0FXBr8mwxxSms9S_A/exec
     private static final String APP_KEY =
             "LGS_PRO_7mQ9vK2xR8pN4wT6zA1cF5hB";
 
