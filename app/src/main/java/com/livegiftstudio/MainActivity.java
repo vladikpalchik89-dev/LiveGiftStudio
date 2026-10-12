@@ -202,3 +202,10 @@ public class MainActivity extends Activity {
                     Intent.ACTION_VIEW,
                     Uri.parse("https://t.me/share/url?url=&text="
                             +
+                            Uri.encode(message))
+            );
+            startActivity(intent);
+        } catch (Exception e) {
+            showMessage("Не удалось открыть Telegram");
+        }
+    }
