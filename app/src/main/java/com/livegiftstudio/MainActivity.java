@@ -73,8 +73,17 @@ protected void onCreate(Bundle savedInstanceState) {
     donate.setBackground(round(Color.rgb(220, 45, 120), 18));
     container.addView(donate, matchWrap());
 
-    donate.setOnClickListener(v ->
-            showMessage("Ссылка на донат будет подключена отдельно."));
+    donate.setOnClickListener(v -> {
+try {
+android.content.Intent intent = new android.content.Intent(
+android.content.Intent.ACTION_VIEW,
+android.net.Uri.parse("https://www.donationalerts.com/r/vladdonat99")
+);
+startActivity(intent);
+} catch (Exception e) {
+showMessage("Не удалось открыть страницу донатов");
+}
+});
 
     addSpace(14);
     addText("Подписывайся • Заказывай • Поддерживай",
