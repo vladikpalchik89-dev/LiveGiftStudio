@@ -2,6 +2,9 @@ package com.livegiftstudio;
 
 import android.app.Activity;
 import android.os.Bundle;
+import android.content.Intent;
+import android.net.Uri;
+import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -16,10 +19,21 @@ import android.widget.Toast;
 public class MainActivity extends Activity {
 
 private LinearLayout container;
+private SharedPreferences prefs;
+private TextView statsText;
+
+private int gifts;
+private int donations;
+private int orders;
 
 @Override
 protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
+
+    prefs = getSharedPreferences("LiveGiftStats", MODE_PRIVATE);
+    gifts = prefs.getInt("gifts", 0);
+    donations = prefs.getInt("donations", 0);
+    orders = prefs.getInt("orders", 0);
 
     getWindow().setStatusBarColor(Color.rgb(18, 18, 32));
     getWindow().setNavigationBarColor(Color.rgb(18, 18, 32));
@@ -36,96 +50,99 @@ protected void onCreate(Bundle savedInstanceState) {
 
     addText("LiveGiftStudio PRO", 27, Color.WHITE, true);
     addText("Твоя студия TikTok LIVE", 16, Color.LTGRAY, false);
-
-    addSpace(22);
-
-    addCard("ПОДАРКИ LIVE",
-            "Управление подарками и событиями эфира", "Подарки");
-
-    addCard("ДОНАТЫ",
-            "Информация о поддержке и оплате", "Донаты");
-
-    addCard("СТАТИСТИКА",
-            "Подарки, донаты и заказы", "Статистика");
-
-    addCard("ИИ-ФОТО",
-            "Заказ фотографий с помощью ИИ", "ИИ-фото");
-
-    addCard("ОЦЕНКА АККАУНТА",
-            "Закажи оценку своего TikTok-аккаунта", "Оценка");
-
-    addCard("РЕКЛАМА",
-            "Заказ рекламы для твоего аккаунта", "Реклама");
-
-    addSpace(18);
-    addText("ПРАЙС-ЛИСТ", 22, Color.WHITE, true);
-    addText("Оценка аккаунта — 50 ₽\n\n"
-            + "ИИ-фото — 50 ₽\n\n"
-            + "Реклама — 100 ₽", 17, Color.WHITE, false);
-
     addSpace(20);
 
-    Button donate = new Button(this);
-    donate.setText("ПОДДЕРЖАТЬ ДОНАТОМ");
-    donate.setTextSize(16);
-    donate.setTextColor(Color.WHITE);
-    donate.setAllCaps(false);
-    donate.setBackground(round(Color.rgb(220, 45, 120), 18));
-    container.addView(donate, matchWrap());
+    addText("📊 ТВОЯ СТАТИСТИКА", 22, Color.WHITE, true);
 
-    donate.setOnClickListener(v -> {
-try {
-android.content.Intent intent = new android.content.Intent(
-android.content.Intent.ACTION_VIEW,
-android.net.Uri.parse("https://www.donationalerts.com/r/vladdonat99")
-);
-startActivity(intent);
-} catch (Exception e) {
-showMessage("Не удалось открыть страницу донатов");
-}
-});
+    statsText = new TextView(this);
+    statsText.setTextColor(Color.WHITE);
+    statsText.setTextSize(18);
+    statsText.setPadding(18, 18, 18, 18);
+    statsText.setBackground(round(Color.rgb(37, 37, 58), 18));
+    container.addView(statsText, matchWrap());
 
-    addSpace(14);
+    addSpace(12);
+
+    addButton("🎁 +1 ПОДАРОК", v -> {
+        gifts++;
+        saveStats();
+        updateStats();
+    });
+
+    addButton("💰 +1 ДОНАТ", v -> {
+        donations++;
+        saveStats();
+        updateStats();
+    });
+
+    addButton("⭐ +1 ЗАКАЗ", v -> {
+        orders++;
+        saveStats();
+        updateStats();
+    });
+
+    addButton("↩️ СБРОСИТЬ СТАТИСТИКУ", v -> {
+        gifts = 0;
+        donations = 0;
+        orders = 0;
+        saveStats();
+        updateStats();
+        showMessage("Статистика сброшена");
+    });
+
+    addSpace(22);
+    addText("💎 ПРАЙС-ЛИСТ", 22, Color.WHITE, true);
+    addText("Оценка аккаунта — 50 ₽\n\n"
+            + "ИИ-фото — 50 ₽\n\n"
+            + "Реклама — 100 ₽",
+            17, Color.WHITE, false);
+
+    addSpace(18);
+
+    addButton("💖 ПОДДЕРЖАТЬ ДОНАТОМ", v -> {
+        Intent intent = new Intent(
+                Intent.ACTION_VIEW,
+                Uri.parse("https://www.donationalerts.com/r/vladdonat99")
+        );
+        startActivity(intent);
+    });
+
+    addSpace(18);
     addText("Подписывайся • Заказывай • Поддерживай",
             13, Color.LTGRAY, false);
+
+    updateStats();
 }
 
-private void addCard(String title, String description, String section) {
-    LinearLayout card = new LinearLayout(this);
-    card.setOrientation(LinearLayout.VERTICAL);
-    card.setPadding(18, 16, 18, 16);
-    card.setBackground(round(Color.rgb(37, 37, 58), 18));
+private void updateStats() {
+    statsText.setText(
+            "🎁 Подарки: " + gifts + "\n\n"
+            + "💰 Донаты: " + donations + "\n\n"
+            + "⭐ Заказы: " + orders
+    );
+}
 
-    LinearLayout.LayoutParams params = matchWrap();
-    params.setMargins(0, 0, 0, 14);
-    container.addView(card, params);
+private void saveStats() {
+    prefs.edit()
+            .putInt("gifts", gifts)
+            .putInt("donations", donations)
+            .putInt("orders", orders)
+            .apply();
+}
 
-    TextView heading = new TextView(this);
-    heading.setText(title);
-    heading.setTextColor(Color.WHITE);
-    heading.setTextSize(19);
-    heading.setTypeface(null, Typeface.BOLD);
-    card.addView(heading, matchWrap());
-
-    TextView detail = new TextView(this);
-    detail.setText(description);
-    detail.setTextColor(Color.LTGRAY);
-    detail.setTextSize(14);
-
-    LinearLayout.LayoutParams detailParams = matchWrap();
-    detailParams.setMargins(0, 8, 0, 12);
-    card.addView(detail, detailParams);
-
+private void addButton(String title, View.OnClickListener listener) {
     Button button = new Button(this);
-    button.setText("Открыть");
+    button.setText(title);
+    button.setTextSize(15);
     button.setTextColor(Color.WHITE);
     button.setAllCaps(false);
-    button.setBackground(round(Color.rgb(105, 75, 220), 12));
-    card.addView(button, matchWrap());
+    button.setBackground(round(Color.rgb(105, 75, 220), 14));
 
-    button.setOnClickListener(v ->
-            showMessage("Раздел «" + section
-                    + "». Подключение функций будет следующим этапом."));
+    LinearLayout.LayoutParams params = matchWrap();
+    params.setMargins(0, 5, 0, 9);
+    container.addView(button, params);
+
+    button.setOnClickListener(listener);
 }
 
 private void addText(String text, int size, int color, boolean bold) {
@@ -133,7 +150,6 @@ private void addText(String text, int size, int color, boolean bold) {
     view.setText(text);
     view.setTextSize(size);
     view.setTextColor(color);
-    view.setGravity(Gravity.START);
 
     if (bold) {
         view.setTypeface(null, Typeface.BOLD);
@@ -164,7 +180,7 @@ private LinearLayout.LayoutParams matchWrap() {
 }
 
 private void showMessage(String message) {
-    Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+    Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
 }
 
-                 }
+}
