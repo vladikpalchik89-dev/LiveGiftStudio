@@ -92,11 +92,36 @@ protected void onCreate(Bundle savedInstanceState) {
 
     addSpace(22);
     addText("💎 ПРАЙС-ЛИСТ", 22, Color.WHITE, true);
-    addText("Оценка аккаунта — 50 ₽\n\n"
-            + "ИИ-фото — 50 ₽\n\n"
-            + "Реклама — 100 ₽",
-            17, Color.WHITE, false);
+    addText("🤖 ИИ-ФОТО — 50 ₽", 18, Color.WHITE, true);
 
+addButton("🛒 ЗАКАЗАТЬ ИИ-ФОТО", v -> {
+    orders++;
+    saveStats();
+    updateStats();
+    openOrder("Здравствуйте! Хочу заказать ИИ-фото за 50 ₽.");
+});
+
+addSpace(10);
+
+addText("⭐ ОЦЕНКА АККАУНТА — 50 ₽", 18, Color.WHITE, true);
+
+addButton("🛒 ЗАКАЗАТЬ ОЦЕНКУ", v -> {
+    orders++;
+    saveStats();
+    updateStats();
+    openOrder("Здравствуйте! Хочу заказать оценку TikTok-аккаунта за 50 ₽.");
+});
+
+addSpace(10);
+
+addText("📢 РЕКЛАМА — 100 ₽", 18, Color.WHITE, true);
+
+addButton("🛒 ЗАКАЗАТЬ РЕКЛАМУ", v -> {
+    orders++;
+    saveStats();
+    updateStats();
+    openOrder("Здравствуйте! Хочу заказать рекламу за 100 ₽.");
+});
     addSpace(18);
 
     addButton("💖 ПОДДЕРЖАТЬ ДОНАТОМ", v -> {
@@ -179,7 +204,18 @@ private LinearLayout.LayoutParams matchWrap() {
             LinearLayout.LayoutParams.WRAP_CONTENT);
 }
 
-private void showMessage(String message) {
+private void openOrder(String message) {
+    try {
+        Intent intent = new Intent(
+                Intent.ACTION_VIEW,
+                Uri.parse("https://t.me/share/url?url=&text="
+                        + android.net.Uri.encode(message))
+        );
+        startActivity(intent);
+    } catch (Exception e) {
+        showMessage("Не удалось открыть отправку заказа");
+    }
+}
     Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
 }
 
