@@ -2,6 +2,11 @@ name: LiveGiftStudio Build
 
 on:
 workflow_dispatch:
+inputs:
+run_check:
+description: 'Run project check'
+required: false
+default: 'yes'
 
 jobs:
 build:
@@ -9,8 +14,5 @@ runs-on: ubuntu-latest
 steps:
 - name: Checkout repository
 uses: actions/checkout@v4
-
-  - name: Show project files
-    run: |
-      echo "Checking project files"
-      ls -la
+- name: Check files
+run: echo "LiveGiftStudio check started"
