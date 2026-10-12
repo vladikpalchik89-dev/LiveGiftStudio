@@ -205,18 +205,19 @@ private LinearLayout.LayoutParams matchWrap() {
 }
 
 private void openOrder(String message) {
-    try {
-        Intent intent = new Intent(
-                Intent.ACTION_VIEW,
-                Uri.parse("https://t.me/share/url?url=&text="
-                        + android.net.Uri.encode(message))
-        );
-        startActivity(intent);
-    } catch (Exception e) {
-        showMessage("Не удалось открыть отправку заказа");
-    }
+try {
+Intent intent = new Intent(
+Intent.ACTION_VIEW,
+Uri.parse("https://t.me/share/url?url=&text="
++ Uri.encode(message))
+);
+startActivity(intent);
+} catch (Exception e) {
+showMessage("Не удалось открыть отправку заказа");
 }
-    Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
 }
 
-                    }
+private void showMessage(String message) {
+Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+}
+}
