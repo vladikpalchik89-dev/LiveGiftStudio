@@ -40,7 +40,6 @@ public class MainActivity extends Activity {
             Executors.newSingleThreadExecutor();
 
     private SharedPreferences prefs;
-
     private LinearLayout container;
     private TextView statsText;
 
@@ -82,64 +81,42 @@ public class MainActivity extends Activity {
         container.addView(title);
 
         TextView subtitle = new TextView(this);
-        subtitle.setText(
-                "Заказывай услуги для TikTok LIVE"
-        );
+        subtitle.setText("Заказывай услуги для TikTok LIVE");
         subtitle.setTextSize(16);
         subtitle.setTextColor(Color.LTGRAY);
         subtitle.setGravity(Gravity.CENTER);
         subtitle.setPadding(0, 0, 0, 20);
         container.addView(subtitle);
 
-        addButton(
-                "💰 Открыть донаты",
-                v -> openLink(DONATE_URL)
-        );
+        addButton("💰 Открыть донаты",
+                v -> openLink(DONATE_URL));
 
-        addButton(
-                "🤖 ИИ-фото — 50 ₽",
-                v -> createOrder("ИИ-фото", 50)
-        );
+        addButton("🤖 ИИ-фото — 50 ₽",
+                v -> createOrder("ИИ-фото", 50));
 
-        addButton(
-                "⭐ Оценка аккаунта — 50 ₽",
-                v -> createOrder("Оценка аккаунта", 50)
-        );
+        addButton("⭐ Оценка аккаунта — 50 ₽",
+                v -> createOrder("Оценка аккаунта", 50));
 
-        addButton(
-                "📢 Реклама — 100 ₽",
-                v -> createOrder("Реклама", 100)
-        );
+        addButton("📢 Реклама — 100 ₽",
+                v -> createOrder("Реклама", 100));
 
-        addButton(
-                "💬 Заказать другую услугу",
-                v -> createOrder("Другая услуга", 0)
-        );
+        addButton("💬 Заказать другую услугу",
+                v -> createOrder("Другая услуга", 0));
 
-        addButton(
-                "📋 История заказов",
-                v -> showHistory()
-        );
+        addButton("📋 История заказов",
+                v -> showHistory());
 
-        addButton(
-                "📊 Статистика",
-                v -> showStats()
-        );
+        addButton("📊 Статистика",
+                v -> showStats());
 
-        addButton(
-                "➕ Записать подарок",
-                v -> addDonation("gift")
-        );
+        addButton("➕ Записать подарок",
+                v -> addDonation("gift"));
 
-        addButton(
-                "➕ Записать донат",
-                v -> addDonation("donation")
-        );
+        addButton("➕ Записать донат",
+                v -> addDonation("donation"));
 
-        addButton(
-                "🔄 Сбросить статистику",
-                v -> resetStats()
-        );
+        addButton("🔄 Сбросить статистику",
+                v -> resetStats());
 
         statsText = new TextView(this);
         statsText.setTextColor(Color.WHITE);
@@ -150,7 +127,10 @@ public class MainActivity extends Activity {
         updateStats();
     }
 
-    private void addButton(String text, View.OnClickListener listener) {
+    private void addButton(
+            String text,
+            View.OnClickListener listener
+    ) {
         Button button = new Button(this);
         button.setText(text);
         button.setTextSize(15);
@@ -182,59 +162,39 @@ public class MainActivity extends Activity {
         detailsInput.setMinLines(2);
         form.addView(detailsInput);
 
+        EditText priceInput = null;
+
         if (amount == 0) {
-            EditText priceInput = new EditText(this);
+            priceInput = new EditText(this);
             priceInput.setHint("Цена в рублях");
             priceInput.setInputType(2);
             form.addView(priceInput);
-
-            new AlertDialog.Builder(this)
-                    .setTitle("💬 Другая услуга")
-                    .setMessage("Опиши, что нужно сделать")
-                    .setView(form)
-                    .setNegativeButton("Отмена", null)
-                    .setPositiveButton("Отправить заказ", (dialog, which) -> {
-                        String name = nameInput.getText().toString().trim();
-                        String details = detailsInput.getText().toString().trim();
-                        String priceText = priceInput.getText().toString().trim();
-
-                        if (name.isEmpty()) {
-                            message("Укажи свой ник");
-                            return;
-                        }
-
-                        if (details.isEmpty()) {
-                            message("Опиши услугу");
-                            return;
-                        }
-
-                        int price = 0;
-
-                        try {
-                            price = Integer.parseInt(priceText);
-                        } catch (Exception ignored) {
-                        }
-
-                        saveOrder(service, price, name, details);
-                        sendOrderToTelegram(service, price, name, details);
-
-                        openTelegram(
-                                makeOrderText(service, price, name, details)
-                        );
-                    })
-                    .show();
-
-            return;
         }
 
-        new AlertDialog.Builder(this)
-                .setTitle("Заказ: " + service)
-                .setMessage("Стоимость: " + amount + " ₽")
-                .setView(form)
-                .setNegativeButton("Отмена", null)
-                .setPositiveButton("Заказать", (dialog, which) -> {
-                    String name = nameInput.getText().toString().trim();
-                    String details = detailsInput.getText().toString().trim();
+        final EditText finalPriceInput = priceInput;
+
+        AlertDialog.Builder builder =
+                new AlertDialog.Builder(this);
+
+        builder.setTitle("Заказ: " + service);
+        builder.setMessage(
+                amount == 0
+                        ? "Опиши, какую услугу хочешь заказать"
+                        : "Стоимость: " + amount + " ₽"
+        );
+
+        builder.setView(form);
+        builder.setNegativeButton("Отмена", null);
+
+        builder.setPositiveButton(
+                amount == 0 ? "Отправить заказ" : "Заказать",
+                (dialog, which) -> {
+
+                    String name =
+                            nameInput.getText().toString().trim();
+
+                    String details =
+                            detailsInput.getText().toString().trim();
 
                     if (name.isEmpty()) {
                         message("Укажи свой ник");
@@ -242,24 +202,50 @@ public class MainActivity extends Activity {
                     }
 
                     if (details.isEmpty()) {
-                        message("Напиши описание заказа");
+                        message("Опиши заказ");
                         return;
                     }
 
-                    saveOrder(service, amount, name, details);
+                    int price = amount;
+
+                    if (finalPriceInput != null) {
+                        try {
+                            price = Integer.parseInt(
+                                    finalPriceInput.getText()
+                                            .toString().trim()
+                            );
+                        } catch (Exception e) {
+                            message("Укажи корректную цену");
+                            return;
+                        }
+
+                        if (price < 0) {
+                            message("Цена не может быть отрицательной");
+                            return;
+                        }
+                    }
+
+                    saveOrder(service, price, name, details);
 
                     sendOrderToTelegram(
                             service,
-                            amount,
+                            price,
                             name,
                             details
                     );
 
                     openTelegram(
-                            makeOrderText(service, amount, name, details)
+                            makeOrderText(
+                                    service,
+                                    price,
+                                    name,
+                                    details
+                            )
                     );
-                })
-                .show();
+                }
+        );
+
+        builder.show();
     }
 
     private String makeOrderText(
@@ -311,24 +297,31 @@ public class MainActivity extends Activity {
                 byte[] bytes = data.toString()
                         .getBytes(StandardCharsets.UTF_8);
 
-                try (OutputStream output = connection.getOutputStream()) {
+                try (OutputStream output =
+                             connection.getOutputStream()) {
                     output.write(bytes);
                 }
 
-                int responseCode = connection.getResponseCode();
+                int responseCode =
+                        connection.getResponseCode();
 
                 runOnUiThread(() -> {
-                    if (responseCode == 200 || responseCode == 302) {
+                    if (responseCode == 200
+                            || responseCode == 302) {
                         message("Запрос отправлен серверу");
                     } else {
-                        message("Ошибка отправки: " + responseCode);
+                        message("Ошибка отправки: "
+                                + responseCode);
                     }
                 });
 
             } catch (Exception e) {
                 runOnUiThread(() ->
-                        message("Не удалось отправить заказ на сервер")
+                        message(
+                                "Не удалось отправить заказ на сервер"
+                        )
                 );
+
             } finally {
                 if (connection != null) {
                     connection.disconnect();
@@ -339,19 +332,30 @@ public class MainActivity extends Activity {
 
     private void openTelegram(String text) {
         try {
-            Intent intent = new Intent(Intent.ACTION_SEND);
+            Intent intent =
+                    new Intent(Intent.ACTION_SEND);
+
             intent.setType("text/plain");
             intent.setPackage("org.telegram.messenger");
             intent.putExtra(Intent.EXTRA_TEXT, text);
+
             startActivity(intent);
+
         } catch (Exception e) {
             try {
-                Intent intent = new Intent(Intent.ACTION_SEND);
+                Intent intent =
+                        new Intent(Intent.ACTION_SEND);
+
                 intent.setType("text/plain");
                 intent.putExtra(Intent.EXTRA_TEXT, text);
+
                 startActivity(
-                        Intent.createChooser(intent, "Отправить заказ")
+                        Intent.createChooser(
+                                intent,
+                                "Отправить заказ"
+                        )
                 );
+
             } catch (Exception ex) {
                 message("Не удалось открыть отправку сообщения");
             }
@@ -370,6 +374,7 @@ public class MainActivity extends Activity {
             );
 
             JSONObject order = new JSONObject();
+
             order.put("service", service);
             order.put("price", price);
             order.put("name", name);
@@ -379,7 +384,10 @@ public class MainActivity extends Activity {
             array.put(order);
 
             prefs.edit()
-                    .putString("order_history", array.toString())
+                    .putString(
+                            "order_history",
+                            array.toString()
+                    )
                     .apply();
 
             orders++;
@@ -455,7 +463,9 @@ public class MainActivity extends Activity {
                 .setView(input)
                 .setNegativeButton("Отмена", null)
                 .setPositiveButton("Сохранить", (dialog, which) -> {
-                    String value = input.getText().toString().trim();
+
+                    String value =
+                            input.getText().toString().trim();
 
                     if (value.isEmpty()) {
                         message("Введи сумму");
@@ -466,7 +476,9 @@ public class MainActivity extends Activity {
                         int amount = Integer.parseInt(value);
 
                         if (amount < 0) {
-                            message("Сумма не может быть отрицательной");
+                            message(
+                                    "Сумма не может быть отрицательной"
+                            );
                             return;
                         }
 
@@ -497,7 +509,8 @@ public class MainActivity extends Activity {
                 .setMessage(
                         "Подарков записано: " + gifts + "\n"
                         + "Донатов записано: " + donations + "\n"
-                        + "Сумма донатов: " + donationIncome + " ₽\n"
+                        + "Сумма донатов: " + donationIncome
+                        + " ₽\n"
                         + "Заказов: " + orders
                 )
                 .setPositiveButton("Закрыть", null)
@@ -510,7 +523,8 @@ public class MainActivity extends Activity {
                     "📊 Твоя статистика\n\n"
                     + "🎁 Подарки: " + gifts + "\n"
                     + "💰 Донаты: " + donations + "\n"
-                    + "💵 Сумма донатов: " + donationIncome + " ₽\n"
+                    + "💵 Сумма донатов: "
+                    + donationIncome + " ₽\n"
                     + "📋 Заказы: " + orders
             );
         }
@@ -536,11 +550,12 @@ public class MainActivity extends Activity {
         new AlertDialog.Builder(this)
                 .setTitle("Сбросить статистику?")
                 .setMessage(
-                        "Показатели подарков, донатов и заказов будут обнулены. "
-                        + "История заказов останется."
+                        "Показатели подарков, донатов и заказов "
+                        + "будут обнулены. История заказов останется."
                 )
                 .setNegativeButton("Отмена", null)
                 .setPositiveButton("Сбросить", (dialog, which) -> {
+
                     gifts = 0;
                     donations = 0;
                     donationIncome = 0;
@@ -581,4 +596,4 @@ public class MainActivity extends Activity {
         super.onDestroy();
         executor.shutdown();
     }
-            }
+    }
