@@ -3,221 +3,202 @@ package com.livegiftstudio;
 import android.app.Activity;
 import android.os.Bundle;
 import android.content.Intent;
-import android.net.Uri;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.net.Uri;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.app.AlertDialog;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 public class MainActivity extends Activity {
 
-private LinearLayout container;
-private SharedPreferences prefs;
-private TextView statsText;
+    private LinearLayout container;
+    private SharedPreferences prefs;
+    private TextView statsText;
 
-private int gifts;
-private int donations;
-private int orders;
+    private int gifts;
+    private int donations;
+    private int orders;
+    private int donationIncome;
 
-@Override
-protected void onCreate(Bundle savedInstanceState) {
-    super.onCreate(savedInstanceState);
+    private final int BG = Color.rgb(18, 18, 32);
+    private final int CARD = Color.rgb(37, 37, 58);
+    private final int PURPLE = Color.rgb(105, 75, 220);
 
-    prefs = getSharedPreferences("LiveGiftStats", MODE_PRIVATE);
-    gifts = prefs.getInt("gifts", 0);
-    donations = prefs.getInt("donations", 0);
-    orders = prefs.getInt("orders", 0);
+    private final String DONATE_URL =
+            "https://www.donationalerts.com/r/vladdonat99";
 
-    getWindow().setStatusBarColor(Color.rgb(18, 18, 32));
-    getWindow().setNavigationBarColor(Color.rgb(18, 18, 32));
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
 
-    ScrollView scroll = new ScrollView(this);
-    scroll.setBackgroundColor(Color.rgb(18, 18, 32));
+        prefs = getSharedPreferences("LiveGiftStats", MODE_PRIVATE);
 
-    container = new LinearLayout(this);
-    container.setOrientation(LinearLayout.VERTICAL);
-    container.setPadding(20, 24, 20, 30);
+        gifts = prefs.getInt("gifts", 0);
+        donations = prefs.getInt("donations", 0);
+        orders = prefs.getInt("orders", 0);
+        donationIncome = prefs.getInt("donationIncome", 0);
 
-    scroll.addView(container);
-    setContentView(scroll);
+        getWindow().setStatusBarColor(BG);
+        getWindow().setNavigationBarColor(BG);
 
-    addText("LiveGiftStudio PRO", 27, Color.WHITE, true);
-    addText("Твоя студия TikTok LIVE", 16, Color.LTGRAY, false);
-    addSpace(20);
+        ScrollView scroll = new ScrollView(this);
+        scroll.setBackgroundColor(BG);
 
-    addText("📊 ТВОЯ СТАТИСТИКА", 22, Color.WHITE, true);
+        container = new LinearLayout(this);
+        container.setOrientation(LinearLayout.VERTICAL);
+        container.setPadding(20, 24, 20, 30);
 
-    statsText = new TextView(this);
-    statsText.setTextColor(Color.WHITE);
-    statsText.setTextSize(18);
-    statsText.setPadding(18, 18, 18, 18);
-    statsText.setBackground(round(Color.rgb(37, 37, 58), 18));
-    container.addView(statsText, matchWrap());
+        scroll.addView(container);
+        setContentView(scroll);
 
-    addSpace(12);
+        addText("💎 LiveGiftStudio PRO", 27, Color.WHITE, true);
+        addText("Твоя студия TikTok LIVE", 16,
+                Color.LTGRAY, false);
 
-    addButton("🎁 +1 ПОДАРОК", v -> {
-        gifts++;
-        saveStats();
+        addSpace(20);
+
+        addText("📊 СТАТИСТИКА", 22, Color.WHITE, true);
+
+        statsText = new TextView(this);
+        statsText.setTextColor(Color.WHITE);
+        statsText.setTextSize(17);
+        statsText.setPadding(18, 18, 18, 18);
+        statsText.setBackground(round(CARD, 18));
+        container.addView(statsText, matchWrap());
+
+        addSpace(12);
+
+        addButton("🎁 +1 ПОДАРОК", v -> {
+            gifts++;
+            saveStats();
+            updateStats();
+        });
+
+        addButton("💰 +1 ДОНАТ", v -> {
+            donations++;
+            saveStats();
+            updateStats();
+        });
+
+        addButton("💵 ДОБАВИТЬ СУММУ ДОНАТА", v ->
+                addDonationAmount());
+
+        addSpace(20);
+
+        addText("🛒 ЗАКАЗАТЬ УСЛУГУ", 22, Color.WHITE, true);
+
+        addButton("🤖 ИИ-ФОТО — 50 ₽", v ->
+                createOrder("ИИ-фото", 50));
+
+        addButton("⭐ ОЦЕНКА АККАУНТА — 50 ₽", v ->
+                createOrder("Оценка аккаунта", 50));
+
+        addButton("📢 РЕКЛАМА — 100 ₽", v ->
+                createOrder("Реклама", 100));
+
+        addButton("📋 ИСТОРИЯ ЗАКАЗОВ", v ->
+                showOrderHistory());
+
+        addSpace(20);
+
+        addText("💖 ДОНАТЫ", 22, Color.WHITE, true);
+
+        addText("Поддержи эфир или отправь донат!",
+                15, Color.LTGRAY, false);
+
+        addButton("💖 ОТПРАВИТЬ ДОНАТ", v -> {
+            Intent intent = new Intent(
+                    Intent.ACTION_VIEW,
+                    Uri.parse(DONATE_URL)
+            );
+            startActivity(intent);
+        });
+
+        addSpace(20);
+
+        addButton("↩️ СБРОСИТЬ СТАТИСТИКУ", v ->
+                confirmReset());
+
+        addSpace(15);
+
+        addText("Подписывайся • Заказывай • Поддерживай",
+                13, Color.LTGRAY, false);
+
         updateStats();
-    });
-
-    addButton("💰 +1 ДОНАТ", v -> {
-        donations++;
-        saveStats();
-        updateStats();
-    });
-
-    addButton("⭐ +1 ЗАКАЗ", v -> {
-        orders++;
-        saveStats();
-        updateStats();
-    });
-
-    addButton("↩️ СБРОСИТЬ СТАТИСТИКУ", v -> {
-        gifts = 0;
-        donations = 0;
-        orders = 0;
-        saveStats();
-        updateStats();
-        showMessage("Статистика сброшена");
-    });
-
-    addSpace(22);
-    addText("💎 ПРАЙС-ЛИСТ", 22, Color.WHITE, true);
-    addText("🤖 ИИ-ФОТО — 50 ₽", 18, Color.WHITE, true);
-
-addButton("🛒 ЗАКАЗАТЬ ИИ-ФОТО", v -> {
-    orders++;
-    saveStats();
-    updateStats();
-    openOrder("Здравствуйте! Хочу заказать ИИ-фото за 50 ₽.");
-});
-
-addSpace(10);
-
-addText("⭐ ОЦЕНКА АККАУНТА — 50 ₽", 18, Color.WHITE, true);
-
-addButton("🛒 ЗАКАЗАТЬ ОЦЕНКУ", v -> {
-    orders++;
-    saveStats();
-    updateStats();
-    openOrder("Здравствуйте! Хочу заказать оценку TikTok-аккаунта за 50 ₽.");
-});
-
-addSpace(10);
-
-addText("📢 РЕКЛАМА — 100 ₽", 18, Color.WHITE, true);
-
-addButton("🛒 ЗАКАЗАТЬ РЕКЛАМУ", v -> {
-    orders++;
-    saveStats();
-    updateStats();
-    openOrder("Здравствуйте! Хочу заказать рекламу за 100 ₽.");
-});
-    addSpace(18);
-
-    addButton("💖 ПОДДЕРЖАТЬ ДОНАТОМ", v -> {
-        Intent intent = new Intent(
-                Intent.ACTION_VIEW,
-                Uri.parse("https://www.donationalerts.com/r/vladdonat99")
-        );
-        startActivity(intent);
-    });
-
-    addSpace(18);
-    addText("Подписывайся • Заказывай • Поддерживай",
-            13, Color.LTGRAY, false);
-
-    updateStats();
-}
-
-private void updateStats() {
-    statsText.setText(
-            "🎁 Подарки: " + gifts + "\n\n"
-            + "💰 Донаты: " + donations + "\n\n"
-            + "⭐ Заказы: " + orders
-    );
-}
-
-private void saveStats() {
-    prefs.edit()
-            .putInt("gifts", gifts)
-            .putInt("donations", donations)
-            .putInt("orders", orders)
-            .apply();
-}
-
-private void addButton(String title, View.OnClickListener listener) {
-    Button button = new Button(this);
-    button.setText(title);
-    button.setTextSize(15);
-    button.setTextColor(Color.WHITE);
-    button.setAllCaps(false);
-    button.setBackground(round(Color.rgb(105, 75, 220), 14));
-
-    LinearLayout.LayoutParams params = matchWrap();
-    params.setMargins(0, 5, 0, 9);
-    container.addView(button, params);
-
-    button.setOnClickListener(listener);
-}
-
-private void addText(String text, int size, int color, boolean bold) {
-    TextView view = new TextView(this);
-    view.setText(text);
-    view.setTextSize(size);
-    view.setTextColor(color);
-
-    if (bold) {
-        view.setTypeface(null, Typeface.BOLD);
     }
 
-    LinearLayout.LayoutParams params = matchWrap();
-    params.setMargins(0, 0, 0, 8);
-    container.addView(view, params);
-}
+    private void createOrder(String service, int price) {
+        LinearLayout form = new LinearLayout(this);
+        form.setOrientation(LinearLayout.VERTICAL);
+        form.setPadding(10, 10, 10, 10);
 
-private void addSpace(int height) {
-    View space = new View(this);
-    container.addView(space,
-            new LinearLayout.LayoutParams(1, height));
-}
+        EditText name = new EditText(this);
+        name.setHint("Твой ник в TikTok");
+        form.addView(name);
 
-private GradientDrawable round(int color, int radius) {
-    GradientDrawable drawable = new GradientDrawable();
-    drawable.setColor(color);
-    drawable.setCornerRadius(radius);
-    return drawable;
-}
+        EditText details = new EditText(this);
+        details.setHint("Опиши заказ");
+        details.setMinLines(2);
+        details.setGravity(Gravity.TOP);
+        form.addView(details);
 
-private LinearLayout.LayoutParams matchWrap() {
-    return new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT);
-}
+        new AlertDialog.Builder(this)
+                .setTitle(service + " — " + price + " ₽")
+                .setMessage("Заполни данные для заказа")
+                .setView(form)
+                .setNegativeButton("Отмена", null)
+                .setPositiveButton("Создать заказ",
+                        (dialog, which) -> {
 
-private void openOrder(String message) {
-try {
-Intent intent = new Intent(
-Intent.ACTION_VIEW,
-Uri.parse("https://t.me/share/url?url=&text="
-+ Uri.encode(message))
-);
-startActivity(intent);
-} catch (Exception e) {
-showMessage("Не удалось открыть отправку заказа");
-}
-}
+            String client = name.getText().toString().trim();
+            String description =
+                    details.getText().toString().trim();
 
-private void showMessage(String message) {
-Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
-}
-}
+            if (client.isEmpty()) {
+                client = "Не указан";
+            }
+
+            if (description.isEmpty()) {
+                description = "Без описания";
+            }
+
+            saveOrder(service, price, client, description);
+
+            String message =
+                    "Здравствуйте! Хочу заказать: " + service
+                    + "\nЦена: " + price + " ₽"
+                    + "\nМой TikTok: " + client
+                    + "\nОписание: " + description;
+
+            showMessage("Заказ сохранён!");
+
+            new AlertDialog.Builder(this)
+                    .setTitle("Заказ создан")
+                    .setMessage("Заказ сохранён в истории. "
+                            + "Можно отправить его через Telegram.")
+                    .setNegativeButton("Позже", null)
+                    .setPositiveButton("Отправить",
+                            (d, w) -> openOrder(message))
+                    .show();
+        })
+        .show();
+    }
+
+    private void openOrder(String message) {
+        try {
+            Intent intent = new Intent(
+                    Intent.ACTION_VIEW,
+                    Uri.parse("https://t.me/share/url?url=&text="
+                            +
