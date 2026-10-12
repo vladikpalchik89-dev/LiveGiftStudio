@@ -1,4 +1,4 @@
-тоpackage com.livegiftstudio;
+package com.livegiftstudio;
 
 import android.app.Activity;
 import android.os.Bundle;
