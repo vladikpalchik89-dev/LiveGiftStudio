@@ -1,3 +1,4 @@
+
 package com.livegiftstudio;
 
 import android.app.Activity;
@@ -5,7 +6,10 @@ import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
+import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
@@ -27,7 +31,7 @@ import java.util.concurrent.Executors;
 
 public class MainActivity extends Activity {
 
-        private static final String DONATE_URL =
+    private static final String DONATE_URL =
             "https://www.donationalerts.com/r/vladdonat99";
 
     private static final String SERVER_URL =
@@ -43,19 +47,17 @@ public class MainActivity extends Activity {
     private LinearLayout container;
     private TextView statsText;
 
-    private int gifts = 0;
-    private int donations = 0;
-    private int donationIncome = 0;
-    private int orders = 0;
+    private int gifts;
+    private int donations;
+    private int donationIncome;
+    private int orders;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
         prefs = getSharedPreferences(
-                "LiveGiftStudio",
-                MODE_PRIVATE
-        );
+                "LiveGiftStudio", MODE_PRIVATE);
 
         loadStats();
         buildInterface();
@@ -81,12 +83,15 @@ public class MainActivity extends Activity {
         container.addView(title);
 
         TextView subtitle = new TextView(this);
-        subtitle.setText("Заказывай услуги для TikTok LIVE");
+        subtitle.setText("Инструменты для TikTok LIVE");
         subtitle.setTextSize(16);
         subtitle.setTextColor(Color.LTGRAY);
         subtitle.setGravity(Gravity.CENTER);
         subtitle.setPadding(0, 0, 0, 20);
         container.addView(subtitle);
+
+        addButton("🎬 Тест анимации поверх экрана",
+                v -> startOverlay());
 
         addButton("💰 Открыть донаты",
                 v -> openLink(DONATE_URL));
@@ -127,10 +132,40 @@ public class MainActivity extends Activity {
         updateStats();
     }
 
+    private void startOverlay() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                && !Settings.canDrawOverlays(this)) {
+
+            new AlertDialog.Builder(this)
+                    .setTitle("Разрешение на анимацию")
+                    .setMessage("Разреши LiveGiftStudio показывать "
+                            + "анимацию поверх других приложений. "
+                            + "Затем вернись и нажми кнопку ещё раз.")
+                    .setNegativeButton("Отмена", null)
+                    .setPositiveButton("Настройки", (dialog, which) -> {
+                        Intent intent = new Intent(
+                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                Uri.parse("package:" + getPackageName()));
+                        startActivity(intent);
+                    })
+                    .show();
+            return;
+        }
+
+        try {
+            Intent intent = new Intent(this, OverlayService.class);
+            intent.putExtra("overlay_text", "🎁 ТЕСТ АНИМАЦИИ!");
+            startService(intent);
+            message("Команда анимации отправлена");
+        } catch (Exception e) {
+            message("Не удалось запустить анимацию");
+        }
+    }
+
     private void addButton(
             String text,
-            View.OnClickListener listener
-    ) {
+            View.OnClickListener listener) {
+
         Button button = new Button(this);
         button.setText(text);
         button.setTextSize(15);
@@ -139,11 +174,9 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams params =
                 new LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                );
+                        LinearLayout.LayoutParams.WRAP_CONTENT);
 
         params.setMargins(0, 6, 0, 6);
-
         container.addView(button, params);
         button.setOnClickListener(listener);
     }
@@ -177,11 +210,9 @@ public class MainActivity extends Activity {
                 new AlertDialog.Builder(this);
 
         builder.setTitle("Заказ: " + service);
-        builder.setMessage(
-                amount == 0
-                        ? "Опиши, какую услугу хочешь заказать"
-                        : "Стоимость: " + amount + " ₽"
-        );
+        builder.setMessage(amount == 0
+                ? "Опиши, какую услугу хочешь заказать"
+                : "Стоимость: " + amount + " ₽");
 
         builder.setView(form);
         builder.setNegativeButton("Отмена", null);
@@ -212,8 +243,7 @@ public class MainActivity extends Activity {
                         try {
                             price = Integer.parseInt(
                                     finalPriceInput.getText()
-                                            .toString().trim()
-                            );
+                                            .toString().trim());
                         } catch (Exception e) {
                             message("Укажи корректную цену");
                             return;
@@ -228,22 +258,12 @@ public class MainActivity extends Activity {
                     saveOrder(service, price, name, details);
 
                     sendOrderToTelegram(
-                            service,
-                            price,
-                            name,
-                            details
-                    );
+                            service, price, name, details);
 
                     openTelegram(
                             makeOrderText(
-                                    service,
-                                    price,
-                                    name,
-                                    details
-                            )
-                    );
-                }
-        );
+                                    service, price, name, details));
+                });
 
         builder.show();
     }
@@ -252,8 +272,8 @@ public class MainActivity extends Activity {
             String service,
             int price,
             String client,
-            String description
-    ) {
+            String description) {
+
         return "Новый заказ LiveGiftStudio\n\n"
                 + "Услуга: " + service + "\n"
                 + "Цена: " + price + " ₽\n"
@@ -265,34 +285,29 @@ public class MainActivity extends Activity {
             String service,
             int price,
             String client,
-            String description
-    ) {
+            String description) {
+
         executor.execute(() -> {
             HttpURLConnection connection = null;
 
             try {
                 JSONObject data = new JSONObject();
-
                 data.put("key", APP_KEY);
                 data.put("service", service);
                 data.put("price", price);
                 data.put("client", client);
                 data.put("description", description);
 
-                URL url = new URL(SERVER_URL);
-
-                connection =
-                        (HttpURLConnection) url.openConnection();
+                connection = (HttpURLConnection)
+                        new URL(SERVER_URL).openConnection();
 
                 connection.setRequestMethod("POST");
                 connection.setDoOutput(true);
                 connection.setConnectTimeout(15000);
                 connection.setReadTimeout(20000);
-
                 connection.setRequestProperty(
                         "Content-Type",
-                        "application/json; charset=UTF-8"
-                );
+                        "application/json; charset=UTF-8");
 
                 byte[] bytes = data.toString()
                         .getBytes(StandardCharsets.UTF_8);
@@ -302,26 +317,20 @@ public class MainActivity extends Activity {
                     output.write(bytes);
                 }
 
-                int responseCode =
-                        connection.getResponseCode();
+                int responseCode = connection.getResponseCode();
 
                 runOnUiThread(() -> {
                     if (responseCode == 200
                             || responseCode == 302) {
                         message("Запрос отправлен серверу");
                     } else {
-                        message("Ошибка отправки: "
-                                + responseCode);
+                        message("Ошибка отправки: " + responseCode);
                     }
                 });
 
             } catch (Exception e) {
                 runOnUiThread(() ->
-                        message(
-                                "Не удалось отправить заказ на сервер"
-                        )
-                );
-
+                        message("Не удалось отправить заказ на сервер"));
             } finally {
                 if (connection != null) {
                     connection.disconnect();
@@ -332,29 +341,20 @@ public class MainActivity extends Activity {
 
     private void openTelegram(String text) {
         try {
-            Intent intent =
-                    new Intent(Intent.ACTION_SEND);
-
+            Intent intent = new Intent(Intent.ACTION_SEND);
             intent.setType("text/plain");
             intent.setPackage("org.telegram.messenger");
             intent.putExtra(Intent.EXTRA_TEXT, text);
-
             startActivity(intent);
 
         } catch (Exception e) {
             try {
-                Intent intent =
-                        new Intent(Intent.ACTION_SEND);
-
+                Intent intent = new Intent(Intent.ACTION_SEND);
                 intent.setType("text/plain");
                 intent.putExtra(Intent.EXTRA_TEXT, text);
 
-                startActivity(
-                        Intent.createChooser(
-                                intent,
-                                "Отправить заказ"
-                        )
-                );
+                startActivity(Intent.createChooser(
+                        intent, "Отправить заказ"));
 
             } catch (Exception ex) {
                 message("Не удалось открыть отправку сообщения");
@@ -366,34 +366,27 @@ public class MainActivity extends Activity {
             String service,
             int price,
             String name,
-            String details
-    ) {
+            String details) {
+
         try {
             JSONArray array = new JSONArray(
-                    prefs.getString("order_history", "[]")
-            );
+                    prefs.getString("order_history", "[]"));
 
             JSONObject order = new JSONObject();
-
             order.put("service", service);
             order.put("price", price);
             order.put("name", name);
             order.put("details", details);
             order.put("time", System.currentTimeMillis());
-
             array.put(order);
 
             prefs.edit()
-                    .putString(
-                            "order_history",
-                            array.toString()
-                    )
+                    .putString("order_history", array.toString())
                     .apply();
 
             orders++;
             saveStats();
             updateStats();
-
             message("Заказ сохранён");
 
         } catch (Exception e) {
@@ -404,8 +397,7 @@ public class MainActivity extends Activity {
     private void showHistory() {
         try {
             JSONArray array = new JSONArray(
-                    prefs.getString("order_history", "[]")
-            );
+                    prefs.getString("order_history", "[]"));
 
             if (array.length() == 0) {
                 message("Заказов пока нет");
@@ -417,22 +409,13 @@ public class MainActivity extends Activity {
             for (int i = array.length() - 1; i >= 0; i--) {
                 JSONObject order = array.getJSONObject(i);
 
-                text.append("Заказ №")
-                        .append(i + 1)
-                        .append("\n");
-
+                text.append("Заказ №").append(i + 1).append("\n");
                 text.append("Услуга: ")
-                        .append(order.optString("service"))
-                        .append("\n");
-
+                        .append(order.optString("service")).append("\n");
                 text.append("Цена: ")
-                        .append(order.optInt("price"))
-                        .append(" ₽\n");
-
+                        .append(order.optInt("price")).append(" ₽\n");
                 text.append("Клиент: ")
-                        .append(order.optString("name"))
-                        .append("\n");
-
+                        .append(order.optString("name")).append("\n");
                 text.append("Описание: ")
                         .append(order.optString("details"))
                         .append("\n\n");
@@ -455,11 +438,9 @@ public class MainActivity extends Activity {
         input.setInputType(2);
 
         new AlertDialog.Builder(this)
-                .setTitle(
-                        type.equals("gift")
-                                ? "Записать подарок"
-                                : "Записать донат"
-                )
+                .setTitle(type.equals("gift")
+                        ? "Записать подарок"
+                        : "Записать донат")
                 .setView(input)
                 .setNegativeButton("Отмена", null)
                 .setPositiveButton("Сохранить", (dialog, which) -> {
@@ -476,9 +457,7 @@ public class MainActivity extends Activity {
                         int amount = Integer.parseInt(value);
 
                         if (amount < 0) {
-                            message(
-                                    "Сумма не может быть отрицательной"
-                            );
+                            message("Сумма не может быть отрицательной");
                             return;
                         }
 
@@ -491,7 +470,6 @@ public class MainActivity extends Activity {
 
                         saveStats();
                         updateStats();
-
                         message("Статистика обновлена");
 
                     } catch (Exception e) {
@@ -509,10 +487,8 @@ public class MainActivity extends Activity {
                 .setMessage(
                         "Подарков записано: " + gifts + "\n"
                         + "Донатов записано: " + donations + "\n"
-                        + "Сумма донатов: " + donationIncome
-                        + " ₽\n"
-                        + "Заказов: " + orders
-                )
+                        + "Сумма донатов: " + donationIncome + " ₽\n"
+                        + "Заказов: " + orders)
                 .setPositiveButton("Закрыть", null)
                 .show();
     }
@@ -525,8 +501,7 @@ public class MainActivity extends Activity {
                     + "💰 Донаты: " + donations + "\n"
                     + "💵 Сумма донатов: "
                     + donationIncome + " ₽\n"
-                    + "📋 Заказы: " + orders
-            );
+                    + "📋 Заказы: " + orders);
         }
     }
 
@@ -549,10 +524,8 @@ public class MainActivity extends Activity {
     private void resetStats() {
         new AlertDialog.Builder(this)
                 .setTitle("Сбросить статистику?")
-                .setMessage(
-                        "Показатели подарков, донатов и заказов "
-                        + "будут обнулены. История заказов останется."
-                )
+                .setMessage("Показатели будут обнулены. "
+                        + "История заказов останется.")
                 .setNegativeButton("Отмена", null)
                 .setPositiveButton("Сбросить", (dialog, which) -> {
 
@@ -563,7 +536,6 @@ public class MainActivity extends Activity {
 
                     saveStats();
                     updateStats();
-
                     message("Статистика сброшена");
                 })
                 .show();
@@ -572,23 +544,15 @@ public class MainActivity extends Activity {
     private void openLink(String link) {
         try {
             Intent intent = new Intent(
-                    Intent.ACTION_VIEW,
-                    android.net.Uri.parse(link)
-            );
-
+                    Intent.ACTION_VIEW, Uri.parse(link));
             startActivity(intent);
-
         } catch (Exception e) {
             message("Не удалось открыть ссылку");
         }
     }
 
     private void message(String text) {
-        Toast.makeText(
-                this,
-                text,
-                Toast.LENGTH_LONG
-        ).show();
+        Toast.makeText(this, text, Toast.LENGTH_LONG).show();
     }
 
     @Override
@@ -596,4 +560,5 @@ public class MainActivity extends Activity {
         super.onDestroy();
         executor.shutdown();
     }
-    }
+                            }
+                            
