@@ -111,7 +111,8 @@ public class OverlayService extends Service {
                 @Override
                 public void onOpen(
                         WebSocket socket, Response response) {
-                    android.util.Log.d(TAG, "WebSocket connected");
+                    android.util.Log.d(
+                            TAG, "WebSocket connected");
                 }
 
                 @Override
@@ -164,7 +165,8 @@ public class OverlayService extends Service {
                         Throwable error,
                         Response response) {
                     android.util.Log.e(
-                            TAG, "WebSocket connection failed", error);
+                            TAG, "WebSocket connection failed",
+                            error);
                 }
 
                 @Override
@@ -172,7 +174,8 @@ public class OverlayService extends Service {
                         WebSocket socket,
                         int code,
                         String reason) {
-                    android.util.Log.d(TAG, "WebSocket closed");
+                    android.util.Log.d(
+                            TAG, "WebSocket closed");
                 }
             });
 
@@ -917,6 +920,36 @@ public class OverlayService extends Service {
                     animation.addAnimation(musicShake);
                     break;
 
+                // Новые анимации для остальных подарков
+                case "tiktok":
+                case "perfume":
+                case "castle":
+                case "football":
+                case "basketball":
+                case "birthday":
+                case "house":
+                case "ring":
+                case "watch":
+                case "money":
+                case "champagne":
+                case "cap":
+                case "sunglasses":
+                    scale = new ScaleAnimation(
+                            0.0f, 1.0f, 0.0f, 1.0f,
+                            Animation.RELATIVE_TO_SELF, 0.5f,
+                            Animation.RELATIVE_TO_SELF, 0.5f);
+                    scale.setDuration(700);
+                    scale.setInterpolator(new OvershootInterpolator());
+                    animation.addAnimation(scale);
+
+                    RotateAnimation specialTurn = new RotateAnimation(
+                            -15f, 0f,
+                            Animation.RELATIVE_TO_SELF, 0.5f,
+                            Animation.RELATIVE_TO_SELF, 0.5f);
+                    specialTurn.setDuration(600);
+                    animation.addAnimation(specialTurn);
+                    break;
+
                 default:
                     scale = new ScaleAnimation(
                             0.25f, 1.0f, 0.25f, 1.0f,
@@ -939,7 +972,8 @@ public class OverlayService extends Service {
             handler.postDelayed(removeTask, 4000);
 
         } catch (Exception e) {
-            android.util.Log.e(TAG, "Cannot display overlay", e);
+            android.util.Log.e(
+                    TAG, "Cannot display overlay", e);
             removeOverlay();
         }
     }
