@@ -13,6 +13,7 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.provider.Settings;
 import android.view.Gravity;
 import android.view.WindowManager;
 import android.view.animation.AlphaAnimation;
@@ -20,7 +21,6 @@ import android.view.animation.Animation;
 import android.view.animation.AnimationSet;
 import android.view.animation.OvershootInterpolator;
 import android.view.animation.ScaleAnimation;
-import android.view.animation.TranslateAnimation;
 import android.widget.TextView;
 
 import org.json.JSONObject;
@@ -35,16 +35,36 @@ import okhttp3.WebSocketListener;
 
 public class OverlayService extends Service {
 
+    private static final String TAG = "LiveGiftStudio";
+    private static final String SOCKET_URL =
+            "wss://livegiftstudio.onrender.com/events";
+
+    private final Handler handler =
+            new Handler(Looper.getMainLooper());
+
     private WindowManager windowManager;
     private TextView overlay;
-    private final Handler handler = new Handler(Looper.getMainLooper());
+    private SharedPreferences prefs;
 
     private OkHttpClient client;
     private WebSocket webSocket;
-    private Runnable removeTask;
     private MediaPlayer currentPlayer;
 
-    private SharedPreferences prefs;
+    private Runnable removeTask;
+    private boolean destroyed = false;
+
+    @Override
+    public void onCreate() {
+        super.onCreate();
+
+        prefs = getSharedPreferences(
+                "LiveGiftStudio", MODE_PRIVATE);
+
+        windowManager = (WindowManager)
+                getSystemService(WINDOW_SERVICE);
+
+        connectToServer();
+    }
 
     @Override
     public IBinder onBind(Intent intent) {
@@ -52,88 +72,128 @@ public class OverlayService extends Service {
     }
 
     @Override
-    public void onCreate() {
-        super.onCreate();
+    public int onStartCommand(
+            Intent intent, int flags, int startId) {
 
-        prefs = getSharedPreferences("LiveGiftStudio", MODE_PRIVATE);
-        connectToServer();
-    }
-
-    private void connectToServer() {
-        client = new OkHttpClient();
-
-        Request request = new Request.Builder()
-                .url("wss://livegiftstudio.onrender.com/events")
-                .build();
-
-        webSocket = client.newWebSocket(request, new WebSocketListener() {
-
-            @Override
-            public void onOpen(WebSocket socket, Response response) {
-                android.util.Log.d(
-                        "LiveGiftStudio", "Server connected");
-            }
-
-            @Override
-            public void onMessage(WebSocket socket, String text) {
-                try {
-                    JSONObject event = new JSONObject(text);
-
-                    if (!"gift".equals(event.optString("type"))) {
-                        return;
-                    }
-
-                    String gift = event.optString(
-                            "giftName", "Подарок");
-                    String username = event.optString(
-                            "username", "Зритель");
-                    int count = event.optInt("repeatCount", 1);
-
-                    String message = "🎁 " + gift + " × " + count
-                            + "\n@" + username;
-
-                    handler.post(() -> showGift(message, gift));
-
-                } catch (Exception e) {
-                    android.util.Log.e(
-                            "LiveGiftStudio", "Event error", e);
-                }
-            }
-
-            @Override
-            public void onFailure(
-                    WebSocket socket, Throwable error, Response response) {
-                android.util.Log.e(
-                        "LiveGiftStudio", "Connection failed", error);
-            }
-        });
-    }
-
-    @Override
-    public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent != null) {
             String text = intent.getStringExtra("overlay_text");
 
             if (text != null && !text.trim().isEmpty()) {
-                showGift(text, "Тест");
+                handler.post(() -> {
+                    showGift(text, "rose");
+                    playGiftSound("rose");
+                });
             }
         }
 
         return START_STICKY;
     }
 
-    // Определяем ключ подарка для поиска назначенного звука.
+    private void connectToServer() {
+        if (destroyed) {
+            return;
+        }
+
+        try {
+            client = new OkHttpClient.Builder()
+                    .retryOnConnectionFailure(true)
+                    .build();
+
+            Request request = new Request.Builder()
+                    .url(SOCKET_URL)
+                    .build();
+
+            webSocket = client.newWebSocket(
+                    request, new WebSocketListener() {
+
+                @Override
+                public void onOpen(
+                        WebSocket socket, Response response) {
+
+                    android.util.Log.d(TAG, "WebSocket connected");
+                }
+
+                @Override
+                public void onMessage(
+                        WebSocket socket, String text) {
+
+                    try {
+                        JSONObject event = new JSONObject(text);
+
+                        if (!"gift".equals(
+                                event.optString("type"))) {
+                            return;
+                        }
+
+                        String gift = event.optString(
+                                "giftName", "Подарок");
+
+                        String username = event.optString(
+                                "username", "Зритель");
+
+                        int count = event.optInt(
+                                "repeatCount", 1);
+
+                        if (count < 1) {
+                            count = 1;
+                        }
+
+                        final String message =
+                                "🎁 " + gift + " × " + count
+                                + "\n@" + username;
+
+                        final String giftName = gift;
+
+                        handler.post(() -> {
+                            if (!destroyed) {
+                                showGift(message, giftName);
+                                playGiftSound(giftName);
+                            }
+                        });
+
+                    } catch (Exception e) {
+                        android.util.Log.e(
+                                TAG, "Invalid gift event", e);
+                    }
+                }
+
+                @Override
+                public void onFailure(
+                        WebSocket socket,
+                        Throwable error,
+                        Response response) {
+
+                    android.util.Log.e(
+                            TAG, "WebSocket connection failed", error);
+                }
+
+                @Override
+                public void onClosed(
+                        WebSocket socket,
+                        int code,
+                        String reason) {
+
+                    android.util.Log.d(TAG, "WebSocket closed");
+                }
+            });
+
+        } catch (Exception e) {
+            android.util.Log.e(
+                    TAG, "Cannot connect to server", e);
+        }
+    }
+
     private String getGiftKey(String gift) {
         String name = gift.toLowerCase(Locale.ROOT);
-
-        if (name.contains("rose") || name.contains("роза")) {
-            return "rose";
-        }
 
         if (name.contains("finger heart")
                 || name.contains("finger_heart")
                 || name.contains("сердечко пальцами")) {
             return "finger_heart";
+        }
+
+        if (name.contains("rose") || name.contains("роза")) {
+            return "rose";
         }
 
         if (name.contains("heart") || name.contains("сердц")) {
@@ -148,7 +208,8 @@ public class OverlayService extends Service {
             return "coffee";
         }
 
-        if (name.contains("ice cream") || name.contains("ice_cream")
+        if (name.contains("ice cream")
+                || name.contains("ice_cream")
                 || name.contains("морожен")) {
             return "ice_cream";
         }
@@ -157,38 +218,14 @@ public class OverlayService extends Service {
             return "perfume";
         }
 
-        if (name.contains("love you") || name.contains("love_you")
+        if (name.contains("love you")
+                || name.contains("love_you")
                 || name.contains("люблю тебя")) {
             return "love_you";
         }
 
-        if (name.equals("gg") || name.contains(" gg")) {
-            return "gg";
-        }
-
-        if (name.contains("donut") || name.contains("пончик")) {
-            return "donut";
-        }
-
-        if (name.contains("sunglasses")
-                || name.contains("солнцезащитные очки")) {
-            return "sunglasses";
-        }
-
-        if (name.contains("paper crane") || name.contains("paper_crane")
-                || name.contains("журавлик")) {
-            return "paper_crane";
-        }
-
-        if (name.contains("swan") || name.contains("лебедь")) {
-            return "swan";
-        }
-
-        if (name.contains("concert") || name.contains("концерт")) {
-            return "concert";
-        }
-
-        if (name.contains("firework") || name.contains("фейерверк")) {
+        if (name.contains("firework")
+                || name.contains("фейерверк")) {
             return "fireworks";
         }
 
@@ -200,13 +237,13 @@ public class OverlayService extends Service {
             return "universe";
         }
 
-        if (name.contains("lion") || name.contains("лев")) {
+        if (name.contains("lion") || name.equals("лев")) {
             return "lion";
         }
 
-        if (name.contains("diamond") || name.contains("алмаз")
-                || name.contains("бриллиант")
-                || name.contains("драгоц")) {
+        if (name.contains("diamond")
+                || name.contains("алмаз")
+                || name.contains("бриллиант")) {
             return "diamond";
         }
 
@@ -226,8 +263,8 @@ public class OverlayService extends Service {
             return "castle";
         }
 
-        if (name.contains("sports car") || name.contains("sports_car")
-                || name.contains("спортивная машина")) {
+        if (name.contains("sports car")
+                || name.contains("sports_car")) {
             return "sports_car";
         }
 
@@ -235,8 +272,8 @@ public class OverlayService extends Service {
             return "yacht";
         }
 
-        if (name.contains("dragon flame") || name.contains("dragon_flame")
-                || name.contains("пламя дракона")) {
+        if (name.contains("dragon flame")
+                || name.contains("dragon_flame")) {
             return "dragon_flame";
         }
 
@@ -252,7 +289,7 @@ public class OverlayService extends Service {
             return "planet";
         }
 
-        if (name.contains("star") || name.contains("звезда")) {
+        if (name.contains("star") || name.equals("звезда")) {
             return "star";
         }
 
@@ -260,23 +297,23 @@ public class OverlayService extends Service {
             return "lightning";
         }
 
-        if (name.contains("football") || name.contains("футбольный мяч")) {
+        if (name.contains("football")) {
             return "football";
         }
 
-        if (name.contains("basketball") || name.contains("баскетбольный мяч")) {
+        if (name.contains("basketball")) {
             return "basketball";
         }
 
-        if (name.contains("cake") || name.contains("торт")) {
+        if (name.contains("cake") || name.equals("торт")) {
             return "cake";
         }
 
-        if (name.contains("birthday") || name.contains("праздник")) {
+        if (name.contains("birthday")) {
             return "birthday";
         }
 
-        if (name.contains("balloon") || name.contains("воздушный шар")) {
+        if (name.contains("balloon")) {
             return "balloon";
         }
 
@@ -284,12 +321,13 @@ public class OverlayService extends Service {
             return "bouquet";
         }
 
-        if (name.contains("teddy bear") || name.contains("teddy_bear")
-                || name.contains("плюшевый мишка")) {
+        if (name.contains("teddy bear")
+                || name.contains("teddy_bear")) {
             return "teddy_bear";
         }
 
-        if (name.contains("microphone") || name.contains("микрофон")) {
+        if (name.contains("microphone")
+                || name.contains("микрофон")) {
             return "microphone";
         }
 
@@ -301,7 +339,7 @@ public class OverlayService extends Service {
             return "drum";
         }
 
-        if (name.contains("motorcycle") || name.contains("мотоцикл")) {
+        if (name.contains("motorcycle")) {
             return "motorcycle";
         }
 
@@ -309,12 +347,13 @@ public class OverlayService extends Service {
             return "train";
         }
 
-        if (name.contains("airplane") || name.contains("самолёт")
+        if (name.contains("airplane")
+                || name.contains("самолёт")
                 || name.contains("самолет")) {
             return "airplane";
         }
 
-        if (name.contains("house") || name.contains("дом")) {
+        if (name.contains("house") || name.equals("дом")) {
             return "house";
         }
 
@@ -330,31 +369,31 @@ public class OverlayService extends Service {
             return "money";
         }
 
-        if (name.contains("gold") || name.contains("золотая монета")) {
+        if (name.contains("gold")) {
             return "gold";
         }
 
-        if (name.equals("fire") || name.contains("огонь")) {
+        if (name.equals("fire") || name.equals("огонь")) {
             return "fire";
         }
 
-        if (name.contains("rainbow") || name.contains("радуга")) {
+        if (name.contains("rainbow")) {
             return "rainbow";
         }
 
-        if (name.contains("butterfly") || name.contains("бабочка")) {
+        if (name.contains("butterfly")) {
             return "butterfly";
         }
 
-        if (name.contains("flower") || name.contains("цветок")) {
+        if (name.contains("flower") || name.equals("цветок")) {
             return "flower";
         }
 
-        if (name.contains("cat") || name.equals("кот")) {
+        if (name.equals("cat") || name.equals("кот")) {
             return "cat";
         }
 
-        if (name.contains("dog") || name.equals("собака")) {
+        if (name.equals("dog") || name.equals("собака")) {
             return "dog";
         }
 
@@ -366,7 +405,7 @@ public class OverlayService extends Service {
             return "panda";
         }
 
-        if (name.contains("champagne") || name.contains("бокал")) {
+        if (name.contains("champagne")) {
             return "champagne";
         }
 
@@ -390,6 +429,28 @@ public class OverlayService extends Service {
             return "cap";
         }
 
+        if (name.contains("sunglasses")
+                || name.contains("очки")) {
+            return "sunglasses";
+        }
+
+        if (name.contains("donut") || name.contains("пончик")) {
+            return "donut";
+        }
+
+        if (name.contains("swan") || name.contains("лебедь")) {
+            return "swan";
+        }
+
+        if (name.contains("concert") || name.contains("концерт")) {
+            return "concert";
+        }
+
+        if (name.contains("paper crane")
+                || name.contains("paper_crane")) {
+            return "paper_crane";
+        }
+
         return "default";
     }
 
@@ -403,8 +464,7 @@ public class OverlayService extends Service {
             };
         }
 
-        if (name.contains("heart") || name.contains("сердц")
-                || name.contains("finger")) {
+        if (name.contains("heart") || name.contains("сердц")) {
             return new int[]{
                     Color.rgb(255, 70, 190),
                     Color.rgb(100, 0, 180)
@@ -412,27 +472,18 @@ public class OverlayService extends Service {
         }
 
         if (name.contains("galaxy") || name.contains("universe")
-                || name.contains("вселен") || name.contains("галак")) {
+                || name.contains("галак") || name.contains("вселен")) {
             return new int[]{
                     Color.rgb(40, 30, 160),
                     Color.rgb(160, 40, 255)
             };
         }
 
-        if (name.contains("lion") || name.contains("unicorn")
-                || name.contains("лев") || name.contains("тигр")) {
+        if (name.contains("lion") || name.contains("diamond")
+                || name.contains("алмаз") || name.contains("лев")) {
             return new int[]{
                     Color.rgb(255, 190, 30),
                     Color.rgb(190, 55, 0)
-            };
-        }
-
-        if (name.contains("diamond") || name.contains("алмаз")
-                || name.contains("бриллиант")
-                || name.contains("драгоц")) {
-            return new int[]{
-                    Color.rgb(0, 220, 255),
-                    Color.rgb(20, 60, 210)
             };
         }
 
@@ -463,13 +514,12 @@ public class OverlayService extends Service {
             return R.raw.gift_rose;
         }
 
-        if (name.contains("heart") || name.contains("сердц")
-                || name.contains("finger")) {
+        if (name.contains("heart") || name.contains("сердц")) {
             return R.raw.gift_heart;
         }
 
         if (name.contains("galaxy") || name.contains("universe")
-                || name.contains("вселен") || name.contains("галак")) {
+                || name.contains("галак") || name.contains("вселен")) {
             return R.raw.gift_galaxy;
         }
 
@@ -478,9 +528,7 @@ public class OverlayService extends Service {
             return R.raw.gift_lion;
         }
 
-        if (name.contains("diamond") || name.contains("алмаз")
-                || name.contains("бриллиант")
-                || name.contains("драгоц")) {
+        if (name.contains("diamond") || name.contains("алмаз")) {
             return R.raw.gift_diamond;
         }
 
@@ -498,49 +546,44 @@ public class OverlayService extends Service {
     private void playGiftSound(String gift) {
         stopCurrentSound();
 
-        try {
-            String key = getGiftKey(gift);
-            String savedUri = prefs.getString("gift_sound_" + key, null);
+        String key = getGiftKey(gift);
+        String savedUri = prefs.getString("gift_sound_" + key, null);
 
-            if (savedUri != null && !savedUri.trim().isEmpty()) {
-                playCustomSound(savedUri);
-            } else {
-                playBuiltInSound(gift);
-            }
-
-        } catch (Exception e) {
-            android.util.Log.e(
-                    "LiveGiftStudio", "Sound error", e);
-            stopCurrentSound();
+        if (savedUri != null && !savedUri.trim().isEmpty()) {
+            playCustomSound(savedUri, gift);
+        } else {
+            playBuiltInSound(gift);
         }
     }
 
-    private void playCustomSound(String savedUri) {
+    private void playCustomSound(String savedUri, String gift) {
         MediaPlayer player = new MediaPlayer();
         currentPlayer = player;
 
-        player.setOnPreparedListener(mediaPlayer -> {
-            if (currentPlayer == mediaPlayer) {
-                mediaPlayer.start();
+        player.setOnPreparedListener(mp -> {
+            if (currentPlayer == mp && !destroyed) {
+                mp.start();
             }
         });
 
-        player.setOnCompletionListener(mediaPlayer -> {
-            if (currentPlayer == mediaPlayer) {
+        player.setOnCompletionListener(mp -> {
+            if (currentPlayer == mp) {
                 currentPlayer = null;
             }
-            mediaPlayer.release();
+            mp.release();
         });
 
-        player.setOnErrorListener((mediaPlayer, what, extra) -> {
-            android.util.Log.e(
-                    "LiveGiftStudio", "Custom audio playback error");
-
-            if (currentPlayer == mediaPlayer) {
+        player.setOnErrorListener((mp, what, extra) -> {
+            if (currentPlayer == mp) {
                 currentPlayer = null;
             }
 
-            mediaPlayer.release();
+            mp.release();
+
+            if (!destroyed) {
+                playBuiltInSound(gift);
+            }
+
             return true;
         });
 
@@ -557,73 +600,68 @@ public class OverlayService extends Service {
             } catch (Exception ignored) {
             }
 
-            android.util.Log.e(
-                    "LiveGiftStudio", "Cannot open custom audio", e);
+            android.util.Log.e(TAG, "Custom audio error", e);
 
-            // Если пользовательский файл недоступен,
-            // проигрываем стандартный звук.
-            playBuiltInSound("unknown");
+            if (!destroyed) {
+                playBuiltInSound(gift);
+            }
         }
     }
 
     private void playBuiltInSound(String gift) {
         try {
-            int soundResource = getSoundResource(gift);
-            currentPlayer = MediaPlayer.create(this, soundResource);
+            currentPlayer = MediaPlayer.create(
+                    this, getSoundResource(gift));
 
             if (currentPlayer == null) {
-                android.util.Log.e(
-                        "LiveGiftStudio", "Cannot load gift sound");
                 return;
             }
 
-            currentPlayer.setOnCompletionListener(player -> {
-                if (currentPlayer == player) {
+            MediaPlayer player = currentPlayer;
+
+            player.setOnCompletionListener(mp -> {
+                if (currentPlayer == mp) {
                     currentPlayer = null;
                 }
-                player.release();
+                mp.release();
             });
 
-            currentPlayer.setOnErrorListener((player, what, extra) -> {
-                if (currentPlayer == player) {
+            player.setOnErrorListener((mp, what, extra) -> {
+                if (currentPlayer == mp) {
                     currentPlayer = null;
                 }
-                player.release();
+                mp.release();
                 return true;
             });
 
-            currentPlayer.start();
+            player.start();
 
         } catch (Exception e) {
-            android.util.Log.e(
-                    "LiveGiftStudio", "Built-in sound error", e);
+            android.util.Log.e(TAG, "Built-in audio error", e);
             stopCurrentSound();
         }
     }
 
     private void stopCurrentSound() {
-        if (currentPlayer != null) {
-            MediaPlayer player = currentPlayer;
-            currentPlayer = null;
+        if (currentPlayer == null) {
+            return;
+        }
 
-            try {
-                if (player.isPlaying()) {
-                    player.stop();
-                }
-            } catch (Exception ignored) {
-            }
+        MediaPlayer player = currentPlayer;
+        currentPlayer = null;
 
-            try {
-                player.release();
-            } catch (Exception ignored) {
-            }
+        try {
+            player.setOnPreparedListener(null);
+            player.setOnCompletionListener(null);
+            player.setOnErrorListener(null);
+            player.release();
+        } catch (Exception ignored) {
         }
     }
 
     private void showGift(String message, String gift) {
-        if (windowManager == null) {
-            windowManager =
-                    (WindowManager) getSystemService(WINDOW_SERVICE);
+        if (destroyed || windowManager == null) {
+            return;
         }
 
         if (removeTask != null) {
@@ -644,13 +682,14 @@ public class OverlayService extends Service {
 
         GradientDrawable background = new GradientDrawable(
                 GradientDrawable.Orientation.TL_BR,
-                getColors(gift)
-        );
+                getColors(gift));
+
         background.setCornerRadius(32);
         background.setStroke(3, Color.WHITE);
         overlay.setBackground(background);
 
         int type;
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             type = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
         } else {
@@ -665,8 +704,7 @@ public class OverlayService extends Service {
                         WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                                 | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
                                 | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
-                        PixelFormat.TRANSLUCENT
-                );
+                        PixelFormat.TRANSLUCENT);
 
         params.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
         params.y = 160;
@@ -677,6 +715,73 @@ public class OverlayService extends Service {
             AnimationSet animation = new AnimationSet(false);
 
             ScaleAnimation scale = new ScaleAnimation(
-                    0.25f, 1.08f, 0.25f, 1.08f,
+                    0.25f, 1.0f, 0.25f, 1.0f,
                     Animation.RELATIVE_TO_SELF, 0.5f,
-                    Animation.RELATIVE_TO_SELF
+                    Animation.RELATIVE_TO_SELF, 0.5f);
+
+            scale.setDuration(500);
+            scale.setInterpolator(new OvershootInterpolator());
+
+            AlphaAnimation alpha = new AlphaAnimation(0.0f, 1.0f);
+            alpha.setDuration(450);
+
+            animation.addAnimation(scale);
+            animation.addAnimation(alpha);
+
+            overlay.startAnimation(animation);
+
+            removeTask = () -> {
+                removeOverlay();
+                removeTask = null;
+            };
+
+            handler.postDelayed(removeTask, 4000);
+
+        } catch (Exception e) {
+            android.util.Log.e(TAG, "Cannot display overlay", e);
+            removeOverlay();
+        }
+    }
+
+    private void removeOverlay() {
+        if (overlay != null) {
+            try {
+                overlay.clearAnimation();
+
+                if (windowManager != null) {
+                    windowManager.removeView(overlay);
+                }
+            } catch (Exception ignored) {
+            }
+
+            overlay = null;
+        }
+    }
+
+    @Override
+    public void onDestroy() {
+        destroyed = true;
+
+        if (removeTask != null) {
+            handler.removeCallbacks(removeTask);
+            removeTask = null;
+        }
+
+        removeOverlay();
+        stopCurrentSound();
+
+        if (webSocket != null) {
+            webSocket.close(1000, "Service stopped");
+            webSocket = null;
+        }
+
+        if (client != null) {
+            client.dispatcher().cancelAll();
+            client.dispatcher().executorService().shutdown();
+            client.connectionPool().evictAll();
+            client = null;
+        }
+
+        super.onDestroy();
+    }
+}
