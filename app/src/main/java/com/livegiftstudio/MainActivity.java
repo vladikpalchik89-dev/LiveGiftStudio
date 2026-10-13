@@ -11,6 +11,8 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.ArrayAdapter;
@@ -21,8 +23,6 @@ import android.widget.ListView;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
-import android.text.TextWatcher;
-import android.text.Editable;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -54,19 +54,16 @@ public class MainActivity extends Activity {
     private SharedPreferences prefs;
     private LinearLayout container;
     private TextView statsText;
+    private MediaPlayer previewPlayer;
+
+    private String selectedGiftKey;
+    private String selectedGiftName;
 
     private int gifts;
     private int donations;
     private int donationIncome;
     private int orders;
 
-    private String selectedGiftKey;
-    private String selectedGiftName;
-
-    private MediaPlayer previewPlayer;
-
-    // Предварительно добавленный каталог подарков.
-    // key используется для сохранения настроек звука.
     private final String[][] giftCatalog = {
             {"rose", "🌹 Роза"},
             {"heart", "❤️ Сердце"},
@@ -78,9 +75,9 @@ public class MainActivity extends Activity {
             {"love_you", "💗 Люблю тебя"},
             {"gg", "🎮 GG"},
             {"donut", "🍩 Пончик"},
-            {"sunglasses", "🕶️ Солнцезащитные очки"},
+            {"sunglasses", "🕶️ Очки"},
             {"cap", "🧢 Кепка"},
-            {"paper_crane", "🕊️ Бумажный журавлик"},
+            {"paper_crane", "🕊️ Журавлик"},
             {"swan", "🦢 Лебедь"},
             {"concert", "🎤 Концерт"},
             {"fireworks", "🎆 Фейерверк"},
@@ -101,12 +98,12 @@ public class MainActivity extends Activity {
             {"star", "⭐ Звезда"},
             {"lightning", "⚡ Молния"},
             {"football", "⚽ Футбольный мяч"},
-            {"basketball", "🏀 Баскетбольный мяч"},
+            {"basketball", "🏀 Баскетбол"},
             {"cake", "🎂 Торт"},
             {"birthday", "🎉 Праздник"},
-            {"balloon", "🎈 Воздушный шар"},
-            {"bouquet", "💐 Букет цветов"},
-            {"teddy_bear", "🧸 Плюшевый мишка"},
+            {"balloon", "🎈 Шарик"},
+            {"bouquet", "💐 Букет"},
+            {"teddy_bear", "🧸 Мишка"},
             {"music", "🎶 Музыка"},
             {"microphone", "🎙️ Микрофон"},
             {"drum", "🥁 Барабан"},
@@ -138,22 +135,23 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        prefs = getSharedPreferences("LiveGiftStudio", MODE_PRIVATE);
+        prefs = getSharedPreferences(
+                "LiveGiftStudio", MODE_PRIVATE);
 
         loadStats();
         buildInterface();
     }
 
     private void buildInterface() {
-        ScrollView scrollView = new ScrollView(this);
+        ScrollView scroll = new ScrollView(this);
 
         container = new LinearLayout(this);
         container.setOrientation(LinearLayout.VERTICAL);
         container.setPadding(24, 24, 24, 32);
         container.setBackgroundColor(Color.rgb(18, 18, 30));
 
-        scrollView.addView(container);
-        setContentView(scrollView);
+        scroll.addView(container);
+        setContentView(scroll);
 
         TextView title = new TextView(this);
         title.setText("🎬 LiveGiftStudio PRO");
@@ -171,10 +169,10 @@ public class MainActivity extends Activity {
         subtitle.setPadding(0, 0, 0, 20);
         container.addView(subtitle);
 
-        addButton("🎁 Подарки TikTok и мои звуки",
+        addButton("🎁 Подарки и мои звуки",
                 v -> showGiftCatalog());
 
-        addButton("🎬 Тест анимации поверх экрана",
+        addButton("🎬 Тест анимации",
                 v -> startOverlay());
 
         addButton("💰 Открыть донаты",
@@ -189,7 +187,7 @@ public class MainActivity extends Activity {
         addButton("📢 Реклама — 100 ₽",
                 v -> createOrder("Реклама", 100));
 
-        addButton("💬 Заказать другую услугу",
+        addButton("💬 Другая услуга",
                 v -> createOrder("Другая услуга", 0));
 
         addButton("📋 История заказов",
@@ -216,41 +214,54 @@ public class MainActivity extends Activity {
         updateStats();
     }
 
-    // Открывает список подарков с поиском.
+    private void addButton(
+            String text, View.OnClickListener listener) {
+
+        Button button = new Button(this);
+        button.setText(text);
+        button.setTextSize(15);
+        button.setAllCaps(false);
+
+        LinearLayout.LayoutParams params =
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT);
+
+        params.setMargins(0, 6, 0, 6);
+        container.addView(button, params);
+        button.setOnClickListener(listener);
+    }
+
     private void showGiftCatalog() {
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
-        layout.setPadding(20, 10, 20, 10);
+        layout.setPadding(16, 8, 16, 8);
 
         EditText search = new EditText(this);
         search.setHint("Найти подарок...");
         layout.addView(search);
 
-        TextView hint = new TextView(this);
-        hint.setText("Выбери подарок, затем назначь звук");
-        hint.setTextColor(Color.DKGRAY);
-        layout.addView(hint);
-
-        ListView listView = new ListView(this);
-        layout.addView(listView,
+        ListView list = new ListView(this);
+        layout.addView(list,
                 new LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.MATCH_PARENT, 550));
 
-        ArrayList<String> allNames = new ArrayList<>();
-        ArrayList<String> allKeys = new ArrayList<>();
+        ArrayList<String> names = new ArrayList<>();
+        ArrayList<String> keys = new ArrayList<>();
 
         for (String[] gift : giftCatalog) {
-            allKeys.add(gift[0]);
-            allNames.add(gift[1]);
+            keys.add(gift[0]);
+            names.add(gift[1]);
         }
 
-        ArrayList<String> visibleNames = new ArrayList<>(allNames);
-        ArrayList<String> visibleKeys = new ArrayList<>(allKeys);
+        ArrayList<String> visibleNames = new ArrayList<>(names);
+        ArrayList<String> visibleKeys = new ArrayList<>(keys);
 
         ArrayAdapter<String> adapter = new ArrayAdapter<>(
-                this, android.R.layout.simple_list_item_1, visibleNames);
+                this, android.R.layout.simple_list_item_1,
+                visibleNames);
 
-        listView.setAdapter(adapter);
+        list.setAdapter(adapter);
 
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle("🎁 Каталог подарков")
@@ -267,18 +278,17 @@ public class MainActivity extends Activity {
             public void onTextChanged(
                     CharSequence s, int start, int before, int count) {
 
-                String query = s.toString().toLowerCase().trim();
+                String query = s.toString()
+                        .toLowerCase().trim();
 
                 visibleNames.clear();
                 visibleKeys.clear();
 
-                for (int i = 0; i < allNames.size(); i++) {
-                    String name = allNames.get(i).toLowerCase();
-                    String key = allKeys.get(i).toLowerCase();
-
-                    if (name.contains(query) || key.contains(query)) {
-                        visibleNames.add(allNames.get(i));
-                        visibleKeys.add(allKeys.get(i));
+                for (int i = 0; i < names.size(); i++) {
+                    if (names.get(i).toLowerCase().contains(query)
+                            || keys.get(i).toLowerCase().contains(query)) {
+                        visibleNames.add(names.get(i));
+                        visibleKeys.add(keys.get(i));
                     }
                 }
 
@@ -289,7 +299,7 @@ public class MainActivity extends Activity {
             public void afterTextChanged(Editable s) {}
         });
 
-        listView.setOnItemClickListener((parent, view, position, id) -> {
+        list.setOnItemClickListener((parent, view, position, id) -> {
             selectedGiftKey = visibleKeys.get(position);
             selectedGiftName = visibleNames.get(position);
             dialog.dismiss();
@@ -299,31 +309,30 @@ public class MainActivity extends Activity {
         dialog.show();
     }
 
-    // Меню настройки звука выбранного подарка.
     private void showGiftSoundOptions() {
-        String preferenceKey = "gift_sound_" + selectedGiftKey;
-        String savedUri = prefs.getString(preferenceKey, null);
+        String uri = prefs.getString(
+                "gift_sound_" + selectedGiftKey, null);
 
-        String status = savedUri == null
-                ? "Свой звук пока не выбран"
-                : "Свой звук уже назначен";
+        String status = uri == null
+                ? "Свой звук не выбран"
+                : "Для подарка назначен свой звук";
 
         new AlertDialog.Builder(this)
                 .setTitle(selectedGiftName)
                 .setMessage(status)
-                .setPositiveButton("🎵 Выбрать звук с телефона",
-                        (dialog, which) -> chooseSound())
+                .setPositiveButton("🎵 Выбрать звук",
+                        (d, w) -> chooseSound())
                 .setNeutralButton("▶ Проверить звук",
-                        (dialog, which) -> previewSavedSound())
+                        (d, w) -> previewSavedSound())
                 .setNegativeButton("Сбросить звук",
-                        (dialog, which) -> {
-                            prefs.edit().remove(preferenceKey).apply();
-                            message("Назначенный звук удалён");
+                        (d, w) -> {
+                            prefs.edit().remove(
+                                    "gift_sound_" + selectedGiftKey).apply();
+                            message("Настройка звука удалена");
                         })
                 .show();
     }
 
-    // Открывает системный выбор аудиофайла.
     private void chooseSound() {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
@@ -344,30 +353,31 @@ public class MainActivity extends Activity {
 
         super.onActivityResult(requestCode, resultCode, data);
 
-        if (requestCode == PICK_SOUND
-                && resultCode == RESULT_OK
-                && data != null
-                && data.getData() != null) {
-
-            Uri uri = data.getData();
-
-            try {
-                getContentResolver().takePersistableUriPermission(
-                        uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            } catch (Exception ignored) {}
-
-            if (selectedGiftKey == null) {
-                message("Сначала выбери подарок");
-                return;
-            }
-
-            prefs.edit()
-                    .putString("gift_sound_" + selectedGiftKey,
-                            uri.toString())
-                    .apply();
-
-            message("Звук сохранён для подарка: " + selectedGiftName);
+        if (requestCode != PICK_SOUND
+                || resultCode != RESULT_OK
+                || data == null
+                || data.getData() == null) {
+            return;
         }
+
+        if (selectedGiftKey == null) {
+            message("Сначала выбери подарок");
+            return;
+        }
+
+        Uri uri = data.getData();
+
+        try {
+            getContentResolver().takePersistableUriPermission(
+                    uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        } catch (Exception ignored) {}
+
+        prefs.edit()
+                .putString("gift_sound_" + selectedGiftKey,
+                        uri.toString())
+                .apply();
+
+        message("Звук назначен: " + selectedGiftName);
     }
 
     private void previewSavedSound() {
@@ -376,54 +386,52 @@ public class MainActivity extends Activity {
             return;
         }
 
-        String savedUri = prefs.getString(
+        String saved = prefs.getString(
                 "gift_sound_" + selectedGiftKey, null);
 
-        if (savedUri == null) {
-            message("Сначала назначь звук этому подарку");
+        if (saved == null) {
+            message("Сначала выбери звуковой файл");
             return;
         }
 
-        try {
-            stopPreview();
+        stopPreview();
 
+        try {
             previewPlayer = new MediaPlayer();
-            previewPlayer.setDataSource(
-                    this, Uri.parse(savedUri));
+            previewPlayer.setDataSource(this, Uri.parse(saved));
 
             previewPlayer.setOnPreparedListener(player ->
                     player.start());
 
-            previewPlayer.setOnCompletionListener(player -> stopPreview());
+            previewPlayer.setOnCompletionListener(player ->
+                    stopPreview());
 
             previewPlayer.setOnErrorListener((player, what, extra) -> {
                 stopPreview();
-                message("Не удалось воспроизвести этот файл");
+                message("Не удалось воспроизвести файл");
                 return true;
             });
 
             previewPlayer.prepareAsync();
-
         } catch (Exception e) {
             stopPreview();
-            message("Ошибка воспроизведения звука");
+            message("Ошибка воспроизведения");
         }
     }
 
     private void stopPreview() {
-        if (previewPlayer != null) {
-            try {
-                if (previewPlayer.isPlaying()) {
-                    previewPlayer.stop();
-                }
-            } catch (Exception ignored) {}
-
-            try {
-                previewPlayer.release();
-            } catch (Exception ignored) {}
-
-            previewPlayer = null;
+        if (previewPlayer == null) {
+            return;
         }
+
+        try {
+            previewPlayer.setOnPreparedListener(null);
+            previewPlayer.setOnCompletionListener(null);
+            previewPlayer.setOnErrorListener(null);
+            previewPlayer.release();
+        } catch (Exception ignored) {}
+
+        previewPlayer = null;
     }
 
     private void startOverlay() {
@@ -431,12 +439,11 @@ public class MainActivity extends Activity {
                 && !Settings.canDrawOverlays(this)) {
 
             new AlertDialog.Builder(this)
-                    .setTitle("Разрешение на анимацию")
-                    .setMessage("Разреши LiveGiftStudio показывать "
-                            + "анимацию поверх других приложений. "
-                            + "Затем вернись и нажми кнопку ещё раз.")
+                    .setTitle("Разрешение")
+                    .setMessage("Разреши приложению показывать анимацию "
+                            + "поверх других приложений.")
                     .setNegativeButton("Отмена", null)
-                    .setPositiveButton("Настройки", (dialog, which) -> {
+                    .setPositiveButton("Настройки", (d, w) -> {
                         Intent intent = new Intent(
                                 Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                                 Uri.parse("package:" + getPackageName()));
@@ -456,28 +463,10 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void addButton(
-            String text, View.OnClickListener listener) {
-
-        Button button = new Button(this);
-        button.setText(text);
-        button.setTextSize(15);
-        button.setAllCaps(false);
-
-        LinearLayout.LayoutParams params =
-                new LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT);
-
-        params.setMargins(0, 6, 0, 6);
-        container.addView(button, params);
-        button.setOnClickListener(listener);
-    }
-
     private void createOrder(String service, int amount) {
         LinearLayout form = new LinearLayout(this);
         form.setOrientation(LinearLayout.VERTICAL);
-        form.setPadding(20, 10, 20, 10);
+        form.setPadding(16, 8, 16, 8);
 
         EditText nameInput = new EditText(this);
         nameInput.setHint("Твой ник в TikTok или Telegram");
@@ -502,16 +491,14 @@ public class MainActivity extends Activity {
         new AlertDialog.Builder(this)
                 .setTitle("Заказ: " + service)
                 .setMessage(amount == 0
-                        ? "Опиши, какую услугу хочешь заказать"
+                        ? "Опиши услугу"
                         : "Стоимость: " + amount + " ₽")
                 .setView(form)
                 .setNegativeButton("Отмена", null)
-                .setPositiveButton(
-                        amount == 0 ? "Отправить заказ" : "Заказать",
-                        (dialog, which) -> {
-
+                .setPositiveButton("Отправить", (d, w) -> {
                     String name = nameInput.getText().toString().trim();
-                    String details = detailsInput.getText().toString().trim();
+                    String details = detailsInput.getText()
+                            .toString().trim();
 
                     if (name.isEmpty() || details.isEmpty()) {
                         message("Укажи ник и описание заказа");
@@ -523,7 +510,8 @@ public class MainActivity extends Activity {
                     if (finalPriceInput != null) {
                         try {
                             price = Integer.parseInt(
-                                    finalPriceInput.getText().toString().trim());
+                                    finalPriceInput.getText()
+                                            .toString().trim());
                         } catch (Exception e) {
                             message("Укажи корректную цену");
                             return;
@@ -544,17 +532,17 @@ public class MainActivity extends Activity {
     }
 
     private String makeOrderText(
-            String service, int price, String client, String description) {
+            String service, int price, String client, String details) {
 
         return "Новый заказ LiveGiftStudio\n\n"
                 + "Услуга: " + service + "\n"
                 + "Цена: " + price + " ₽\n"
                 + "Клиент: " + client + "\n"
-                + "Описание: " + description;
+                + "Описание: " + details;
     }
 
     private void sendOrderToTelegram(
-            String service, int price, String client, String description) {
+            String service, int price, String client, String details) {
 
         executor.execute(() -> {
             HttpURLConnection connection = null;
@@ -565,7 +553,7 @@ public class MainActivity extends Activity {
                 data.put("service", service);
                 data.put("price", price);
                 data.put("client", client);
-                data.put("description", description);
+                data.put("description", details);
 
                 connection = (HttpURLConnection)
                         new URL(SERVER_URL).openConnection();
@@ -575,7 +563,8 @@ public class MainActivity extends Activity {
                 connection.setConnectTimeout(15000);
                 connection.setReadTimeout(20000);
                 connection.setRequestProperty(
-                        "Content-Type", "application/json; charset=UTF-8");
+                        "Content-Type",
+                        "application/json; charset=UTF-8");
 
                 byte[] bytes = data.toString()
                         .getBytes(StandardCharsets.UTF_8);
@@ -584,7 +573,31 @@ public class MainActivity extends Activity {
                     output.write(bytes);
                 }
 
-                int responseCode = connection.getResponseCode();
+                int code = connection.getResponseCode();
 
                 runOnUiThread(() -> {
-                    if (responseCode == 200 || resp
+                    if (code >= 200 && code < 300) {
+                        message("Заказ отправлен на сервер");
+                    } else {
+                        message("Сервер вернул ошибку: " + code);
+                    }
+                });
+
+            } catch (Exception e) {
+                runOnUiThread(() ->
+                        message("Не удалось отправить заказ на сервер"));
+            } finally {
+                if (connection != null) {
+                    connection.disconnect();
+                }
+            }
+        });
+    }
+
+    private void openTelegram(String text) {
+        try {
+            Intent intent = new Intent(Intent.ACTION_SEND);
+            intent.setType("text/plain");
+            intent.putExtra(Intent.EXTRA_TEXT, text);
+            startActivity(Intent.createChooser(
+                    intent, "О
