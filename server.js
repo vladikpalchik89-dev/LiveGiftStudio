@@ -24,6 +24,7 @@ app.get("/", (_req, res) => {
     app: "LiveGiftStudio",
     status: "running",
     tiktok: username,
+    tiktokEnabled: process.env.TIKTOK_ENABLED === "true",
     websocket: "/events"
   });
 });
@@ -36,7 +37,7 @@ app.get("/health", (_req, res) => {
 });
 
 // Тестовый подарок.
-// В Render нужно задать секретную переменную TEST_EVENT_KEY.
+// Секрет TEST_EVENT_KEY хранится только в Render Environment.
 app.get("/test-gift", (req, res) => {
   if (!testKey) {
     return res.status(503).json({
@@ -76,8 +77,15 @@ function sendEvent(event) {
 
   wss.clients.forEach((client) => {
     if (client.readyState === WebSocket.OPEN) {
-      client.send(message);
-      delivered++;
+      try {
+        client.send(message);
+        delivered++;
+      } catch (error) {
+        console.error(
+          "WebSocket send failed:",
+          error.message
+        );
+      }
     }
   });
 
@@ -116,6 +124,16 @@ server.listen(PORT, "0.0.0.0", () => {
 });
 
 function startTikTok() {
+  // Подключение выключено по умолчанию.
+  // Включим вручную после восстановления дневного лимита.
+  if (process.env.TIKTOK_ENABLED !== "true") {
+    console.log(
+      "TikTok connection paused. " +
+      "Set TIKTOK_ENABLED=true to enable manually."
+    );
+    return;
+  }
+
   try {
     const connector = require("tiktok-live-connector");
     const TikTokLiveConnection =
