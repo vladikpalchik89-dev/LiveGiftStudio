@@ -6,18 +6,23 @@ import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
+import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.view.Gravity;
 import android.view.View;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.ListView;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.text.TextWatcher;
+import android.text.Editable;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -26,6 +31,7 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -40,6 +46,8 @@ public class MainActivity extends Activity {
     private static final String APP_KEY =
             "LGS_PRO_7mQ9vK2xR8pN4wT6zA1cF5hB";
 
+    private static final int PICK_SOUND = 501;
+
     private final ExecutorService executor =
             Executors.newSingleThreadExecutor();
 
@@ -52,12 +60,85 @@ public class MainActivity extends Activity {
     private int donationIncome;
     private int orders;
 
+    private String selectedGiftKey;
+    private String selectedGiftName;
+
+    private MediaPlayer previewPlayer;
+
+    // Предварительно добавленный каталог подарков.
+    // key используется для сохранения настроек звука.
+    private final String[][] giftCatalog = {
+            {"rose", "🌹 Роза"},
+            {"heart", "❤️ Сердце"},
+            {"finger_heart", "🫰 Сердечко пальцами"},
+            {"tiktok", "🎵 TikTok"},
+            {"coffee", "☕ Кофе"},
+            {"ice_cream", "🍦 Мороженое"},
+            {"perfume", "💐 Парфюм"},
+            {"love_you", "💗 Люблю тебя"},
+            {"gg", "🎮 GG"},
+            {"donut", "🍩 Пончик"},
+            {"sunglasses", "🕶️ Солнцезащитные очки"},
+            {"cap", "🧢 Кепка"},
+            {"paper_crane", "🕊️ Бумажный журавлик"},
+            {"swan", "🦢 Лебедь"},
+            {"concert", "🎤 Концерт"},
+            {"fireworks", "🎆 Фейерверк"},
+            {"galaxy", "🌌 Галактика"},
+            {"universe", "🌠 Вселенная"},
+            {"lion", "🦁 Лев"},
+            {"diamond", "💎 Алмаз"},
+            {"crown", "👑 Корона"},
+            {"unicorn", "🦄 Единорог"},
+            {"tiger", "🐯 Тигр"},
+            {"castle", "🏰 Замок"},
+            {"sports_car", "🏎️ Спортивная машина"},
+            {"yacht", "🛥️ Яхта"},
+            {"dragon_flame", "🐉 Пламя дракона"},
+            {"phoenix", "🔥 Феникс"},
+            {"rocket", "🚀 Ракета"},
+            {"planet", "🪐 Планета"},
+            {"star", "⭐ Звезда"},
+            {"lightning", "⚡ Молния"},
+            {"football", "⚽ Футбольный мяч"},
+            {"basketball", "🏀 Баскетбольный мяч"},
+            {"cake", "🎂 Торт"},
+            {"birthday", "🎉 Праздник"},
+            {"balloon", "🎈 Воздушный шар"},
+            {"bouquet", "💐 Букет цветов"},
+            {"teddy_bear", "🧸 Плюшевый мишка"},
+            {"music", "🎶 Музыка"},
+            {"microphone", "🎙️ Микрофон"},
+            {"drum", "🥁 Барабан"},
+            {"guitar", "🎸 Гитара"},
+            {"motorcycle", "🏍️ Мотоцикл"},
+            {"train", "🚂 Поезд"},
+            {"airplane", "✈️ Самолёт"},
+            {"house", "🏠 Дом"},
+            {"ring", "💍 Кольцо"},
+            {"watch", "⌚ Часы"},
+            {"money", "💸 Деньги"},
+            {"gold", "🪙 Золотая монета"},
+            {"fire", "🔥 Огонь"},
+            {"rainbow", "🌈 Радуга"},
+            {"butterfly", "🦋 Бабочка"},
+            {"flower", "🌸 Цветок"},
+            {"cat", "🐱 Кот"},
+            {"dog", "🐶 Собака"},
+            {"rabbit", "🐰 Кролик"},
+            {"panda", "🐼 Панда"},
+            {"champagne", "🥂 Праздничный бокал"},
+            {"trophy", "🏆 Кубок"},
+            {"medal", "🏅 Медаль"},
+            {"love", "💕 Любовь"},
+            {"default", "🎁 Другой подарок"}
+    };
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        prefs = getSharedPreferences(
-                "LiveGiftStudio", MODE_PRIVATE);
+        prefs = getSharedPreferences("LiveGiftStudio", MODE_PRIVATE);
 
         loadStats();
         buildInterface();
@@ -89,6 +170,9 @@ public class MainActivity extends Activity {
         subtitle.setGravity(Gravity.CENTER);
         subtitle.setPadding(0, 0, 0, 20);
         container.addView(subtitle);
+
+        addButton("🎁 Подарки TikTok и мои звуки",
+                v -> showGiftCatalog());
 
         addButton("🎬 Тест анимации поверх экрана",
                 v -> startOverlay());
@@ -132,6 +216,216 @@ public class MainActivity extends Activity {
         updateStats();
     }
 
+    // Открывает список подарков с поиском.
+    private void showGiftCatalog() {
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(20, 10, 20, 10);
+
+        EditText search = new EditText(this);
+        search.setHint("Найти подарок...");
+        layout.addView(search);
+
+        TextView hint = new TextView(this);
+        hint.setText("Выбери подарок, затем назначь звук");
+        hint.setTextColor(Color.DKGRAY);
+        layout.addView(hint);
+
+        ListView listView = new ListView(this);
+        layout.addView(listView,
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT, 550));
+
+        ArrayList<String> allNames = new ArrayList<>();
+        ArrayList<String> allKeys = new ArrayList<>();
+
+        for (String[] gift : giftCatalog) {
+            allKeys.add(gift[0]);
+            allNames.add(gift[1]);
+        }
+
+        ArrayList<String> visibleNames = new ArrayList<>(allNames);
+        ArrayList<String> visibleKeys = new ArrayList<>(allKeys);
+
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(
+                this, android.R.layout.simple_list_item_1, visibleNames);
+
+        listView.setAdapter(adapter);
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("🎁 Каталог подарков")
+                .setView(layout)
+                .setNegativeButton("Закрыть", null)
+                .create();
+
+        search.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(
+                    CharSequence s, int start, int count, int after) {}
+
+            @Override
+            public void onTextChanged(
+                    CharSequence s, int start, int before, int count) {
+
+                String query = s.toString().toLowerCase().trim();
+
+                visibleNames.clear();
+                visibleKeys.clear();
+
+                for (int i = 0; i < allNames.size(); i++) {
+                    String name = allNames.get(i).toLowerCase();
+                    String key = allKeys.get(i).toLowerCase();
+
+                    if (name.contains(query) || key.contains(query)) {
+                        visibleNames.add(allNames.get(i));
+                        visibleKeys.add(allKeys.get(i));
+                    }
+                }
+
+                adapter.notifyDataSetChanged();
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {}
+        });
+
+        listView.setOnItemClickListener((parent, view, position, id) -> {
+            selectedGiftKey = visibleKeys.get(position);
+            selectedGiftName = visibleNames.get(position);
+            dialog.dismiss();
+            showGiftSoundOptions();
+        });
+
+        dialog.show();
+    }
+
+    // Меню настройки звука выбранного подарка.
+    private void showGiftSoundOptions() {
+        String preferenceKey = "gift_sound_" + selectedGiftKey;
+        String savedUri = prefs.getString(preferenceKey, null);
+
+        String status = savedUri == null
+                ? "Свой звук пока не выбран"
+                : "Свой звук уже назначен";
+
+        new AlertDialog.Builder(this)
+                .setTitle(selectedGiftName)
+                .setMessage(status)
+                .setPositiveButton("🎵 Выбрать звук с телефона",
+                        (dialog, which) -> chooseSound())
+                .setNeutralButton("▶ Проверить звук",
+                        (dialog, which) -> previewSavedSound())
+                .setNegativeButton("Сбросить звук",
+                        (dialog, which) -> {
+                            prefs.edit().remove(preferenceKey).apply();
+                            message("Назначенный звук удалён");
+                        })
+                .show();
+    }
+
+    // Открывает системный выбор аудиофайла.
+    private void chooseSound() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("audio/*");
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+
+        try {
+            startActivityForResult(intent, PICK_SOUND);
+        } catch (Exception e) {
+            message("Не удалось открыть выбор звука");
+        }
+    }
+
+    @Override
+    protected void onActivityResult(
+            int requestCode, int resultCode, Intent data) {
+
+        super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == PICK_SOUND
+                && resultCode == RESULT_OK
+                && data != null
+                && data.getData() != null) {
+
+            Uri uri = data.getData();
+
+            try {
+                getContentResolver().takePersistableUriPermission(
+                        uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            } catch (Exception ignored) {}
+
+            if (selectedGiftKey == null) {
+                message("Сначала выбери подарок");
+                return;
+            }
+
+            prefs.edit()
+                    .putString("gift_sound_" + selectedGiftKey,
+                            uri.toString())
+                    .apply();
+
+            message("Звук сохранён для подарка: " + selectedGiftName);
+        }
+    }
+
+    private void previewSavedSound() {
+        if (selectedGiftKey == null) {
+            message("Сначала выбери подарок");
+            return;
+        }
+
+        String savedUri = prefs.getString(
+                "gift_sound_" + selectedGiftKey, null);
+
+        if (savedUri == null) {
+            message("Сначала назначь звук этому подарку");
+            return;
+        }
+
+        try {
+            stopPreview();
+
+            previewPlayer = new MediaPlayer();
+            previewPlayer.setDataSource(
+                    this, Uri.parse(savedUri));
+
+            previewPlayer.setOnPreparedListener(player ->
+                    player.start());
+
+            previewPlayer.setOnCompletionListener(player -> stopPreview());
+
+            previewPlayer.setOnErrorListener((player, what, extra) -> {
+                stopPreview();
+                message("Не удалось воспроизвести этот файл");
+                return true;
+            });
+
+            previewPlayer.prepareAsync();
+
+        } catch (Exception e) {
+            stopPreview();
+            message("Ошибка воспроизведения звука");
+        }
+    }
+
+    private void stopPreview() {
+        if (previewPlayer != null) {
+            try {
+                if (previewPlayer.isPlaying()) {
+                    previewPlayer.stop();
+                }
+            } catch (Exception ignored) {}
+
+            try {
+                previewPlayer.release();
+            } catch (Exception ignored) {}
+
+            previewPlayer = null;
+        }
+    }
+
     private void startOverlay() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
                 && !Settings.canDrawOverlays(this)) {
@@ -163,8 +457,7 @@ public class MainActivity extends Activity {
     }
 
     private void addButton(
-            String text,
-            View.OnClickListener listener) {
+            String text, View.OnClickListener listener) {
 
         Button button = new Button(this);
         button.setText(text);
@@ -206,34 +499,22 @@ public class MainActivity extends Activity {
 
         final EditText finalPriceInput = priceInput;
 
-        AlertDialog.Builder builder =
-                new AlertDialog.Builder(this);
+        new AlertDialog.Builder(this)
+                .setTitle("Заказ: " + service)
+                .setMessage(amount == 0
+                        ? "Опиши, какую услугу хочешь заказать"
+                        : "Стоимость: " + amount + " ₽")
+                .setView(form)
+                .setNegativeButton("Отмена", null)
+                .setPositiveButton(
+                        amount == 0 ? "Отправить заказ" : "Заказать",
+                        (dialog, which) -> {
 
-        builder.setTitle("Заказ: " + service);
-        builder.setMessage(amount == 0
-                ? "Опиши, какую услугу хочешь заказать"
-                : "Стоимость: " + amount + " ₽");
+                    String name = nameInput.getText().toString().trim();
+                    String details = detailsInput.getText().toString().trim();
 
-        builder.setView(form);
-        builder.setNegativeButton("Отмена", null);
-
-        builder.setPositiveButton(
-                amount == 0 ? "Отправить заказ" : "Заказать",
-                (dialog, which) -> {
-
-                    String name =
-                            nameInput.getText().toString().trim();
-
-                    String details =
-                            detailsInput.getText().toString().trim();
-
-                    if (name.isEmpty()) {
-                        message("Укажи свой ник");
-                        return;
-                    }
-
-                    if (details.isEmpty()) {
-                        message("Опиши заказ");
+                    if (name.isEmpty() || details.isEmpty()) {
+                        message("Укажи ник и описание заказа");
                         return;
                     }
 
@@ -242,8 +523,7 @@ public class MainActivity extends Activity {
                     if (finalPriceInput != null) {
                         try {
                             price = Integer.parseInt(
-                                    finalPriceInput.getText()
-                                            .toString().trim());
+                                    finalPriceInput.getText().toString().trim());
                         } catch (Exception e) {
                             message("Укажи корректную цену");
                             return;
@@ -256,23 +536,15 @@ public class MainActivity extends Activity {
                     }
 
                     saveOrder(service, price, name, details);
-
-                    sendOrderToTelegram(
-                            service, price, name, details);
-
-                    openTelegram(
-                            makeOrderText(
-                                    service, price, name, details));
-                });
-
-        builder.show();
+                    sendOrderToTelegram(service, price, name, details);
+                    openTelegram(makeOrderText(
+                            service, price, name, details));
+                })
+                .show();
     }
 
     private String makeOrderText(
-            String service,
-            int price,
-            String client,
-            String description) {
+            String service, int price, String client, String description) {
 
         return "Новый заказ LiveGiftStudio\n\n"
                 + "Услуга: " + service + "\n"
@@ -282,10 +554,7 @@ public class MainActivity extends Activity {
     }
 
     private void sendOrderToTelegram(
-            String service,
-            int price,
-            String client,
-            String description) {
+            String service, int price, String client, String description) {
 
         executor.execute(() -> {
             HttpURLConnection connection = null;
@@ -306,259 +575,16 @@ public class MainActivity extends Activity {
                 connection.setConnectTimeout(15000);
                 connection.setReadTimeout(20000);
                 connection.setRequestProperty(
-                        "Content-Type",
-                        "application/json; charset=UTF-8");
+                        "Content-Type", "application/json; charset=UTF-8");
 
                 byte[] bytes = data.toString()
                         .getBytes(StandardCharsets.UTF_8);
 
-                try (OutputStream output =
-                             connection.getOutputStream()) {
+                try (OutputStream output = connection.getOutputStream()) {
                     output.write(bytes);
                 }
 
                 int responseCode = connection.getResponseCode();
 
                 runOnUiThread(() -> {
-                    if (responseCode == 200
-                            || responseCode == 302) {
-                        message("Запрос отправлен серверу");
-                    } else {
-                        message("Ошибка отправки: " + responseCode);
-                    }
-                });
-
-            } catch (Exception e) {
-                runOnUiThread(() ->
-                        message("Не удалось отправить заказ на сервер"));
-            } finally {
-                if (connection != null) {
-                    connection.disconnect();
-                }
-            }
-        });
-    }
-
-    private void openTelegram(String text) {
-        try {
-            Intent intent = new Intent(Intent.ACTION_SEND);
-            intent.setType("text/plain");
-            intent.setPackage("org.telegram.messenger");
-            intent.putExtra(Intent.EXTRA_TEXT, text);
-            startActivity(intent);
-
-        } catch (Exception e) {
-            try {
-                Intent intent = new Intent(Intent.ACTION_SEND);
-                intent.setType("text/plain");
-                intent.putExtra(Intent.EXTRA_TEXT, text);
-
-                startActivity(Intent.createChooser(
-                        intent, "Отправить заказ"));
-
-            } catch (Exception ex) {
-                message("Не удалось открыть отправку сообщения");
-            }
-        }
-    }
-
-    private void saveOrder(
-            String service,
-            int price,
-            String name,
-            String details) {
-
-        try {
-            JSONArray array = new JSONArray(
-                    prefs.getString("order_history", "[]"));
-
-            JSONObject order = new JSONObject();
-            order.put("service", service);
-            order.put("price", price);
-            order.put("name", name);
-            order.put("details", details);
-            order.put("time", System.currentTimeMillis());
-            array.put(order);
-
-            prefs.edit()
-                    .putString("order_history", array.toString())
-                    .apply();
-
-            orders++;
-            saveStats();
-            updateStats();
-            message("Заказ сохранён");
-
-        } catch (Exception e) {
-            message("Не удалось сохранить заказ");
-        }
-    }
-
-    private void showHistory() {
-        try {
-            JSONArray array = new JSONArray(
-                    prefs.getString("order_history", "[]"));
-
-            if (array.length() == 0) {
-                message("Заказов пока нет");
-                return;
-            }
-
-            StringBuilder text = new StringBuilder();
-
-            for (int i = array.length() - 1; i >= 0; i--) {
-                JSONObject order = array.getJSONObject(i);
-
-                text.append("Заказ №").append(i + 1).append("\n");
-                text.append("Услуга: ")
-                        .append(order.optString("service")).append("\n");
-                text.append("Цена: ")
-                        .append(order.optInt("price")).append(" ₽\n");
-                text.append("Клиент: ")
-                        .append(order.optString("name")).append("\n");
-                text.append("Описание: ")
-                        .append(order.optString("details"))
-                        .append("\n\n");
-            }
-
-            new AlertDialog.Builder(this)
-                    .setTitle("📋 История заказов")
-                    .setMessage(text.toString())
-                    .setPositiveButton("Закрыть", null)
-                    .show();
-
-        } catch (Exception e) {
-            message("Не удалось открыть историю");
-        }
-    }
-
-    private void addDonation(String type) {
-        EditText input = new EditText(this);
-        input.setHint("Сумма в рублях");
-        input.setInputType(2);
-
-        new AlertDialog.Builder(this)
-                .setTitle(type.equals("gift")
-                        ? "Записать подарок"
-                        : "Записать донат")
-                .setView(input)
-                .setNegativeButton("Отмена", null)
-                .setPositiveButton("Сохранить", (dialog, which) -> {
-
-                    String value =
-                            input.getText().toString().trim();
-
-                    if (value.isEmpty()) {
-                        message("Введи сумму");
-                        return;
-                    }
-
-                    try {
-                        int amount = Integer.parseInt(value);
-
-                        if (amount < 0) {
-                            message("Сумма не может быть отрицательной");
-                            return;
-                        }
-
-                        if (type.equals("gift")) {
-                            gifts++;
-                        } else {
-                            donations++;
-                            donationIncome += amount;
-                        }
-
-                        saveStats();
-                        updateStats();
-                        message("Статистика обновлена");
-
-                    } catch (Exception e) {
-                        message("Введи корректную сумму");
-                    }
-                })
-                .show();
-    }
-
-    private void showStats() {
-        updateStats();
-
-        new AlertDialog.Builder(this)
-                .setTitle("📊 Статистика")
-                .setMessage(
-                        "Подарков записано: " + gifts + "\n"
-                        + "Донатов записано: " + donations + "\n"
-                        + "Сумма донатов: " + donationIncome + " ₽\n"
-                        + "Заказов: " + orders)
-                .setPositiveButton("Закрыть", null)
-                .show();
-    }
-
-    private void updateStats() {
-        if (statsText != null) {
-            statsText.setText(
-                    "📊 Твоя статистика\n\n"
-                    + "🎁 Подарки: " + gifts + "\n"
-                    + "💰 Донаты: " + donations + "\n"
-                    + "💵 Сумма донатов: "
-                    + donationIncome + " ₽\n"
-                    + "📋 Заказы: " + orders);
-        }
-    }
-
-    private void loadStats() {
-        gifts = prefs.getInt("gifts", 0);
-        donations = prefs.getInt("donations", 0);
-        donationIncome = prefs.getInt("donation_income", 0);
-        orders = prefs.getInt("orders", 0);
-    }
-
-    private void saveStats() {
-        prefs.edit()
-                .putInt("gifts", gifts)
-                .putInt("donations", donations)
-                .putInt("donation_income", donationIncome)
-                .putInt("orders", orders)
-                .apply();
-    }
-
-    private void resetStats() {
-        new AlertDialog.Builder(this)
-                .setTitle("Сбросить статистику?")
-                .setMessage("Показатели будут обнулены. "
-                        + "История заказов останется.")
-                .setNegativeButton("Отмена", null)
-                .setPositiveButton("Сбросить", (dialog, which) -> {
-
-                    gifts = 0;
-                    donations = 0;
-                    donationIncome = 0;
-                    orders = 0;
-
-                    saveStats();
-                    updateStats();
-                    message("Статистика сброшена");
-                })
-                .show();
-    }
-
-    private void openLink(String link) {
-        try {
-            Intent intent = new Intent(
-                    Intent.ACTION_VIEW, Uri.parse(link));
-            startActivity(intent);
-        } catch (Exception e) {
-            message("Не удалось открыть ссылку");
-        }
-    }
-
-    private void message(String text) {
-        Toast.makeText(this, text, Toast.LENGTH_LONG).show();
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        executor.shutdown();
-    }
-                            }
-                            
+                    if (responseCode == 200 || resp
