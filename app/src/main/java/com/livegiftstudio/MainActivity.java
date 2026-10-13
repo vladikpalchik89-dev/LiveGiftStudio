@@ -600,4 +600,198 @@ public class MainActivity extends Activity {
             intent.setType("text/plain");
             intent.putExtra(Intent.EXTRA_TEXT, text);
             startActivity(Intent.createChooser(
-                    intent, "О
+                    intent, "Отправить заказ"));
+        } catch (Exception e) {
+            message("Не удалось открыть меню отправки");
+        }
+    }
+
+    private void openLink(String link) {
+        try {
+            startActivity(new Intent(
+                    Intent.ACTION_VIEW, Uri.parse(link)));
+        } catch (Exception e) {
+            message("Не удалось открыть ссылку");
+        }
+    }
+
+    private void saveOrder(
+            String service, int price, String client, String details) {
+
+        try {
+            JSONArray history = new JSONArray(
+                    prefs.getString("orders_history", "[]"));
+
+            JSONObject order = new JSONObject();
+            order.put("service", service);
+            order.put("price", price);
+            order.put("client", client);
+            order.put("details", details);
+            order.put("date", System.currentTimeMillis());
+
+            history.put(order);
+
+            prefs.edit()
+                    .putString("orders_history", history.toString())
+                    .putInt("orders", prefs.getInt("orders", 0) + 1)
+                    .apply();
+
+            loadStats();
+            updateStats();
+        } catch (Exception e) {
+            message("Не удалось сохранить заказ");
+        }
+    }
+
+    private void showHistory() {
+        JSONArray history;
+
+        try {
+            history = new JSONArray(
+                    prefs.getString("orders_history", "[]"));
+        } catch (Exception e) {
+            history = new JSONArray();
+        }
+
+        StringBuilder text = new StringBuilder();
+
+        for (int i = history.length() - 1; i >= 0; i--) {
+            JSONObject item = history.optJSONObject(i);
+            if (item == null) {
+                continue;
+            }
+
+            text.append("Услуга: ")
+                    .append(item.optString("service"))
+                    .append("\nЦена: ")
+                    .append(item.optInt("price"))
+                    .append(" ₽\nКлиент: ")
+                    .append(item.optString("client"))
+                    .append("\nОписание: ")
+                    .append(item.optString("details"))
+                    .append("\n\n");
+        }
+
+        if (text.length() == 0) {
+            text.append("Заказов пока нет.");
+        }
+
+        new AlertDialog.Builder(this)
+                .setTitle("📋 История заказов")
+                .setMessage(text.toString())
+                .setPositiveButton("Закрыть", null)
+                .show();
+    }
+
+    private void addDonation(String type) {
+        EditText input = new EditText(this);
+        input.setHint("Сумма в рублях");
+        input.setInputType(2);
+
+        new AlertDialog.Builder(this)
+                .setTitle(type.equals("gift")
+                        ? "Записать подарок" : "Записать донат")
+                .setView(input)
+                .setNegativeButton("Отмена", null)
+                .setPositiveButton("Сохранить", (d, w) -> {
+                    try {
+                        int amount = Integer.parseInt(
+                                input.getText().toString().trim());
+
+                        if (amount < 0) {
+                            message("Сумма не может быть отрицательной");
+                            return;
+                        }
+
+                        if (type.equals("gift")) {
+                            gifts++;
+                            prefs.edit().putInt("gifts", gifts).apply();
+                        } else {
+                            donations++;
+                            donationIncome += amount;
+                            prefs.edit()
+                                    .putInt("donations", donations)
+                                    .putInt("donationIncome", donationIncome)
+                                    .apply();
+                        }
+
+                        updateStats();
+                        message("Статистика обновлена");
+                    } catch (Exception e) {
+                        message("Введи сумму цифрами");
+                    }
+                })
+                .show();
+    }
+
+    private void loadStats() {
+        gifts = prefs.getInt("gifts", 0);
+        donations = prefs.getInt("donations", 0);
+        donationIncome = prefs.getInt("donationIncome", 0);
+        orders = prefs.getInt("orders", 0);
+    }
+
+    private void updateStats() {
+        if (statsText == null) {
+            return;
+        }
+
+        statsText.setText(
+                "📊 Твоя статистика\n\n"
+                        + "🎁 Подарки: " + gifts + "\n"
+                        + "💰 Донаты: " + donations + "\n"
+                        + "💵 Сумма донатов: " + donationIncome + " ₽\n"
+                        + "📋 Заказы: " + orders);
+    }
+
+    private void showStats() {
+        loadStats();
+
+        new AlertDialog.Builder(this)
+                .setTitle("📊 Статистика")
+                .setMessage(
+                        "🎁 Подарки: " + gifts + "\n"
+                                + "💰 Донаты: " + donations + "\n"
+                                + "💵 Сумма донатов: "
+                                + donationIncome + " ₽\n"
+                                + "📋 Заказы: " + orders)
+                .setPositiveButton("Закрыть", null)
+                .show();
+    }
+
+    private void resetStats() {
+        new AlertDialog.Builder(this)
+                .setTitle("Сброс статистики")
+                .setMessage("Обнулить подарки, донаты и заказы?")
+                .setNegativeButton("Отмена", null)
+                .setPositiveButton("Сбросить", (d, w) -> {
+                    gifts = 0;
+                    donations = 0;
+                    donationIncome = 0;
+                    orders = 0;
+
+                    prefs.edit()
+                            .putInt("gifts", 0)
+                            .putInt("donations", 0)
+                            .putInt("donationIncome", 0)
+                            .putInt("orders", 0)
+                            .putString("orders_history", "[]")
+                            .apply();
+
+                    updateStats();
+                    message("Статистика сброшена");
+                })
+                .show();
+    }
+
+    private void message(String text) {
+        Toast.makeText(this, text, Toast.LENGTH_LONG).show();
+    }
+
+    @Override
+    protected void onDestroy() {
+        stopPreview();
+        executor.shutdown();
+        super.onDestroy();
+    }
+}
