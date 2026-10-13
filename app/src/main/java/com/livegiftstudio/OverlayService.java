@@ -6,8 +6,7 @@ import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.PixelFormat;
 import android.graphics.drawable.GradientDrawable;
-import android.media.AudioManager;
-import android.media.ToneGenerator;
+import android.media.MediaPlayer;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
@@ -17,9 +16,9 @@ import android.view.WindowManager;
 import android.view.animation.AlphaAnimation;
 import android.view.animation.Animation;
 import android.view.animation.AnimationSet;
+import android.view.animation.OvershootInterpolator;
 import android.view.animation.ScaleAnimation;
 import android.view.animation.TranslateAnimation;
-import android.view.animation.OvershootInterpolator;
 import android.widget.TextView;
 
 import org.json.JSONObject;
@@ -38,10 +37,10 @@ public class OverlayService extends Service {
     private TextView overlay;
     private final Handler handler = new Handler(Looper.getMainLooper());
 
-    private ToneGenerator toneGenerator;
     private OkHttpClient client;
     private WebSocket webSocket;
     private Runnable removeTask;
+    private MediaPlayer currentPlayer;
 
     @Override
     public IBinder onBind(Intent intent) {
@@ -51,13 +50,6 @@ public class OverlayService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
-
-        try {
-            toneGenerator = new ToneGenerator(AudioManager.STREAM_MUSIC, 85);
-        } catch (Exception e) {
-            toneGenerator = null;
-        }
-
         connectToServer();
     }
 
@@ -72,7 +64,8 @@ public class OverlayService extends Service {
 
             @Override
             public void onOpen(WebSocket socket, Response response) {
-                android.util.Log.d("LiveGiftStudio", "Server connected");
+                android.util.Log.d(
+                        "LiveGiftStudio", "Server connected");
             }
 
             @Override
@@ -84,8 +77,10 @@ public class OverlayService extends Service {
                         return;
                     }
 
-                    String gift = event.optString("giftName", "Подарок");
-                    String username = event.optString("username", "Зритель");
+                    String gift = event.optString(
+                            "giftName", "Подарок");
+                    String username = event.optString(
+                            "username", "Зритель");
                     int count = event.optInt("repeatCount", 1);
 
                     String message = "🎁 " + gift + " × " + count
@@ -94,14 +89,16 @@ public class OverlayService extends Service {
                     handler.post(() -> showGift(message, gift));
 
                 } catch (Exception e) {
-                    android.util.Log.e("LiveGiftStudio", "Event error", e);
+                    android.util.Log.e(
+                            "LiveGiftStudio", "Event error", e);
                 }
             }
 
             @Override
             public void onFailure(
                     WebSocket socket, Throwable error, Response response) {
-                android.util.Log.e("LiveGiftStudio", "Connection failed", error);
+                android.util.Log.e(
+                        "LiveGiftStudio", "Connection failed", error);
             }
         });
     }
@@ -154,10 +151,25 @@ public class OverlayService extends Service {
         }
 
         if (name.contains("diamond") || name.contains("алмаз")
+                || name.contains("бриллиант")
                 || name.contains("драгоц")) {
             return new int[]{
                     Color.rgb(0, 220, 255),
                     Color.rgb(20, 60, 210)
+            };
+        }
+
+        if (name.contains("firework") || name.contains("фейерверк")) {
+            return new int[]{
+                    Color.rgb(255, 100, 0),
+                    Color.rgb(220, 0, 100)
+            };
+        }
+
+        if (name.contains("crown") || name.contains("корона")) {
+            return new int[]{
+                    Color.rgb(255, 215, 0),
+                    Color.rgb(190, 100, 0)
             };
         }
 
@@ -167,40 +179,105 @@ public class OverlayService extends Service {
         };
     }
 
-    private void playGiftSound(String gift) {
-        if (toneGenerator == null) {
-            return;
-        }
-
+    private int getSoundResource(String gift) {
         String name = gift.toLowerCase(Locale.ROOT);
 
+        if (name.contains("rose") || name.contains("роза")) {
+            return R.raw.gift_rose;
+        }
+
+        if (name.contains("heart") || name.contains("сердц")
+                || name.contains("finger")) {
+            return R.raw.gift_heart;
+        }
+
+        if (name.contains("galaxy") || name.contains("universe")
+                || name.contains("вселен") || name.contains("галак")) {
+            return R.raw.gift_galaxy;
+        }
+
+        if (name.contains("lion") || name.contains("лев")
+                || name.contains("тигр") || name.contains("unicorn")) {
+            return R.raw.gift_lion;
+        }
+
+        if (name.contains("diamond") || name.contains("алмаз")
+                || name.contains("бриллиант")
+                || name.contains("драгоц")) {
+            return R.raw.gift_diamond;
+        }
+
+        if (name.contains("firework") || name.contains("фейерверк")) {
+            return R.raw.gift_fireworks;
+        }
+
+        if (name.contains("crown") || name.contains("корона")) {
+            return R.raw.gift_crown;
+        }
+
+        return R.raw.gift_default;
+    }
+
+    private void playGiftSound(String gift) {
+        stopCurrentSound();
+
         try {
-            if (name.contains("rose") || name.contains("роза")) {
-                toneGenerator.startTone(ToneGenerator.TONE_PROP_ACK, 220);
-            } else if (name.contains("heart") || name.contains("сердц")
-                    || name.contains("finger")) {
-                toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP, 180);
-            } else if (name.contains("galaxy") || name.contains("universe")
-                    || name.contains("галак") || name.contains("вселен")) {
-                toneGenerator.startTone(
-                        ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, 450);
-            } else if (name.contains("lion") || name.contains("unicorn")
-                    || name.contains("лев") || name.contains("тигр")) {
-                toneGenerator.startTone(
-                        ToneGenerator.TONE_CDMA_ALERT_NETWORK_LITE, 350);
-            } else if (name.contains("diamond") || name.contains("алмаз")) {
-                toneGenerator.startTone(ToneGenerator.TONE_PROP_PROMPT, 300);
-            } else {
-                toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP2, 200);
+            int soundResource = getSoundResource(gift);
+            currentPlayer = MediaPlayer.create(this, soundResource);
+
+            if (currentPlayer == null) {
+                android.util.Log.e(
+                        "LiveGiftStudio", "Cannot load gift sound");
+                return;
             }
+
+            currentPlayer.setOnCompletionListener(player -> {
+                if (currentPlayer == player) {
+                    currentPlayer = null;
+                }
+                player.release();
+            });
+
+            currentPlayer.setOnErrorListener((player, what, extra) -> {
+                if (currentPlayer == player) {
+                    currentPlayer = null;
+                }
+                player.release();
+                return true;
+            });
+
+            currentPlayer.start();
+
         } catch (Exception e) {
-            android.util.Log.e("LiveGiftStudio", "Sound error", e);
+            android.util.Log.e(
+                    "LiveGiftStudio", "Sound error", e);
+            stopCurrentSound();
+        }
+    }
+
+    private void stopCurrentSound() {
+        if (currentPlayer != null) {
+            MediaPlayer player = currentPlayer;
+            currentPlayer = null;
+
+            try {
+                if (player.isPlaying()) {
+                    player.stop();
+                }
+            } catch (Exception ignored) {
+            }
+
+            try {
+                player.release();
+            } catch (Exception ignored) {
+            }
         }
     }
 
     private void showGift(String message, String gift) {
         if (windowManager == null) {
-            windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
+            windowManager =
+                    (WindowManager) getSystemService(WINDOW_SERVICE);
         }
 
         if (removeTask != null) {
@@ -234,15 +311,16 @@ public class OverlayService extends Service {
             type = WindowManager.LayoutParams.TYPE_PHONE;
         }
 
-        WindowManager.LayoutParams params = new WindowManager.LayoutParams(
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                type,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                        | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
-                        | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
-                PixelFormat.TRANSLUCENT
-        );
+        WindowManager.LayoutParams params =
+                new WindowManager.LayoutParams(
+                        WindowManager.LayoutParams.WRAP_CONTENT,
+                        WindowManager.LayoutParams.WRAP_CONTENT,
+                        type,
+                        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                                | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+                                | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                        PixelFormat.TRANSLUCENT
+                );
 
         params.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
         params.y = 160;
@@ -291,7 +369,8 @@ public class OverlayService extends Service {
             handler.postDelayed(removeTask, 4000);
 
         } catch (Exception e) {
-            android.util.Log.e("LiveGiftStudio", "Overlay error", e);
+            android.util.Log.e(
+                    "LiveGiftStudio", "Overlay error", e);
             removeOverlay();
         }
     }
@@ -315,6 +394,7 @@ public class OverlayService extends Service {
         }
 
         removeOverlay();
+        stopCurrentSound();
 
         if (webSocket != null) {
             webSocket.close(1000, "App closed");
@@ -326,12 +406,6 @@ public class OverlayService extends Service {
             client = null;
         }
 
-        if (toneGenerator != null) {
-            toneGenerator.release();
-            toneGenerator = null;
-        }
-
         super.onDestroy();
     }
 }
-            
