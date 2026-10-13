@@ -191,6 +191,10 @@ public class MainActivity extends Activity {
         addButton("🎬 Тест анимации",
                 v -> startOverlay());
 
+        
+        addButton("📱 Подключение TikTok LIVE",
+                v -> showTikTokConnection());
+
         addButton("💰 Открыть донаты",
                 v -> openLink(DONATE_URL));
 
