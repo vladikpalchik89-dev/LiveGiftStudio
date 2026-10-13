@@ -13,7 +13,6 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
-import android.provider.Settings;
 import android.view.Gravity;
 import android.view.WindowManager;
 import android.view.animation.AlphaAnimation;
@@ -21,6 +20,9 @@ import android.view.animation.Animation;
 import android.view.animation.AnimationSet;
 import android.view.animation.OvershootInterpolator;
 import android.view.animation.ScaleAnimation;
+import android.view.animation.RotateAnimation;
+import android.view.animation.TranslateAnimation;
+import android.view.animation.DecelerateInterpolator;
 import android.widget.TextView;
 
 import org.json.JSONObject;
@@ -109,7 +111,6 @@ public class OverlayService extends Service {
                 @Override
                 public void onOpen(
                         WebSocket socket, Response response) {
-
                     android.util.Log.d(TAG, "WebSocket connected");
                 }
 
@@ -162,7 +163,6 @@ public class OverlayService extends Service {
                         WebSocket socket,
                         Throwable error,
                         Response response) {
-
                     android.util.Log.e(
                             TAG, "WebSocket connection failed", error);
                 }
@@ -172,7 +172,6 @@ public class OverlayService extends Service {
                         WebSocket socket,
                         int code,
                         String reason) {
-
                     android.util.Log.d(TAG, "WebSocket closed");
                 }
             });
@@ -713,21 +712,223 @@ public class OverlayService extends Service {
             windowManager.addView(overlay, params);
 
             AnimationSet animation = new AnimationSet(false);
+            String giftKey = getGiftKey(gift);
 
-            ScaleAnimation scale = new ScaleAnimation(
-                    0.25f, 1.0f, 0.25f, 1.0f,
-                    Animation.RELATIVE_TO_SELF, 0.5f,
-                    Animation.RELATIVE_TO_SELF, 0.5f);
-
-            scale.setDuration(500);
-            scale.setInterpolator(new OvershootInterpolator());
-
+            ScaleAnimation scale;
             AlphaAnimation alpha = new AlphaAnimation(0.0f, 1.0f);
             alpha.setDuration(450);
 
-            animation.addAnimation(scale);
-            animation.addAnimation(alpha);
+            switch (giftKey) {
+                case "rose":
+                case "flower":
+                case "bouquet":
+                    scale = new ScaleAnimation(
+                            0.1f, 1.0f, 0.1f, 1.0f,
+                            Animation.RELATIVE_TO_SELF, 0.5f,
+                            Animation.RELATIVE_TO_SELF, 0.5f);
+                    scale.setDuration(750);
+                    scale.setInterpolator(new OvershootInterpolator());
+                    animation.addAnimation(scale);
 
+                    RotateAnimation roseSway = new RotateAnimation(
+                            -8f, 8f,
+                            Animation.RELATIVE_TO_SELF, 0.5f,
+                            Animation.RELATIVE_TO_SELF, 1.0f);
+                    roseSway.setDuration(350);
+                    roseSway.setRepeatCount(3);
+                    roseSway.setRepeatMode(Animation.REVERSE);
+                    animation.addAnimation(roseSway);
+                    break;
+
+                case "heart":
+                case "love":
+                case "love_you":
+                case "finger_heart":
+                    scale = new ScaleAnimation(
+                            0.2f, 1.08f, 0.2f, 1.08f,
+                            Animation.RELATIVE_TO_SELF, 0.5f,
+                            Animation.RELATIVE_TO_SELF, 0.5f);
+                    scale.setDuration(650);
+                    scale.setRepeatCount(1);
+                    scale.setRepeatMode(Animation.REVERSE);
+                    scale.setInterpolator(new OvershootInterpolator());
+                    animation.addAnimation(scale);
+                    break;
+
+                case "galaxy":
+                case "universe":
+                case "planet":
+                case "star":
+                    scale = new ScaleAnimation(
+                            0.0f, 1.0f, 0.0f, 1.0f,
+                            Animation.RELATIVE_TO_SELF, 0.5f,
+                            Animation.RELATIVE_TO_SELF, 0.5f);
+                    scale.setDuration(1000);
+                    scale.setInterpolator(new DecelerateInterpolator());
+                    animation.addAnimation(scale);
+
+                    RotateAnimation spaceSpin = new RotateAnimation(
+                            -180f, 0f,
+                            Animation.RELATIVE_TO_SELF, 0.5f,
+                            Animation.RELATIVE_TO_SELF, 0.5f);
+                    spaceSpin.setDuration(850);
+                    spaceSpin.setInterpolator(new DecelerateInterpolator());
+                    animation.addAnimation(spaceSpin);
+                    break;
+
+                case "lion":
+                case "tiger":
+                case "dragon_flame":
+                case "phoenix":
+                case "unicorn":
+                    scale = new ScaleAnimation(
+                            1.8f, 1.0f, 1.8f, 1.0f,
+                            Animation.RELATIVE_TO_SELF, 0.5f,
+                            Animation.RELATIVE_TO_SELF, 0.5f);
+                    scale.setDuration(600);
+                    scale.setInterpolator(new OvershootInterpolator());
+                    animation.addAnimation(scale);
+
+                    TranslateAnimation impact = new TranslateAnimation(
+                            0, 0, -180, 0);
+                    impact.setDuration(550);
+                    impact.setInterpolator(new DecelerateInterpolator());
+                    animation.addAnimation(impact);
+                    break;
+
+                case "diamond":
+                case "crown":
+                case "gold":
+                case "trophy":
+                case "medal":
+                    scale = new ScaleAnimation(
+                            0.0f, 1.0f, 0.0f, 1.0f,
+                            Animation.RELATIVE_TO_SELF, 0.5f,
+                            Animation.RELATIVE_TO_SELF, 0.5f);
+                    scale.setDuration(700);
+                    scale.setInterpolator(new OvershootInterpolator());
+                    animation.addAnimation(scale);
+
+                    RotateAnimation goldTurn = new RotateAnimation(
+                            90f, 0f,
+                            Animation.RELATIVE_TO_SELF, 0.5f,
+                            Animation.RELATIVE_TO_SELF, 0.5f);
+                    goldTurn.setDuration(600);
+                    animation.addAnimation(goldTurn);
+                    break;
+
+                case "fireworks":
+                case "lightning":
+                case "fire":
+                    scale = new ScaleAnimation(
+                            0.2f, 1.15f, 0.2f, 1.15f,
+                            Animation.RELATIVE_TO_SELF, 0.5f,
+                            Animation.RELATIVE_TO_SELF, 0.5f);
+                    scale.setDuration(300);
+                    scale.setRepeatCount(1);
+                    scale.setRepeatMode(Animation.REVERSE);
+                    animation.addAnimation(scale);
+                    break;
+
+                case "rocket":
+                case "airplane":
+                case "sports_car":
+                case "motorcycle":
+                case "train":
+                case "yacht":
+                    TranslateAnimation vehicle = new TranslateAnimation(
+                            450, 0, 100, 0);
+                    vehicle.setDuration(750);
+                    vehicle.setInterpolator(new DecelerateInterpolator());
+                    animation.addAnimation(vehicle);
+
+                    scale = new ScaleAnimation(
+                            0.65f, 1.0f, 0.65f, 1.0f,
+                            Animation.RELATIVE_TO_SELF, 0.5f,
+                            Animation.RELATIVE_TO_SELF, 0.5f);
+                    scale.setDuration(650);
+                    animation.addAnimation(scale);
+                    break;
+
+                case "balloon":
+                case "rainbow":
+                case "butterfly":
+                case "swan":
+                case "paper_crane":
+                    TranslateAnimation floatUp = new TranslateAnimation(
+                            0, 0, 180, 0);
+                    floatUp.setDuration(900);
+                    floatUp.setInterpolator(new DecelerateInterpolator());
+                    animation.addAnimation(floatUp);
+
+                    scale = new ScaleAnimation(
+                            0.5f, 1.0f, 0.5f, 1.0f,
+                            Animation.RELATIVE_TO_SELF, 0.5f,
+                            Animation.RELATIVE_TO_SELF, 0.5f);
+                    scale.setDuration(750);
+                    scale.setInterpolator(new OvershootInterpolator());
+                    animation.addAnimation(scale);
+                    break;
+
+                case "coffee":
+                case "ice_cream":
+                case "cake":
+                case "donut":
+                case "teddy_bear":
+                case "cat":
+                case "dog":
+                case "rabbit":
+                case "panda":
+                    TranslateAnimation bounce = new TranslateAnimation(
+                            0, 0, 120, 0);
+                    bounce.setDuration(550);
+                    bounce.setInterpolator(new OvershootInterpolator());
+                    animation.addAnimation(bounce);
+
+                    scale = new ScaleAnimation(
+                            0.5f, 1.0f, 0.5f, 1.0f,
+                            Animation.RELATIVE_TO_SELF, 0.5f,
+                            Animation.RELATIVE_TO_SELF, 0.5f);
+                    scale.setDuration(550);
+                    animation.addAnimation(scale);
+                    break;
+
+                case "microphone":
+                case "guitar":
+                case "drum":
+                case "music":
+                case "concert":
+                    scale = new ScaleAnimation(
+                            0.7f, 1.0f, 0.7f, 1.0f,
+                            Animation.RELATIVE_TO_SELF, 0.5f,
+                            Animation.RELATIVE_TO_SELF, 0.5f);
+                    scale.setDuration(250);
+                    scale.setRepeatCount(3);
+                    scale.setRepeatMode(Animation.REVERSE);
+                    animation.addAnimation(scale);
+
+                    RotateAnimation musicShake = new RotateAnimation(
+                            -5f, 5f,
+                            Animation.RELATIVE_TO_SELF, 0.5f,
+                            Animation.RELATIVE_TO_SELF, 0.5f);
+                    musicShake.setDuration(120);
+                    musicShake.setRepeatCount(5);
+                    musicShake.setRepeatMode(Animation.REVERSE);
+                    animation.addAnimation(musicShake);
+                    break;
+
+                default:
+                    scale = new ScaleAnimation(
+                            0.25f, 1.0f, 0.25f, 1.0f,
+                            Animation.RELATIVE_TO_SELF, 0.5f,
+                            Animation.RELATIVE_TO_SELF, 0.5f);
+                    scale.setDuration(500);
+                    scale.setInterpolator(new OvershootInterpolator());
+                    animation.addAnimation(scale);
+                    break;
+            }
+
+            animation.addAnimation(alpha);
             overlay.startAnimation(animation);
 
             removeTask = () -> {
