@@ -55,8 +55,8 @@ public class MainActivity extends Activity {
     private static final int PICK_SOUND = 501;
     private static final int PICK_FOLLOW_SOUND = 502;
 
-private TextToSpeech voicePreview;
-private boolean voicePreviewReady = false;
+    private TextToSpeech voicePreview;
+    private boolean voicePreviewReady = false;
 
     private final ExecutorService executor =
             Executors.newSingleThreadExecutor();
@@ -180,16 +180,16 @@ private boolean voicePreviewReady = false;
         container.addView(subtitle);
 
         addButton("🎁 Подарки и мои звуки",
-        v -> showGiftCatalog());
+                v -> showGiftCatalog());
 
         addButton("🗣️ Настроить голос и озвучку",
-        v -> showVoiceSettings());
+                v -> showVoiceSettings());
 
         addButton("🔔 Выбрать звук подписки",
-        v -> chooseFollowSound());
+                v -> chooseFollowSound());
 
         addButton("🎬 Тест анимации",
-        v -> startOverlay());
+                v -> startOverlay());
 
         addButton("💰 Открыть донаты",
                 v -> openLink(DONATE_URL));
@@ -369,6 +369,27 @@ private boolean voicePreviewReady = false;
 
         super.onActivityResult(requestCode, resultCode, data);
 
+        if (requestCode == PICK_FOLLOW_SOUND) {
+            if (resultCode == RESULT_OK
+                    && data != null
+                    && data.getData() != null) {
+
+                Uri uri = data.getData();
+
+                try {
+                    getContentResolver().takePersistableUriPermission(
+                            uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                } catch (Exception ignored) {}
+
+                prefs.edit()
+                        .putString("follow_sound_uri", uri.toString())
+                        .apply();
+
+                message("Звук подписки сохранён");
+            }
+            return;
+        }
+
         if (requestCode != PICK_SOUND
                 || resultCode != RESULT_OK
                 || data == null
@@ -448,6 +469,147 @@ private boolean voicePreviewReady = false;
         } catch (Exception ignored) {}
 
         previewPlayer = null;
+    }
+
+    private void showVoiceSettings() {
+        if (voicePreview == null) {
+            voicePreviewReady = false;
+
+            voicePreview = new TextToSpeech(this, status -> {
+                if (status == TextToSpeech.SUCCESS) {
+                    int result = voicePreview.setLanguage(
+                            new Locale("ru", "RU"));
+
+                    voicePreviewReady =
+                            result != TextToSpeech.LANG_MISSING_DATA
+                            && result != TextToSpeech.LANG_NOT_SUPPORTED;
+
+                    runOnUiThread(this::displayVoiceSettings);
+                } else {
+                    runOnUiThread(() ->
+                            message("Не удалось запустить озвучку"));
+                }
+            });
+        } else {
+            displayVoiceSettings();
+        }
+    }
+
+    private void displayVoiceSettings() {
+        if (!voicePreviewReady || voicePreview == null) {
+            message("Русская озвучка ещё не готова. Проверь настройки синтеза речи Android.");
+            return;
+        }
+
+        ArrayList<String> labels = new ArrayList<>();
+        ArrayList<String> names = new ArrayList<>();
+
+        labels.add("Голос по умолчанию");
+        names.add("");
+
+        try {
+            List<Voice> voices =
+                    new ArrayList<>(voicePreview.getVoices());
+
+            Collections.sort(voices,
+                    Comparator.comparing(v ->
+                            v.getName().toLowerCase(Locale.ROOT)));
+
+            for (Voice voice : voices) {
+                Locale locale = voice.getLocale();
+
+                if (locale != null
+                        && "ru".equalsIgnoreCase(
+                                locale.getLanguage())) {
+                    labels.add(voice.getName());
+                    names.add(voice.getName());
+                }
+            }
+        } catch (Exception ignored) {}
+
+        if (labels.size() == 1) {
+            message("Установи русский голос в настройках синтеза речи Android");
+            return;
+        }
+
+        String selected =
+                prefs.getString("selected_voice_name", "");
+
+        int checked = names.indexOf(selected);
+        if (checked < 0) checked = 0;
+
+        final int[] choice = {checked};
+
+        new AlertDialog.Builder(this)
+                .setTitle("Выбери голос")
+                .setSingleChoiceItems(
+                        labels.toArray(new String[0]),
+                        checked,
+                        (dialog, which) -> choice[0] = which)
+                .setNeutralButton("▶ Проверить", (dialog, which) -> {
+                    String name = names.get(choice[0]);
+                    applyPreviewVoice(name);
+                    testVoice(name);
+                })
+                .setPositiveButton("Сохранить", (dialog, which) -> {
+                    String name = names.get(choice[0]);
+
+                    prefs.edit()
+                            .putString("selected_voice_name", name)
+                            .apply();
+
+                    applyPreviewVoice(name);
+                    message("Голос сохранён");
+                })
+                .setNegativeButton("Отмена", null)
+                .show();
+    }
+
+    private void applyPreviewVoice(String voiceName) {
+        if (voicePreview == null || !voicePreviewReady) return;
+
+        try {
+            if (voiceName == null || voiceName.isEmpty()) {
+                voicePreview.setLanguage(new Locale("ru", "RU"));
+                return;
+            }
+
+            for (Voice voice : voicePreview.getVoices()) {
+                if (voice.getName().equals(voiceName)) {
+                    voicePreview.setVoice(voice);
+                    return;
+                }
+            }
+        } catch (Exception ignored) {}
+    }
+
+    private void testVoice(String voiceName) {
+        if (voicePreview == null || !voicePreviewReady) {
+            message("Озвучка ещё не готова");
+            return;
+        }
+
+        applyPreviewVoice(voiceName);
+
+        voicePreview.speak(
+                "Привет! Это проверка голоса LiveGiftStudio.",
+                TextToSpeech.QUEUE_FLUSH,
+                null,
+                "lgs_voice_test");
+    }
+
+    private void chooseFollowSound() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("audio/*");
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+
+        try {
+            startActivityForResult(intent, PICK_FOLLOW_SOUND);
+        } catch (Exception e) {
+            message("Не удалось открыть выбор звука");
+        }
     }
 
     private void startOverlay() {
@@ -807,6 +969,16 @@ private boolean voicePreviewReady = false;
     @Override
     protected void onDestroy() {
         stopPreview();
+
+        if (voicePreview != null) {
+            try {
+                voicePreview.stop();
+                voicePreview.shutdown();
+            } catch (Exception ignored) {}
+
+            voicePreview = null;
+        }
+
         executor.shutdown();
         super.onDestroy();
     }
