@@ -966,46 +966,46 @@ public class MainActivity extends Activity {
                 .show();
     }
 
+    
     private void message(String text) {
         Toast.makeText(this, text, Toast.LENGTH_LONG).show();
     }
 
+    private void showTikTokConnection() {
+        EditText input = new EditText(this);
+        input.setHint("Например: @username");
+        input.setSingleLine(true);
+        input.setInputType(1);
+        input.setText(prefs.getString("tiktok_username", ""));
+
+        new AlertDialog.Builder(this)
+                .setTitle("📱 Подключение TikTok LIVE")
+                .setMessage("Введи свой ник TikTok без пароля.")
+                .setView(input)
+                .setNegativeButton("Отмена", null)
+                .setPositiveButton("Сохранить ник", (dialog, which) -> {
+                    String username = input.getText()
+                            .toString()
+                            .trim()
+                            .replace("@", "");
+
+                    if (username.isEmpty()) {
+                        message("Сначала введи ник TikTok");
+                        return;
+                    }
+
+                    prefs.edit()
+                            .putString("tiktok_username", username)
+                            .apply();
+
+                    message("Ник сохранён: @" + username
+                            + ". Подключение ещё не подтверждено.");
+                })
+                .show();
+    }
+
     @Override
     protected void onDestroy() {
-       private void showTikTokConnection() {
-    EditText input = new EditText(this);
-    input.setHint("Например: @username");
-    input.setSingleLine(true);
-    input.setInputType(1);
-    input.setText(
-            prefs.getString("tiktok_username", "")
-    );
-
-    new AlertDialog.Builder(this)
-            .setTitle("📱 Подключение TikTok LIVE")
-            .setMessage("Введи свой ник TikTok без пароля.")
-            .setView(input)
-            .setNegativeButton("Отмена", null)
-            .setPositiveButton("Сохранить ник", (dialog, which) -> {
-                String username = input.getText()
-                        .toString()
-                        .trim()
-                        .replace("@", "");
-
-                if (username.isEmpty()) {
-                    message("Сначала введи ник TikTok");
-                    return;
-                }
-
-                prefs.edit()
-                        .putString("tiktok_username", username)
-                        .apply();
-
-                message("Ник сохранён: @" + username
-                        + ". Подключение ещё не подтверждено.");
-            })
-            .show();
-}
         stopPreview();
 
         if (voicePreview != null) {
@@ -1021,3 +1021,4 @@ public class MainActivity extends Activity {
         super.onDestroy();
     }
 }
+
