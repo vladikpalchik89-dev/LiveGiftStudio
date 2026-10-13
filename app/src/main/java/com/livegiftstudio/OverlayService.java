@@ -5,6 +5,7 @@ import android.app.Service;
 import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.PixelFormat;
+import android.graphics.drawable.GradientDrawable;
 import android.media.AudioManager;
 import android.media.ToneGenerator;
 import android.os.Build;
@@ -13,10 +14,16 @@ import android.os.IBinder;
 import android.os.Looper;
 import android.view.Gravity;
 import android.view.WindowManager;
+import android.view.animation.AlphaAnimation;
+import android.view.animation.Animation;
+import android.view.animation.AnimationSet;
 import android.view.animation.ScaleAnimation;
+import android.view.animation.TranslateAnimation;
 import android.widget.TextView;
 
 import org.json.JSONObject;
+
+import java.util.Locale;
 
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -28,11 +35,15 @@ public class OverlayService extends Service {
 
     private WindowManager windowManager;
     private TextView overlay;
+
     private final Handler handler =
             new Handler(Looper.getMainLooper());
+
     private ToneGenerator toneGenerator;
     private OkHttpClient client;
     private WebSocket webSocket;
+
+    private Runnable removeTask;
 
     @Override
     public IBinder onBind(Intent intent) {
@@ -45,7 +56,7 @@ public class OverlayService extends Service {
 
         try {
             toneGenerator = new ToneGenerator(
-                    AudioManager.STREAM_MUSIC, 80);
+                    AudioManager.STREAM_MUSIC, 85);
         } catch (Exception ignored) {
             toneGenerator = null;
         }
@@ -83,8 +94,10 @@ public class OverlayService extends Service {
 
                     String gift = event.optString(
                             "giftName", "Подарок");
+
                     String username = event.optString(
                             "username", "Зритель");
+
                     int count = event.optInt(
                             "repeatCount", 1);
 
@@ -92,8 +105,8 @@ public class OverlayService extends Service {
                             + " × " + count
                             + "\n@" + username;
 
-                    handler.post(
-                            () -> showMessage(message));
+                    handler.post(() -> showGift(
+                            message, gift));
 
                 } catch (Exception e) {
                     android.util.Log.e(
@@ -109,8 +122,7 @@ public class OverlayService extends Service {
                     Response response) {
                 android.util.Log.e(
                         "LiveGiftStudio",
-                        "Connection failed",
-                        error);
+                        "Connection failed", error);
             }
         });
     }
@@ -124,32 +136,145 @@ public class OverlayService extends Service {
                     "overlay_text");
 
             if (text != null && !text.trim().isEmpty()) {
-                showMessage(text);
+                showGift(text, "Тест");
             }
         }
 
         return START_STICKY;
     }
 
-    private void showMessage(String text) {
+    private int[] getColors(String gift) {
+        String name = gift.toLowerCase(Locale.ROOT);
+
+        if (name.contains("rose")
+                || name.contains("роза")) {
+            return new int[]{
+                    Color.rgb(255, 35, 115),
+                    Color.rgb(130, 0, 65)
+            };
+        }
+
+        if (name.contains("heart")
+                || name.contains("сердц")
+                || name.contains("finger")) {
+            return new int[]{
+                    Color.rgb(255, 70, 190),
+                    Color.rgb(100, 0, 180)
+            };
+        }
+
+        if (name.contains("galaxy")
+                || name.contains("universe")
+                || name.contains("вселен")
+                || name.contains("галак")) {
+            return new int[]{
+                    Color.rgb(40, 30, 160),
+                    Color.rgb(160, 40, 255)
+            };
+        }
+
+        if (name.contains("lion")
+                || name.contains("unicorn")
+                || name.contains("лев")
+                || name.contains("тигр")) {
+            return new int[]{
+                    Color.rgb(255, 190, 30),
+                    Color.rgb(190, 55, 0)
+            };
+        }
+
+        if (name.contains("diamond")
+                || name.contains("драгоц")
+                || name.contains("алмаз")) {
+            return new int[]{
+                    Color.rgb(0, 220, 255),
+                    Color.rgb(20, 60, 210)
+            };
+        }
+
+        return new int[]{
+                Color.rgb(150, 40, 255),
+                Color.rgb(55, 15, 120)
+        };
+    }
+
+    private void playGiftSound(String gift) {
+        if (toneGenerator == null) return;
+
+        String name = gift.toLowerCase(Locale.ROOT);
+
+        try {
+            if (name.contains("rose")
+                    || name.contains("роза")) {
+                toneGenerator.startTone(
+                        ToneGenerator.TONE_PROP_ACK, 220);
+            } else if (name.contains("heart")
+                    || name.contains("сердц")
+                    || name.contains("finger")) {
+                toneGenerator.startTone(
+                        ToneGenerator.TONE_PROP_BEEP, 180);
+            } else if (name.contains("galaxy")
+                    || name.contains("universe")
+                    || name.contains("галак")
+                    || name.contains("вселен")) {
+                toneGenerator.startTone(
+                        ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD,
+                        450);
+            } else if (name.contains("lion")
+                    || name.contains("unicorn")
+                    || name.contains("лев")
+                    || name.contains("тигр")) {
+                toneGenerator.startTone(
+                        ToneGenerator.TONE_CDMA_ALERT_NETWORK_LITE,
+                        350);
+            } else if (name.contains("diamond")
+                    || name.contains("алмаз")) {
+                toneGenerator.startTone(
+                        ToneGenerator.TONE_PROP_PROMPT, 300);
+            } else {
+                toneGenerator.startTone(
+                        ToneGenerator.TONE_PROP_BEEP2, 200);
+            }
+        } catch (Exception e) {
+            android.util.Log.e(
+                    "LiveGiftStudio",
+                    "Sound error", e);
+        }
+    }
+
+    private void showGift(String message, String gift) {
         if (windowManager == null) {
             windowManager = (WindowManager)
                     getSystemService(WINDOW_SERVICE);
         }
 
+        if (removeTask != null) {
+            handler.removeCallbacks(removeTask);
+            removeTask = null;
+        }
+
         removeOverlay();
 
         overlay = new TextView(this);
-        overlay.setText(text);
+        overlay.setText(message);
         overlay.setTextColor(Color.WHITE);
         overlay.setTextSize(25);
         overlay.setGravity(Gravity.CENTER);
-        overlay.setPadding(30, 22, 30, 22);
-        overlay.setBackgroundColor(
-                Color.rgb(120, 30, 200));
-        overlay.setElevation(20);
+        overlay.setPadding(35, 26, 35, 26);
+        overlay.setMaxWidth(950);
+        overlay.setElevation(24);
+
+        GradientDrawable background =
+                new GradientDrawable(
+                        GradientDrawable.Orientation.TL_BR,
+                        getColors(gift));
+
+        background.setCornerRadius(32);
+        background.setStroke(3, Color.WHITE);
+        overlay.setBackground(background);
 
         int type;
+
         if (Build.VERSION.SDK_INT >=
                 Build.VERSION_CODES.O) {
             type = WindowManager.LayoutParams
@@ -175,24 +300,51 @@ public class OverlayService extends Service {
         try {
             windowManager.addView(overlay, params);
 
+            AnimationSet animation = new AnimationSet(true);
+
             ScaleAnimation scale = new ScaleAnimation(
-                    0.4f, 1.0f,
-                    0.4f, 1.0f,
-                    ScaleAnimation.RELATIVE_TO_SELF, 0.5f,
-                    ScaleAnimation.RELATIVE_TO_SELF, 0.5f);
+                    0.25f, 1.08f,
+                    0.25f, 1.08f,
+                    Animation.RELATIVE_TO_SELF, 0.5f,
+                    Animation.RELATIVE_TO_SELF, 0.5f);
 
-            scale.setDuration(450);
-            overlay.startAnimation(scale);
+            scale.setDuration(350);
+            scale.setInterpolator(
+                    new android.view.animation.OvershootInterpolator());
 
-            if (toneGenerator != null) {
-                toneGenerator.startTone(
-                        ToneGenerator.TONE_PROP_ACK, 250);
-            }
+            ScaleAnimation settle = new ScaleAnimation(
+                    1.08f, 1.0f,
+                    1.08f, 1.0f,
+                    Animation.RELATIVE_TO_SELF, 0.5f,
+                    Animation.RELATIVE_TO_SELF, 0.5f);
 
-            handler.postDelayed(
-                    this::removeOverlay, 4000);
+            settle.setStartOffset(350);
+            settle.setDuration(180);
+
+            AlphaAnimation fade = new AlphaAnimation(
+                    0.0f, 1.0f);
+            fade.setDuration(250);
+
+            TranslateAnimation slide = new TranslateAnimation(
+                    0, 0, -100, 0);
+            slide.setDuration(400);
+
+            animation.addAnimation(scale);
+            animation.addAnimation(settle);
+            animation.addAnimation(fade);
+            animation.addAnimation(slide);
+
+            overlay.startAnimation(animation);
+
+            playGiftSound(gift);
+
+            removeTask = this::removeOverlay;
+            handler.postDelayed(removeTask, 4000);
 
         } catch (Exception e) {
+            android.util.Log.e(
+                    "LiveGiftStudio",
+                    "Overlay error", e);
             removeOverlay();
         }
     }
@@ -210,6 +362,10 @@ public class OverlayService extends Service {
 
     @Override
     public void onDestroy() {
+        if (removeTask != null) {
+            handler.removeCallbacks(removeTask);
+        }
+
         removeOverlay();
 
         if (webSocket != null) {
@@ -227,4 +383,4 @@ public class OverlayService extends Service {
 
         super.onDestroy();
     }
-}
+                }
