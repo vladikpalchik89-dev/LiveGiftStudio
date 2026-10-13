@@ -53,6 +53,10 @@ public class MainActivity extends Activity {
             "LGS_PRO_7mQ9vK2xR8pN4wT6zA1cF5hB";
 
     private static final int PICK_SOUND = 501;
+    private static final int PICK_FOLLOW_SOUND = 502;
+
+private TextToSpeech voicePreview;
+private boolean voicePreviewReady = false;
 
     private final ExecutorService executor =
             Executors.newSingleThreadExecutor();
@@ -176,10 +180,16 @@ public class MainActivity extends Activity {
         container.addView(subtitle);
 
         addButton("🎁 Подарки и мои звуки",
-                v -> showGiftCatalog());
+        v -> showGiftCatalog());
+
+        addButton("🗣️ Настроить голос и озвучку",
+        v -> showVoiceSettings());
+
+        addButton("🔔 Выбрать звук подписки",
+        v -> chooseFollowSound());
 
         addButton("🎬 Тест анимации",
-                v -> startOverlay());
+        v -> startOverlay());
 
         addButton("💰 Открыть донаты",
                 v -> openLink(DONATE_URL));
