@@ -711,114 +711,59 @@ public class OverlayService extends Service {
         }
     }
 
-    // Обычная озвучка: использует выбранный стиль голоса из настроек.
-    private void speakText(String text) {
-        if (textToSpeech == null || !ttsReady
-                || text == null || text.trim().isEmpty()) {
-            return;
-        }
+    // 30 вариантов звучания и настройка громкости.
+private void speakText(String text) {
+    speakTextForUser(null, text);
+}
 
-        String style = prefs.getString(
-                "voice_style", "hero");
+// Для каждого сообщения выбираем случайный стиль.
+private void speakTextForUser(
+        String username, String text) {
 
-        float pitch;
-        float rate;
-
-        switch (style) {
-            case "deep":
-                pitch = 0.75f;
-                rate = 0.90f;
-                break;
-
-            case "dramatic":
-                pitch = 0.90f;
-                rate = 0.80f;
-                break;
-
-            case "comedy":
-                pitch = 1.20f;
-                rate = 1.15f;
-                break;
-
-            case "hero":
-            default:
-                pitch = 0.95f;
-                rate = 0.95f;
-                break;
-        }
-
-        textToSpeech.setPitch(pitch);
-        textToSpeech.setSpeechRate(rate);
-
-        textToSpeech.speak(
-                text,
-                TextToSpeech.QUEUE_ADD,
-                null,
-                "LiveGiftStudio_" + System.currentTimeMillis()
-        );
+    if (textToSpeech == null || !ttsReady
+            || text == null || text.trim().isEmpty()) {
+        return;
     }
 
-    // Выбирает доступный локальный русский голос по имени автора чата.
-    // Один и тот же автор будет получать одинаковый выбор голоса,
-    // пока список голосов на телефоне не изменится.
-    private void speakTextForUser(
-            String username, String text) {
+    float[] pitches = {
+        0.65f, 0.70f, 0.75f, 0.80f, 0.85f,
+        0.90f, 0.95f, 1.00f, 1.05f, 1.10f,
+        1.15f, 1.20f, 1.25f, 1.30f, 1.35f,
+        0.70f, 0.80f, 0.90f, 1.00f, 1.10f,
+        1.20f, 1.30f, 0.75f, 0.95f, 1.15f,
+        1.25f, 0.85f, 1.05f, 1.35f, 1.40f
+    };
 
-        if (textToSpeech == null || !ttsReady
-                || text == null || text.trim().isEmpty()) {
-            return;
-        }
+    float[] rates = {
+        0.80f, 0.90f, 1.00f, 1.10f, 1.20f,
+        0.85f, 0.95f, 1.05f, 1.15f, 1.25f,
+        0.80f, 0.90f, 1.00f, 1.10f, 1.20f,
+        1.25f, 1.15f, 1.05f, 0.95f, 0.85f,
+        0.80f, 0.90f, 1.00f, 1.10f, 1.20f,
+        1.25f, 1.15f, 1.05f, 0.90f, 1.30f
+    };
 
-        try {
-            List<Voice> voices = new ArrayList<>();
+    // Случайный стиль для текущего сообщения.
+    int index = (int) (Math.random() * pitches.length);
 
-            if (textToSpeech.getVoices() != null) {
-                for (Voice voice : textToSpeech.getVoices()) {
-                    if (voice.getLocale() != null
-                            && "ru".equals(
-                                    voice.getLocale().getLanguage())
-                            && !voice.isNetworkConnectionRequired()) {
+    textToSpeech.setPitch(pitches[index]);
+    textToSpeech.setSpeechRate(rates[index]);
 
-                        voices.add(voice);
-                    }
-                }
-            }
+    int volume = Math.max(0, Math.min(
+            100, prefs.getInt("voice_volume", 100)));
 
-            if (voices.isEmpty()) {
-                speakText(text);
-                return;
-            }
+    android.os.Bundle params = new android.os.Bundle();
+    params.putFloat(
+            TextToSpeech.Engine.KEY_PARAM_VOLUME,
+            volume / 100.0f);
 
-            String name = username == null ? "" : username;
-
-            int index = (name.hashCode() & 0x7fffffff)
-                    % voices.size();
-
-            Voice selectedVoice = voices.get(index);
-
-            int result = textToSpeech.setVoice(selectedVoice);
-
-            if (result == TextToSpeech.ERROR) {
-                speakText(text);
-                return;
-            }
-
-            // Сохраняем выбранный стиль озвучки.
-            speakText(text);
-
-            android.util.Log.d(
-                    TAG,
-                    "Chat voice selected: "
-                            + selectedVoice.getName()
-                            + " for " + name);
-
-        } catch (Exception e) {
-            android.util.Log.e(
-                    TAG, "Voice selection failed", e);
-
-            speakText(text);
-        }
-    }
+    textToSpeech.speak(
+            text,
+            TextToSpeech.QUEUE_ADD,
+            params,
+            "LiveGiftStudio_" + System.currentTimeMillis()
+    );
+}
 
     @Override
     public void onDestroy() {
