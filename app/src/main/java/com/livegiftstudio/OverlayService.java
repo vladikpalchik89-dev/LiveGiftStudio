@@ -144,13 +144,11 @@ public void onCreate() {
                         final String message =
                                 "➕ Новый подписчик\n@" + username;
 
-                        handler.post(() -> {
+                       handler.post(() -> {
     if (!destroyed) {
-        showGift(message, "heart");
-        playFollowSound();
         speakText("Новый подписчик. " + username);
     }
-});
+}); 
 
                         return;
                     }
@@ -163,7 +161,6 @@ if (type.equals("chat")) {
     if (!comment.trim().isEmpty()) {
         handler.post(() -> {
             if (!destroyed) {
-                showGift("💬 @" + username + "\n" + comment, "heart");
                 speakText(username + " пишет: " + comment);
             }
         });
