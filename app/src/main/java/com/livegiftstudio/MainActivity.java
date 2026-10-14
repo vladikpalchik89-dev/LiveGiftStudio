@@ -487,10 +487,10 @@ public class MainActivity extends Activity {
     
     private void showVoiceSettings() {
     String[] styles = new String[30];
+
     for (int i = 0; i < 30; i++) {
         styles[i] = String.format(
-                java.util.Locale.US,
-                "🎙️ Стиль %02d", i + 1);
+                Locale.US, "🎙️ Стиль %02d", i + 1);
     }
 
     final int[] pitches = {
@@ -514,47 +514,46 @@ public class MainActivity extends Activity {
     final int[] choice = {saved};
     final int[] volume = {savedVolume};
 
-    android.widget.LinearLayout layout =
-            new android.widget.LinearLayout(this);
-    layout.setOrientation(
-            android.widget.LinearLayout.VERTICAL);
+    LinearLayout layout = new LinearLayout(this);
+    layout.setOrientation(LinearLayout.VERTICAL);
     layout.setPadding(32, 16, 32, 8);
 
-    android.widget.ListView list =
-            new android.widget.ListView(this);
+    ListView list = new ListView(this);
 
-    android.widget.ArrayAdapter<String> adapter =
-            new android.widget.ArrayAdapter<>(
-                    this,
-                    android.R.layout.simple_list_item_single_choice,
-                    styles);
+    ArrayAdapter<String> adapter = new ArrayAdapter<>(
+            this,
+            android.R.layout.simple_list_item_single_choice,
+            styles);
 
     list.setAdapter(adapter);
-    list.setChoiceMode(
-            android.widget.ListView.CHOICE_MODE_SINGLE);
+    list.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
     list.setItemChecked(saved, true);
+
     list.setOnItemClickListener((parent, view, position, id) -> {
         choice[0] = position;
         list.setItemChecked(position, true);
     });
 
-    android.widget.TextView volumeLabel =
-            new android.widget.TextView(this);
+    TextView volumeLabel = new TextView(this);
     volumeLabel.setText("Громкость: " + savedVolume + "%");
+    volumeLabel.setTextColor(Color.WHITE);
+    volumeLabel.setTextSize(16);
 
     android.widget.SeekBar volumeBar =
             new android.widget.SeekBar(this);
+
     volumeBar.setMax(100);
     volumeBar.setProgress(savedVolume);
+
     volumeBar.setOnSeekBarChangeListener(
             new android.widget.SeekBar.OnSeekBarChangeListener() {
         @Override
         public void onProgressChanged(
                 android.widget.SeekBar bar,
-                int progress, boolean fromUser) {
+                int progress,
+                boolean fromUser) {
             volume[0] = progress;
-            volumeLabel.setText(
-                    "Громкость: " + progress + "%");
+            volumeLabel.setText("Громкость: " + progress + "%");
         }
 
         @Override
@@ -568,72 +567,49 @@ public class MainActivity extends Activity {
         }
     });
 
-    android.widget.Button preview =
-            new android.widget.Button(this);
+    Button preview = new Button(this);
     preview.setText("▶ Прослушать выбранный стиль");
+
     preview.setOnClickListener(v -> {
-        prefs.edit()
-                .putInt("voice_preset", choice[0])
-                .putInt("voice_volume", volume[0])
-                .apply();
+        if (voicePreview == null || !voicePreviewReady) {
+            message("Озвучка ещё не готова. Попробуй позже.");
+            return;
+        }
 
-        // Воспроизводит пример через озвучку приложения.
-        android.speech.tts.TextToSpeech previewTts =
-                new android.speech.tts.TextToSpeech(
-                        this, status -> {
-            if (status ==
-                    android.speech.tts.TextToSpeech.SUCCESS) {
-                int result = previewTtsSafeLanguage(
-                        previewTts);
-                if (result !=
-                        android.speech.tts.TextToSpeech.LANG_MISSING_DATA
-                        && result !=
-                        android.speech.tts.TextToSpeech.LANG_NOT_SUPPORTED) {
-                    previewTts.setPitch(
-                            pitches[choice[0]] / 100.0f);
-                    previewTts.setSpeechRate(
-                            rates[choice[0]] / 100.0f);
+        int languageResult =
+                voicePreview.setLanguage(new Locale("ru", "RU"));
 
-                    android.os.Bundle params =
-                            new android.os.Bundle();
-                    params.putFloat(
-                            android.speech.tts.TextToSpeech
-                                    .Engine.KEY_PARAM_VOLUME,
-                            volume[0] / 100.0f);
+        if (languageResult == TextToSpeech.LANG_MISSING_DATA
+                || languageResult == TextToSpeech.LANG_NOT_SUPPORTED) {
+            message("Установи русский голос в настройках Android.");
+            return;
+        }
 
-                    previewTts.speak(
-                            "Привет! Это проверка выбранного голоса.",
-                            android.speech.tts.TextToSpeech.QUEUE_FLUSH,
-                            params, "voice_preview");
+        voicePreview.stop();
 
-                    previewTts.setOnUtteranceProgressListener(
-                            new android.speech.tts.UtteranceProgressListener() {
-                        @Override
-                        public void onStart(String id) {
-                        }
+        voicePreview.setPitch(
+                pitches[choice[0]] / 100.0f);
 
-                        @Override
-                        public void onDone(String id) {
-                            previewTts.shutdown();
-                        }
+        voicePreview.setSpeechRate(
+                rates[choice[0]] / 100.0f);
 
-                        @Override
-                        public void onError(String id) {
-                            previewTts.shutdown();
-                        }
-                    });
-                } else {
-                    previewTts.shutdown();
-                }
-            } else {
-                previewTts.shutdown();
-            }
-        });
+        Bundle params = new Bundle();
+        params.putFloat(
+                TextToSpeech.Engine.KEY_PARAM_VOLUME,
+                volume[0] / 100.0f);
+
+        voicePreview.speak(
+                "Привет! Это проверка выбранного стиля голоса.",
+                TextToSpeech.QUEUE_FLUSH,
+                params,
+                "voice_preview");
     });
 
     layout.addView(list,
-            new android.widget.LinearLayout.LayoutParams(
-                    -1, 420));
+            new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    420));
+
     layout.addView(volumeLabel);
     layout.addView(volumeBar);
     layout.addView(preview);
@@ -653,6 +629,7 @@ public class MainActivity extends Activity {
             .setNegativeButton("Отмена", null)
             .show();
 }
+                                        
 
 private void displayVoiceSettings() {              
         if (!voicePreviewReady || voicePreview == null) {
