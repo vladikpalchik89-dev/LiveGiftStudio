@@ -518,7 +518,6 @@ public class MainActivity extends Activity {
 }
 
 private void displayVoiceSettings() {              
-    () {
         if (!voicePreviewReady || voicePreview == null) {
             message("Русская озвучка ещё не готова. Проверь настройки синтеза речи Android.");
             return;
