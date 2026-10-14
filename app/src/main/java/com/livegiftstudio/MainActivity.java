@@ -971,19 +971,20 @@ public class MainActivity extends Activity {
         Toast.makeText(this, text, Toast.LENGTH_LONG).show();
     }
 
+    
     private void showTikTokConnection() {
         EditText input = new EditText(this);
         input.setHint("Например: @username");
         input.setSingleLine(true);
         input.setInputType(1);
-        input.setText(prefs.getString("tiktok_username", ""));
+        input.setText(prefs.getString("tiktok_username", "vinnipyh99"));
 
         new AlertDialog.Builder(this)
                 .setTitle("📱 Подключение TikTok LIVE")
-                .setMessage("Введи свой ник TikTok без пароля.")
+                .setMessage("Введи ник TikTok без пароля. Сервер должен быть настроен на этот же ник в Render.")
                 .setView(input)
                 .setNegativeButton("Отмена", null)
-                .setPositiveButton("Сохранить ник", (dialog, which) -> {
+                .setPositiveButton("Сохранить и подключить", (dialog, which) -> {
                     String username = input.getText()
                             .toString()
                             .trim()
@@ -998,11 +999,81 @@ public class MainActivity extends Activity {
                             .putString("tiktok_username", username)
                             .apply();
 
-                    message("Ник сохранён: @" + username
-                            + ". Подключение ещё не подтверждено.");
+                    try {
+                        Intent serviceIntent =
+                                new Intent(MainActivity.this, OverlayService.class);
+                        startService(serviceIntent);
+                    } catch (Exception e) {
+                        message("Ник сохранён, но сервис не запустился");
+                        return;
+                    }
+
+                    message("Проверяю сервер для @" + username);
+                    checkServerConnection(username);
                 })
                 .show();
     }
+
+    private void checkServerConnection(String username) {
+        executor.execute(() -> {
+            HttpURLConnection connection = null;
+
+            try {
+                connection = (HttpURLConnection)
+                        new URL("https://livegiftstudio.onrender.com/")
+                                .openConnection();
+                connection.setRequestMethod("GET");
+                connection.setConnectTimeout(15000);
+                connection.setReadTimeout(15000);
+
+                int code = connection.getResponseCode();
+
+                if (code < 200 || code >= 300) {
+                    runOnUiThread(() ->
+                            message("Ошибка сервера: " + code));
+                    return;
+                }
+
+                StringBuilder body = new StringBuilder();
+
+                try (java.io.BufferedReader reader =
+                             new java.io.BufferedReader(
+                                     new java.io.InputStreamReader(
+                                             connection.getInputStream(),
+                                             StandardCharsets.UTF_8))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        body.append(line);
+                    }
+                }
+
+                JSONObject status = new JSONObject(body.toString());
+                String serverUsername = status.optString("tiktok", "");
+                boolean enabled = status.optBoolean("tiktokEnabled", false);
+
+                runOnUiThread(() -> {
+                    if (!serverUsername.equalsIgnoreCase(username)) {
+                        message("В Render указан другой ник: @" + serverUsername
+                                + ". Проверь TIKTOK_USERNAME.");
+                    } else if (!enabled) {
+                        message("Сервер работает, но включи TIKTOK_ENABLED=true в Render.");
+                    } else {
+                        message("Сервер настроен на @" + username
+                                + ". Теперь проверь подключение во время эфира.");
+                    }
+                });
+
+            } catch (Exception e) {
+                runOnUiThread(() ->
+                        message("Не удалось проверить сервер. Проверь интернет."));
+            } finally {
+                if (connection != null) {
+                    connection.disconnect();
+                }
+            }
+        });
+    }
+
 
     @Override
     protected void onDestroy() {
