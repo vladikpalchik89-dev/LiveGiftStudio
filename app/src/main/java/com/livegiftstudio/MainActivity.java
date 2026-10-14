@@ -514,13 +514,11 @@ public class MainActivity extends Activity {
             .setNegativeButton("Отмена", null)
             .show();
 }
-            });
-        } else {
-            displayVoiceSettings();
-        }
-    }
+                     .show();
+}
 
-    private void displayVoiceSettings() {
+private void displayVoiceSettings() {              
+    () {
         if (!voicePreviewReady || voicePreview == null) {
             message("Русская озвучка ещё не готова. Проверь настройки синтеза речи Android.");
             return;
