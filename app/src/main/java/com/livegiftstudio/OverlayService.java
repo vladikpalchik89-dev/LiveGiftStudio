@@ -230,7 +230,7 @@ public void onClosed(
 
     android.util.Log.d(
             TAG,
-            "WebSocket closed: " + code + " " + reason
+            "WebSocket CLOSED code=" + code + " reason=" + reason
     );
 
     
