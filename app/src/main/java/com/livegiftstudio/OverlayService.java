@@ -233,7 +233,8 @@ public void onClosed(
             "WebSocket closed: " + code + " " + reason
     );
 
-    if (!destroyed && socket == webSocket) {
+    
+     if (!destroyed && socket == webSocket) {
         handler.postDelayed(() -> {
             if (!destroyed) {
                 connectToServer();
@@ -241,7 +242,9 @@ public void onClosed(
         }, 5000);
     }
 }
- 
+        }
+    });
+}
     private String getGiftKey(String gift) {
         String name = gift.toLowerCase(Locale.ROOT);
 
