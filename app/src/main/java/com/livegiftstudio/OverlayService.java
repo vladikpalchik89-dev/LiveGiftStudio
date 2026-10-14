@@ -646,17 +646,48 @@ public void onClosed(
         }
     }
 
-    private void speakText(String text) {
-        if (textToSpeech != null && ttsReady
-                && text != null && !text.trim().isEmpty()) {
-            textToSpeech.speak(
-                    text,
-                    TextToSpeech.QUEUE_ADD,
-                    null,
-                    "LiveGiftStudio_" + System.currentTimeMillis()
-            );
-        }
+    
+private void speakText(String text) {
+    if (textToSpeech == null || !ttsReady
+            || text == null || text.trim().isEmpty()) {
+        return;
     }
+
+    String style = prefs.getString("voice_style", "hero");
+
+    float pitch;
+    float rate;
+
+    switch (style) {
+        case "deep":
+            pitch = 0.75f;
+            rate = 0.90f;
+            break;
+        case "dramatic":
+            pitch = 0.90f;
+            rate = 0.80f;
+            break;
+        case "comedy":
+            pitch = 1.20f;
+            rate = 1.15f;
+            break;
+        case "hero":
+        default:
+            pitch = 0.95f;
+            rate = 0.95f;
+            break;
+    }
+
+    textToSpeech.setPitch(pitch);
+    textToSpeech.setSpeechRate(rate);
+    textToSpeech.speak(
+            text,
+            TextToSpeech.QUEUE_ADD,
+            null,
+            "LiveGiftStudio_" + System.currentTimeMillis()
+    );
+}
+}
 
 
     @Override
