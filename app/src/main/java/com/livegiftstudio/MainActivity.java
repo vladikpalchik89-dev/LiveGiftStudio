@@ -513,8 +513,8 @@ public class MainActivity extends Activity {
             })
             .setNegativeButton("Отмена", null)
             .show();
-}
-                     .show();
+
+                     
 }
 
 private void displayVoiceSettings() {              
