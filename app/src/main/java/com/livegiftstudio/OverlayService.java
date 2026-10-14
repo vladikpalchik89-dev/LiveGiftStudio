@@ -79,15 +79,6 @@ public void onCreate() {
     connectToServer();
 }
 
-        prefs = getSharedPreferences(
-                "LiveGiftStudio", MODE_PRIVATE);
-
-        windowManager = (WindowManager)
-                getSystemService(WINDOW_SERVICE);
-
-        connectToServer();
-    }
-
     @Override
     public IBinder onBind(Intent intent) {
         return null;
@@ -632,17 +623,7 @@ if (type.equals("chat")) {
     }
 
     private void removeOverlay() {
-        private void speakText(String text) {
-    if (textToSpeech != null && ttsReady
-            && text != null && !text.trim().isEmpty()) {
-        textToSpeech.speak(
-                text,
-                TextToSpeech.QUEUE_ADD,
-                null,
-                "LiveGiftStudio_" + System.currentTimeMillis()
-        );
-    }
-}
+        
         if (overlay != null) {
             try {
                 overlay.clearAnimation();
@@ -654,6 +635,19 @@ if (type.equals("chat")) {
             overlay = null;
         }
     }
+
+    private void speakText(String text) {
+        if (textToSpeech != null && ttsReady
+                && text != null && !text.trim().isEmpty()) {
+            textToSpeech.speak(
+                    text,
+                    TextToSpeech.QUEUE_ADD,
+                    null,
+                    "LiveGiftStudio_" + System.currentTimeMillis()
+            );
+        }
+    }
+
 
     @Override
     public void onDestroy() {
