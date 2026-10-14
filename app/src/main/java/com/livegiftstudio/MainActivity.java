@@ -147,6 +147,15 @@ public class MainActivity extends Activity {
 
         prefs = getSharedPreferences(
                 "LiveGiftStudio", MODE_PRIVATE);
+        voicePreview = new TextToSpeech(this, status -> {
+    if (status == TextToSpeech.SUCCESS && voicePreview != null) {
+        int result = voicePreview.setLanguage(new Locale("ru", "RU"));
+
+        voicePreviewReady =
+                result != TextToSpeech.LANG_MISSING_DATA
+                && result != TextToSpeech.LANG_NOT_SUPPORTED;
+    }
+});
 
         loadStats();
         buildInterface();
