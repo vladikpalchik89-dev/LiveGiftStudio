@@ -8,6 +8,7 @@ import android.graphics.Color;
 import android.graphics.PixelFormat;
 import android.graphics.drawable.GradientDrawable;
 import android.media.MediaPlayer;
+import android.speech.tts.TextToSpeech;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
@@ -48,13 +49,35 @@ public class OverlayService extends Service {
     private OkHttpClient client;
     private WebSocket webSocket;
     private MediaPlayer currentPlayer;
-
+    private TextToSpeech textToSpeech;
+    private boolean ttsReady = false;
     private Runnable removeTask;
     private boolean destroyed = false;
 
     @Override
-    public void onCreate() {
-        super.onCreate();
+public void onCreate() {
+    super.onCreate();
+
+    textToSpeech = new TextToSpeech(
+            this,
+            status -> {
+                if (status == TextToSpeech.SUCCESS) {
+                    int result = textToSpeech.setLanguage(
+                            new Locale("ru", "RU"));
+                    ttsReady = result != TextToSpeech.LANG_MISSING_DATA
+                            && result != TextToSpeech.LANG_NOT_SUPPORTED;
+                }
+            }
+    );
+
+    prefs = getSharedPreferences(
+            "LiveGiftStudio", MODE_PRIVATE);
+
+    windowManager = (WindowManager)
+            getSystemService(WINDOW_SERVICE);
+
+    connectToServer();
+}
 
         prefs = getSharedPreferences(
                 "LiveGiftStudio", MODE_PRIVATE);
@@ -131,15 +154,32 @@ public class OverlayService extends Service {
                                 "➕ Новый подписчик\n@" + username;
 
                         handler.post(() -> {
-                            if (!destroyed) {
-                                showGift(message, "heart");
-                                playFollowSound();
-                            }
-                        });
+    if (!destroyed) {
+        showGift(message, "heart");
+        playFollowSound();
+        speakText("Новый подписчик. " + username);
+    }
+});
 
                         return;
                     }
+                    
+// Сообщение в чате
+if (type.equals("chat")) {
+    String username = event.optString("username", "Зритель");
+    String comment = event.optString("comment", "");
 
+    if (!comment.trim().isEmpty()) {
+        handler.post(() -> {
+            if (!destroyed) {
+                showGift("💬 @" + username + "\n" + comment, "heart");
+                speakText(username + " пишет: " + comment);
+            }
+        });
+    }
+
+    return;
+}
                     // Подарок
                     if (!type.equals("gift")) {
                         return;
@@ -161,11 +201,12 @@ public class OverlayService extends Service {
                             + "\n@" + username;
 
                     handler.post(() -> {
-                        if (!destroyed) {
-                            showGift(message, gift);
-                            playGiftSound(gift);
-                        }
-                    });
+    if (!destroyed) {
+        showGift(message, gift);
+        playGiftSound(gift);
+        speakText("Подарок " + gift + ". Отправил " + username);
+    }
+});
 
                 } catch (Exception e) {
                     android.util.Log.e(
@@ -591,6 +632,17 @@ public class OverlayService extends Service {
     }
 
     private void removeOverlay() {
+        private void speakText(String text) {
+    if (textToSpeech != null && ttsReady
+            && text != null && !text.trim().isEmpty()) {
+        textToSpeech.speak(
+                text,
+                TextToSpeech.QUEUE_ADD,
+                null,
+                "LiveGiftStudio_" + System.currentTimeMillis()
+        );
+    }
+}
         if (overlay != null) {
             try {
                 overlay.clearAnimation();
@@ -605,8 +657,13 @@ public class OverlayService extends Service {
 
     @Override
     public void onDestroy() {
-        destroyed = true;
-
+        destroyed = true;   
+        if (textToSpeech != null) {
+            textToSpeech.stop();
+            textToSpeech.shutdown();
+            textToSpeech = null;
+            ttsReady = false;
+        }
         if (removeTask != null) {
             handler.removeCallbacks(removeTask);
             removeTask = null;
