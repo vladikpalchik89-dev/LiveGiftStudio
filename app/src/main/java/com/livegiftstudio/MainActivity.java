@@ -476,23 +476,44 @@ public class MainActivity extends Activity {
     }
 
     private void showVoiceSettings() {
-        if (voicePreview == null) {
-            voicePreviewReady = false;
+    String[] styles = {
+            "🦸 Герой — уверенный голос",
+            "🎙️ Глубокий — низкий голос",
+            "🎬 Драматичный — медленная речь",
+            "😂 Комедийный — быстрый голос"
+    };
 
-            voicePreview = new TextToSpeech(this, status -> {
-                if (status == TextToSpeech.SUCCESS) {
-                    int result = voicePreview.setLanguage(
-                            new Locale("ru", "RU"));
+    String[] values = {
+            "hero", "deep", "dramatic", "comedy"
+    };
 
-                    voicePreviewReady =
-                            result != TextToSpeech.LANG_MISSING_DATA
-                            && result != TextToSpeech.LANG_NOT_SUPPORTED;
+    String saved = prefs.getString("voice_style", "hero");
+    int checked = 0;
 
-                    runOnUiThread(this::displayVoiceSettings);
-                } else {
-                    runOnUiThread(() ->
-                            message("Не удалось запустить озвучку"));
-                }
+    for (int i = 0; i < values.length; i++) {
+        if (values[i].equals(saved)) {
+            checked = i;
+            break;
+        }
+    }
+
+    final int[] choice = {checked};
+
+    new AlertDialog.Builder(this)
+            .setTitle("🎬 Стиль озвучки")
+            .setSingleChoiceItems(
+                    styles, checked,
+                    (dialog, which) -> choice[0] = which)
+            .setPositiveButton("Сохранить", (dialog, which) -> {
+                prefs.edit()
+                        .putString("voice_style", values[choice[0]])
+                        .apply();
+
+                message("Стиль озвучки сохранён");
+            })
+            .setNegativeButton("Отмена", null)
+            .show();
+}
             });
         } else {
             displayVoiceSettings();
