@@ -221,17 +221,27 @@ if (type.equals("chat")) {
                 }
             }
 
-            @Override
-            public void onClosed(
-                    WebSocket socket,
-                    int code,
-                    String reason) {
+           
+@Override
+public void onClosed(
+        WebSocket socket,
+        int code,
+        String reason) {
 
-                android.util.Log.d(TAG, "WebSocket closed");
+    android.util.Log.d(
+            TAG,
+            "WebSocket closed: " + code + " " + reason
+    );
+
+    if (!destroyed && socket == webSocket) {
+        handler.postDelayed(() -> {
+            if (!destroyed) {
+                connectToServer();
             }
-        });
+        }, 5000);
     }
-
+}
+ 
     private String getGiftKey(String gift) {
         String name = gift.toLowerCase(Locale.ROOT);
 
