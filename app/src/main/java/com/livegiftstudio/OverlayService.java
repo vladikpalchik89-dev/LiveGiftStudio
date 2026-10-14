@@ -242,7 +242,7 @@ public void onClosed(
         }, 5000);
     }
 }
-        }
+        
     });
 }
     private String getGiftKey(String gift) {
