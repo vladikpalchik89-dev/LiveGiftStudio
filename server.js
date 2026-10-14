@@ -181,6 +181,17 @@ function startTikTok() {
         });
       }
     );
+    
+        connection.on(
+      WebcastEvent.FOLLOW || "follow",
+      (data) => {
+        sendEvent({
+          type: "follow",
+          username: data?.uniqueId || data?.nickname || "Новый подписчик",
+          timestamp: Date.now()
+        });
+      }
+    );
 
     connection.connect()
       .then(() => {
