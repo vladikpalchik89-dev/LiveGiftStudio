@@ -687,7 +687,7 @@ private void speakText(String text) {
             "LiveGiftStudio_" + System.currentTimeMillis()
     );
 }
-}
+
 
 
     @Override
