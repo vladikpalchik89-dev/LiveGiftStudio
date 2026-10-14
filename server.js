@@ -162,10 +162,24 @@ function startTikTok() {
       });
     });
 
+    
     connection.on(WebcastEvent.CHAT || "chat", (data) => {
       if (connection !== currentConnection) return;
 
-      const comment = data?.comment || data?.text || "";
+      const comment = String(
+        data?.comment ??
+        data?.text ??
+        data?.message ??
+        data?.content ??
+        data?.textMessage?.text ??
+        ""
+      ).trim();
+
+      console.log("TikTok CHAT received:", {
+        hasComment: Boolean(comment),
+        fields: Object.keys(data || {})
+      });
+
       if (!comment) return;
 
       sendEvent({
@@ -175,6 +189,7 @@ function startTikTok() {
         timestamp: Date.now()
       });
     });
+
 
     const handleFollow = (data) => {
       if (connection !== currentConnection) return;
