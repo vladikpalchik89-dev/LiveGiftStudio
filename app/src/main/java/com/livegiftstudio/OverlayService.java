@@ -1,4 +1,3 @@
-
 package com.livegiftstudio;
 
 import android.app.Service;
@@ -9,6 +8,7 @@ import android.graphics.PixelFormat;
 import android.graphics.drawable.GradientDrawable;
 import android.media.MediaPlayer;
 import android.speech.tts.TextToSpeech;
+import android.speech.tts.Voice;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
@@ -25,6 +25,8 @@ import android.widget.TextView;
 
 import org.json.JSONObject;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 import okhttp3.OkHttpClient;
@@ -50,34 +52,43 @@ public class OverlayService extends Service {
     private WebSocket webSocket;
     private MediaPlayer currentPlayer;
     private TextToSpeech textToSpeech;
+
     private boolean ttsReady = false;
     private Runnable removeTask;
     private boolean destroyed = false;
 
     @Override
-public void onCreate() {
-    super.onCreate();
+    public void onCreate() {
+        super.onCreate();
 
-    textToSpeech = new TextToSpeech(
-            this,
-            status -> {
-                if (status == TextToSpeech.SUCCESS) {
-                    int result = textToSpeech.setLanguage(
-                            new Locale("ru", "RU"));
-                    ttsReady = result != TextToSpeech.LANG_MISSING_DATA
-                            && result != TextToSpeech.LANG_NOT_SUPPORTED;
+        prefs = getSharedPreferences(
+                "LiveGiftStudio", MODE_PRIVATE);
+
+        windowManager = (WindowManager)
+                getSystemService(WINDOW_SERVICE);
+
+        textToSpeech = new TextToSpeech(
+                this,
+                status -> {
+                    if (status == TextToSpeech.SUCCESS
+                            && textToSpeech != null) {
+
+                        int result = textToSpeech.setLanguage(
+                                new Locale("ru", "RU"));
+
+                        ttsReady =
+                                result != TextToSpeech.LANG_MISSING_DATA
+                                && result != TextToSpeech.LANG_NOT_SUPPORTED;
+
+                        android.util.Log.d(
+                                TAG,
+                                "TTS ready: " + ttsReady);
+                    }
                 }
-            }
-    );
+        );
 
-    prefs = getSharedPreferences(
-            "LiveGiftStudio", MODE_PRIVATE);
-
-    windowManager = (WindowManager)
-            getSystemService(WINDOW_SERVICE);
-
-    connectToServer();
-}
+        connectToServer();
+    }
 
     @Override
     public IBinder onBind(Intent intent) {
@@ -93,8 +104,10 @@ public void onCreate() {
 
             if (text != null && !text.trim().isEmpty()) {
                 handler.post(() -> {
-                    showGift(text, "rose");
-                    playGiftSound("rose");
+                    if (!destroyed) {
+                        showGift(text, "rose");
+                        playGiftSound("rose");
+                    }
                 });
             }
         }
@@ -121,7 +134,9 @@ public void onCreate() {
             @Override
             public void onOpen(
                     WebSocket socket, Response response) {
-                android.util.Log.d(TAG, "WebSocket connected");
+
+                android.util.Log.d(
+                        TAG, "WebSocket connected");
             }
 
             @Override
@@ -130,8 +145,9 @@ public void onCreate() {
 
                 try {
                     JSONObject event = new JSONObject(text);
-                    String type = event.optString("type", "")
-                            .toLowerCase(Locale.ROOT);
+
+                    String type = event.optString(
+                            "type", "").toLowerCase(Locale.ROOT);
 
                     // Новый подписчик
                     if (type.equals("follow")
@@ -141,33 +157,40 @@ public void onCreate() {
                         String username = event.optString(
                                 "username", "Зритель");
 
-                        final String message =
-                                "➕ Новый подписчик\n@" + username;
-
-                       handler.post(() -> {
-    if (!destroyed) {
-        speakText("Новый подписчик. " + username);
-    }
-}); 
+                        handler.post(() -> {
+                            if (!destroyed) {
+                                speakText(
+                                        "Новый подписчик. " + username);
+                            }
+                        });
 
                         return;
                     }
-                    
-// Сообщение в чате
-if (type.equals("chat")) {
-    String username = event.optString("username", "Зритель");
-    String comment = event.optString("comment", "");
 
-    if (!comment.trim().isEmpty()) {
-        handler.post(() -> {
-            if (!destroyed) {
-                speakText(username + " пишет: " + comment);
-            }
-        });
-    }
+                    // Сообщение в чате
+                    if (type.equals("chat")) {
+                        String username = event.optString(
+                                "username", "Зритель");
 
-    return;
-}
+                        String comment = event.optString(
+                                "comment", "");
+
+                        if (!comment.trim().isEmpty()) {
+                            handler.post(() -> {
+                                if (!destroyed) {
+                                    speakTextForUser(
+                                            username,
+                                            username
+                                                    + " пишет: "
+                                                    + comment
+                                    );
+                                }
+                            });
+                        }
+
+                        return;
+                    }
+
                     // Подарок
                     if (!type.equals("gift")) {
                         return;
@@ -180,21 +203,26 @@ if (type.equals("chat")) {
                             "username", "Зритель");
 
                     int count = event.optInt("repeatCount", 1);
+
                     if (count < 1) {
                         count = 1;
                     }
 
                     final String message =
                             "🎁 " + gift + " × " + count
-                            + "\n@" + username;
+                                    + "\n@" + username;
 
                     handler.post(() -> {
-    if (!destroyed) {
-        showGift(message, gift);
-        playGiftSound(gift);
-        speakText("Подарок " + gift + ". Отправил " + username);
-    }
-});
+                        if (!destroyed) {
+                            showGift(message, gift);
+                            playGiftSound(gift);
+
+                            speakText(
+                                    "Подарок " + gift
+                                            + ". Отправил "
+                                            + username);
+                        }
+                    });
 
                 } catch (Exception e) {
                     android.util.Log.e(
@@ -209,39 +237,41 @@ if (type.equals("chat")) {
                     Response response) {
 
                 android.util.Log.e(
-                        TAG, "WebSocket connection failed", error);
+                        TAG,
+                        "WebSocket connection failed",
+                        error);
 
-                // Повторное подключение с задержкой
-                if (!destroyed) {
-                    handler.postDelayed(
-                            () -> connectToServer(), 5000);
+                if (!destroyed && socket == webSocket) {
+                    handler.postDelayed(() -> {
+                        if (!destroyed) {
+                            connectToServer();
+                        }
+                    }, 5000);
                 }
             }
 
-           
-@Override
-public void onClosed(
-        WebSocket socket,
-        int code,
-        String reason) {
+            @Override
+            public void onClosed(
+                    WebSocket socket,
+                    int code,
+                    String reason) {
 
-    android.util.Log.d(
-            TAG,
-            "WebSocket CLOSED code=" + code + " reason=" + reason
-    );
+                android.util.Log.d(
+                        TAG,
+                        "WebSocket CLOSED code="
+                                + code + " reason=" + reason);
 
-    
-     if (!destroyed && socket == webSocket) {
-        handler.postDelayed(() -> {
-            if (!destroyed) {
-                connectToServer();
+                if (!destroyed && socket == webSocket) {
+                    handler.postDelayed(() -> {
+                        if (!destroyed) {
+                            connectToServer();
+                        }
+                    }, 5000);
+                }
             }
-        }, 5000);
+        });
     }
-}
-        
-    });
-}
+
     private String getGiftKey(String gift) {
         String name = gift.toLowerCase(Locale.ROOT);
 
@@ -377,27 +407,48 @@ public void onClosed(
         String name = gift.toLowerCase(Locale.ROOT);
 
         if (name.contains("rose") || name.contains("роза")) {
-            return new int[]{Color.rgb(255, 35, 115), Color.rgb(130, 0, 65)};
+            return new int[]{
+                    Color.rgb(255, 35, 115),
+                    Color.rgb(130, 0, 65)
+            };
         }
         if (name.contains("heart") || name.contains("сердц")) {
-            return new int[]{Color.rgb(255, 70, 190), Color.rgb(100, 0, 180)};
+            return new int[]{
+                    Color.rgb(255, 70, 190),
+                    Color.rgb(100, 0, 180)
+            };
         }
         if (name.contains("galaxy") || name.contains("universe")
                 || name.contains("галак") || name.contains("вселен")) {
-            return new int[]{Color.rgb(40, 30, 160), Color.rgb(160, 40, 255)};
+            return new int[]{
+                    Color.rgb(40, 30, 160),
+                    Color.rgb(160, 40, 255)
+            };
         }
         if (name.contains("lion") || name.contains("diamond")
                 || name.contains("алмаз") || name.contains("лев")) {
-            return new int[]{Color.rgb(255, 190, 30), Color.rgb(190, 55, 0)};
+            return new int[]{
+                    Color.rgb(255, 190, 30),
+                    Color.rgb(190, 55, 0)
+            };
         }
         if (name.contains("firework") || name.contains("фейерверк")) {
-            return new int[]{Color.rgb(255, 100, 0), Color.rgb(220, 0, 100)};
+            return new int[]{
+                    Color.rgb(255, 100, 0),
+                    Color.rgb(220, 0, 100)
+            };
         }
         if (name.contains("crown") || name.contains("корона")) {
-            return new int[]{Color.rgb(255, 215, 0), Color.rgb(190, 100, 0)};
+            return new int[]{
+                    Color.rgb(255, 215, 0),
+                    Color.rgb(190, 100, 0)
+            };
         }
 
-        return new int[]{Color.rgb(150, 40, 255), Color.rgb(55, 15, 120)};
+        return new int[]{
+                Color.rgb(150, 40, 255),
+                Color.rgb(55, 15, 120)
+        };
     }
 
     private int getSoundResource(String gift) {
@@ -434,7 +485,8 @@ public void onClosed(
         stopCurrentSound();
 
         String key = getGiftKey(gift);
-        String savedUri = prefs.getString("gift_sound_" + key, null);
+        String savedUri = prefs.getString(
+                "gift_sound_" + key, null);
 
         if (savedUri != null && !savedUri.trim().isEmpty()) {
             playCustomSound(savedUri, gift);
@@ -443,18 +495,20 @@ public void onClosed(
         }
     }
 
-    // Звук нового подписчика из настроек MainActivity
     private void playFollowSound() {
         stopCurrentSound();
 
-        String savedUri = prefs.getString("follow_sound_uri", null);
+        String savedUri = prefs.getString(
+                "follow_sound_uri", null);
 
         if (savedUri != null && !savedUri.trim().isEmpty()) {
             playCustomSound(savedUri, "heart");
         }
     }
 
-    private void playCustomSound(String savedUri, String gift) {
+    private void playCustomSound(
+            String savedUri, String gift) {
+
         MediaPlayer player = new MediaPlayer();
         currentPlayer = player;
 
@@ -490,12 +544,14 @@ public void onClosed(
             if (currentPlayer == player) {
                 currentPlayer = null;
             }
+
             try {
                 player.release();
             } catch (Exception ignored) {
             }
 
-            android.util.Log.e(TAG, "Custom audio error", e);
+            android.util.Log.e(
+                    TAG, "Custom audio error", e);
 
             if (!destroyed) {
                 playBuiltInSound(gift);
@@ -532,7 +588,8 @@ public void onClosed(
             player.start();
 
         } catch (Exception e) {
-            android.util.Log.e(TAG, "Built-in audio error", e);
+            android.util.Log.e(
+                    TAG, "Built-in audio error", e);
             stopCurrentSound();
         }
     }
@@ -597,7 +654,8 @@ public void onClosed(
                                 | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
                         PixelFormat.TRANSLUCENT);
 
-        params.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
+        params.gravity =
+                Gravity.TOP | Gravity.CENTER_HORIZONTAL;
         params.y = 160;
 
         try {
@@ -609,14 +667,19 @@ public void onClosed(
                     0.2f, 1.0f, 0.2f, 1.0f,
                     Animation.RELATIVE_TO_SELF, 0.5f,
                     Animation.RELATIVE_TO_SELF, 0.5f);
-            scale.setDuration(650);
-            scale.setInterpolator(new OvershootInterpolator());
 
-            AlphaAnimation alpha = new AlphaAnimation(0.0f, 1.0f);
+            scale.setDuration(650);
+            scale.setInterpolator(
+                    new OvershootInterpolator());
+
+            AlphaAnimation alpha =
+                    new AlphaAnimation(0.0f, 1.0f);
+
             alpha.setDuration(450);
 
             animation.addAnimation(scale);
             animation.addAnimation(alpha);
+
             overlay.startAnimation(animation);
 
             removeTask = () -> {
@@ -627,78 +690,147 @@ public void onClosed(
             handler.postDelayed(removeTask, 4000);
 
         } catch (Exception e) {
-            android.util.Log.e(TAG, "Cannot display overlay", e);
+            android.util.Log.e(
+                    TAG, "Cannot display overlay", e);
             removeOverlay();
         }
     }
 
     private void removeOverlay() {
-        
         if (overlay != null) {
             try {
                 overlay.clearAnimation();
+
                 if (windowManager != null) {
                     windowManager.removeView(overlay);
                 }
             } catch (Exception ignored) {
             }
+
             overlay = null;
         }
     }
 
-    
-private void speakText(String text) {
-    if (textToSpeech == null || !ttsReady
-            || text == null || text.trim().isEmpty()) {
-        return;
+    // Обычная озвучка: использует выбранный стиль голоса из настроек.
+    private void speakText(String text) {
+        if (textToSpeech == null || !ttsReady
+                || text == null || text.trim().isEmpty()) {
+            return;
+        }
+
+        String style = prefs.getString(
+                "voice_style", "hero");
+
+        float pitch;
+        float rate;
+
+        switch (style) {
+            case "deep":
+                pitch = 0.75f;
+                rate = 0.90f;
+                break;
+
+            case "dramatic":
+                pitch = 0.90f;
+                rate = 0.80f;
+                break;
+
+            case "comedy":
+                pitch = 1.20f;
+                rate = 1.15f;
+                break;
+
+            case "hero":
+            default:
+                pitch = 0.95f;
+                rate = 0.95f;
+                break;
+        }
+
+        textToSpeech.setPitch(pitch);
+        textToSpeech.setSpeechRate(rate);
+
+        textToSpeech.speak(
+                text,
+                TextToSpeech.QUEUE_ADD,
+                null,
+                "LiveGiftStudio_" + System.currentTimeMillis()
+        );
     }
 
-    String style = prefs.getString("voice_style", "hero");
+    // Выбирает доступный локальный русский голос по имени автора чата.
+    // Один и тот же автор будет получать одинаковый выбор голоса,
+    // пока список голосов на телефоне не изменится.
+    private void speakTextForUser(
+            String username, String text) {
 
-    float pitch;
-    float rate;
+        if (textToSpeech == null || !ttsReady
+                || text == null || text.trim().isEmpty()) {
+            return;
+        }
 
-    switch (style) {
-        case "deep":
-            pitch = 0.75f;
-            rate = 0.90f;
-            break;
-        case "dramatic":
-            pitch = 0.90f;
-            rate = 0.80f;
-            break;
-        case "comedy":
-            pitch = 1.20f;
-            rate = 1.15f;
-            break;
-        case "hero":
-        default:
-            pitch = 0.95f;
-            rate = 0.95f;
-            break;
+        try {
+            List<Voice> voices = new ArrayList<>();
+
+            if (textToSpeech.getVoices() != null) {
+                for (Voice voice : textToSpeech.getVoices()) {
+                    if (voice.getLocale() != null
+                            && "ru".equals(
+                                    voice.getLocale().getLanguage())
+                            && !voice.isNetworkConnectionRequired()) {
+
+                        voices.add(voice);
+                    }
+                }
+            }
+
+            if (voices.isEmpty()) {
+                speakText(text);
+                return;
+            }
+
+            String name = username == null ? "" : username;
+
+            int index = (name.hashCode() & 0x7fffffff)
+                    % voices.size();
+
+            Voice selectedVoice = voices.get(index);
+
+            int result = textToSpeech.setVoice(selectedVoice);
+
+            if (result == TextToSpeech.ERROR) {
+                speakText(text);
+                return;
+            }
+
+            // Сохраняем выбранный стиль озвучки.
+            speakText(text);
+
+            android.util.Log.d(
+                    TAG,
+                    "Chat voice selected: "
+                            + selectedVoice.getName()
+                            + " for " + name);
+
+        } catch (Exception e) {
+            android.util.Log.e(
+                    TAG, "Voice selection failed", e);
+
+            speakText(text);
+        }
     }
-
-    textToSpeech.setPitch(pitch);
-    textToSpeech.setSpeechRate(rate);
-    textToSpeech.speak(
-            text,
-            TextToSpeech.QUEUE_ADD,
-            null,
-            "LiveGiftStudio_" + System.currentTimeMillis()
-    );
-}
-
-
 
     @Override
     public void onDestroy() {
-        destroyed = true;   
+        destroyed = true;
+
         if (textToSpeech != null) {
             textToSpeech.stop();
             textToSpeech.shutdown();
             textToSpeech = null;
             ttsReady = false;
         }
+
         if (removeTask != null) {
             handler.removeCallbacks(removeTask);
             removeTask = null;
