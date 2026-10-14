@@ -5,19 +5,18 @@ const WebSocket = require("ws");
 
 const app = express();
 const server = http.createServer(app);
-
-const wss = new WebSocket.Server({
-  server,
-  path: "/events"
-});
+const wss = new WebSocket.Server({ server, path: "/events" });
 
 const PORT = process.env.PORT || 3000;
-
-const username = (
-  process.env.TIKTOK_USERNAME || "vinnipyh99"
-).replace(/^@/, "").trim();
-
+const username = (process.env.TIKTOK_USERNAME || "vinnipyh99")
+  .replace(/^@/, "")
+  .trim();
 const testKey = process.env.TEST_EVENT_KEY || "";
+
+let currentConnection = null;
+let reconnectTimer = null;
+let connecting = false;
+let stopped = false;
 
 app.get("/", (_req, res) => {
   res.json({
@@ -30,14 +29,9 @@ app.get("/", (_req, res) => {
 });
 
 app.get("/health", (_req, res) => {
-  res.json({
-    status: "ok",
-    time: new Date().toISOString()
-  });
+  res.json({ status: "ok", time: new Date().toISOString() });
 });
 
-// Тестовый подарок.
-// Секрет TEST_EVENT_KEY хранится только в Render Environment.
 app.get("/test-gift", (req, res) => {
   if (!testKey) {
     return res.status(503).json({
@@ -63,12 +57,7 @@ app.get("/test-gift", (req, res) => {
   };
 
   sendEvent(event);
-
-  res.json({
-    status: "ok",
-    message: "Test gift sent",
-    event
-  });
+  res.json({ status: "ok", message: "Test gift sent", event });
 });
 
 function sendEvent(event) {
@@ -81,20 +70,30 @@ function sendEvent(event) {
         client.send(message);
         delivered++;
       } catch (error) {
-        console.error(
-          "WebSocket send failed:",
-          error.message
-        );
+        console.error("WebSocket send failed:", error.message);
       }
     }
   });
 
-  console.log(
-    "TikTok event:",
-    message,
-    "| WebSocket clients:",
-    delivered
-  );
+  console.log("TikTok event:", message, "| WebSocket clients:", delivered);
+}
+
+function getUserName(data) {
+  return data?.user?.uniqueId ||
+    data?.user?.nickname ||
+    data?.uniqueId ||
+    data?.nickname ||
+    data?.displayName ||
+    data?.userName ||
+    "Зритель";
+}
+
+function getGiftName(data) {
+  return data?.giftDetails?.giftName ||
+    data?.extendedGiftInfo?.name ||
+    data?.giftName ||
+    data?.gift?.name ||
+    (data?.giftId ? "Подарок " + data.giftId : "Подарок");
 }
 
 wss.on("connection", (socket) => {
@@ -105,111 +104,142 @@ wss.on("connection", (socket) => {
     message: "LiveGiftStudio connected"
   }));
 
-  socket.on("close", () => {
-    console.log("WebSocket client disconnected");
-  });
-
-  socket.on("error", (error) => {
-    console.error("WebSocket error:", error.message);
-  });
+  socket.on("close", () => console.log("WebSocket client disconnected"));
+  socket.on("error", (error) => console.error("WebSocket error:", error.message));
 });
 
 server.listen(PORT, "0.0.0.0", () => {
-  console.log(
-    "LiveGiftStudio server listening on",
-    PORT
-  );
-
+  console.log("LiveGiftStudio server listening on", PORT);
   startTikTok();
 });
 
+function scheduleReconnect(reason) {
+  if (stopped || process.env.TIKTOK_ENABLED !== "true") return;
+  if (reconnectTimer) return;
+
+  console.log("TikTok reconnect scheduled:", reason);
+
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    startTikTok();
+  }, 25000);
+}
+
 function startTikTok() {
-  // Подключение выключено по умолчанию.
-  // Включим вручную после восстановления дневного лимита.
-  if (process.env.TIKTOK_ENABLED !== "true") {
-    console.log(
-      "TikTok connection paused. " +
-      "Set TIKTOK_ENABLED=true to enable manually."
-    );
+  if (stopped || process.env.TIKTOK_ENABLED !== "true") {
+    console.log("TikTok connection paused. Set TIKTOK_ENABLED=true to enable.");
     return;
   }
 
+  if (connecting) return;
+  connecting = true;
+
   try {
     const connector = require("tiktok-live-connector");
-    const TikTokLiveConnection =
-      connector.TikTokLiveConnection;
+    const TikTokLiveConnection = connector.TikTokLiveConnection;
     const WebcastEvent = connector.WebcastEvent || {};
+    const ControlEvent = connector.ControlEvent || {};
 
     if (typeof TikTokLiveConnection !== "function") {
-      throw new Error(
-        "TikTokLiveConnection not found in connector"
-      );
+      throw new Error("TikTokLiveConnection not found in connector");
     }
 
-    const connection = new TikTokLiveConnection(
-      username,
-      { processInitialData: false }
+    const connection = new TikTokLiveConnection(username, {
+      processInitialData: false
+    });
+
+    currentConnection = connection;
+
+    connection.on(WebcastEvent.GIFT || "gift", (data) => {
+      if (connection !== currentConnection) return;
+
+      sendEvent({
+        type: "gift",
+        username: getUserName(data),
+        giftName: getGiftName(data),
+        repeatCount: data?.repeatCount || 1,
+        timestamp: Date.now()
+      });
+    });
+
+    connection.on(WebcastEvent.CHAT || "chat", (data) => {
+      if (connection !== currentConnection) return;
+
+      const comment = data?.comment || data?.text || "";
+      if (!comment) return;
+
+      sendEvent({
+        type: "chat",
+        username: getUserName(data),
+        comment,
+        timestamp: Date.now()
+      });
+    });
+
+    const handleFollow = (data) => {
+      if (connection !== currentConnection) return;
+
+      sendEvent({
+        type: "follow",
+        username: getUserName(data),
+        timestamp: Date.now()
+      });
+    };
+
+    connection.on(WebcastEvent.FOLLOW || "follow", handleFollow);
+
+    // Некоторые версии коннектора передают подписки через SOCIAL.
+    if (WebcastEvent.SOCIAL) {
+      connection.on(WebcastEvent.SOCIAL, (data) => {
+        if (connection !== currentConnection) return;
+
+        const description = [
+          data?.displayType,
+          data?.label,
+          data?.action,
+          data?.eventType
+        ].filter(Boolean).join(" ");
+
+        if (/follow|followed|подпис|关注/i.test(description)) {
+          handleFollow(data);
+        }
+      });
+    }
+
+    const handleDisconnect = (reason) => {
+      if (connection !== currentConnection) return;
+      connecting = false;
+      scheduleReconnect(reason || "disconnected");
+    };
+
+    connection.on(
+      ControlEvent.DISCONNECTED || "disconnected",
+      () => handleDisconnect("disconnected")
     );
 
     connection.on(
-      WebcastEvent.GIFT || "gift",
-      (data) => {
-        sendEvent({
-          type: "gift",
-          username:
-            data?.uniqueId ||
-            data?.nickname ||
-            "Зритель",
-          giftName:
-            data?.giftDetails?.giftName ||
-            data?.giftName ||
-            "Подарок",
-          repeatCount: data?.repeatCount || 1,
-          timestamp: Date.now()
-        });
-      }
-    );
-
-    connection.on(
-      WebcastEvent.CHAT || "chat",
-      (data) => {
-        sendEvent({
-          type: "chat",
-          username: data?.uniqueId || "Зритель",
-          comment: data?.comment || "",
-          timestamp: Date.now()
-        });
-      }
-    );
-    
-        connection.on(
-      WebcastEvent.FOLLOW || "follow",
-      (data) => {
-        sendEvent({
-          type: "follow",
-          username: data?.uniqueId || data?.nickname || "Новый подписчик",
-          timestamp: Date.now()
-        });
-      }
+      WebcastEvent.STREAM_END || "streamEnd",
+      () => handleDisconnect("stream ended")
     );
 
     connection.connect()
       .then(() => {
-        console.log(
-          "TikTok LIVE connected:",
-          username
-        );
+        if (connection !== currentConnection) return;
+        connecting = false;
+        console.log("TikTok LIVE connected:", username);
       })
       .catch((error) => {
+        if (connection !== currentConnection) return;
+        connecting = false;
         console.error(
           "TikTok connection failed:",
           error.stack || error.message
         );
+        scheduleReconnect("connection failed");
       });
   } catch (error) {
-    console.error(
-      "TikTok connector error:",
-      error.stack || error.message
-    );
+    connecting = false;
+    console.error("TikTok connector error:", error.stack || error.message);
+    scheduleReconnect("connector error");
   }
 }
