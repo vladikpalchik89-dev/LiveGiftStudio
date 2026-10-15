@@ -226,6 +226,13 @@ setBackgroundColor(
         v -> showVoiceSettings()
     );
 
+addMenuRow(
+    "🔊\nБиблиотека\nзвуков", 0xFF00C8FF,
+    "📂\nМои\nаудиофайлы", 0xFF00C853,
+    v -> showSoundLibrary(),
+    v -> chooseLibrarySound()
+);
+
     addMenuRow(
         "🔔\nВыбрать\nзвук подписки", 0xFFFFB900,
         "🎬\nТест\nанимации", 0xFF9B20FF,
