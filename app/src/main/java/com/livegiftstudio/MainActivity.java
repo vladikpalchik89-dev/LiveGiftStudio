@@ -162,6 +162,7 @@ private int menuRowIndex = 0;
     }
  
 private void buildInterface() {
+    menuRowIndex = 0;
     ScrollView scroll = new ScrollView(this);
     scroll.setFillViewport(true);
     scroll.
