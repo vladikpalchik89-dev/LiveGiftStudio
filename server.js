@@ -249,9 +249,11 @@ function startTikTok() {
       ).trim();
 
       console.log("TikTok CHAT received:", {
-        hasComment: Boolean(comment),
-        fields: Object.keys(data || {})
-      });
+  hasComment: Boolean(comment),
+  fields: Object.keys(data || {}),
+  userFields: Object.keys(data?.user || {}),
+  userDetails: data?.user
+});
 
       if (!comment) return;
 
