@@ -203,11 +203,11 @@ private void startForegroundNotification() {
                                 "username", "Зритель");
 
                         handler.post(() -> {
-                            if (!destroyed) {
-                                playGiftSound("follow");
-speakText(
-        "Новый подписчик. " + username);
-                            }
+                          if (!destroyed) {
+    playFollowSound();
+    speakText(
+            "Новый подписчик. " + username);
+}  
                         });
 
                         return;
@@ -554,15 +554,18 @@ lastGiftEventTime = now;
     }
 
     private void playFollowSound() {
-        stopCurrentSound();
+    private void playFollowSound() {
+    stopCurrentSound();
 
-        String savedUri = prefs.getString(
-                "follow_sound_uri", null);
+    String savedUri = prefs.getString(
+            "follow_sound_uri", null);
 
-        if (savedUri != null && !savedUri.trim().isEmpty()) {
-            playCustomSound(savedUri, "heart");
-        }
+    if (savedUri != null && !savedUri.trim().isEmpty()) {
+        playCustomSound(savedUri, "heart");
+    } else {
+        playBuiltInSound("heart");
     }
+}
 
     private void playCustomSound(
             String savedUri, String gift) {
