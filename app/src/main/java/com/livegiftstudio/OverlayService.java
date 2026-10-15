@@ -204,8 +204,9 @@ private void startForegroundNotification() {
 
                         handler.post(() -> {
                             if (!destroyed) {
-                                speakText(
-                                        "Новый подписчик. " + username);
+                                playGiftSound("follow");
+speakText(
+        "Новый подписчик. " + username);
                             }
                         });
 
