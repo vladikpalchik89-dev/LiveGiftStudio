@@ -4,13 +4,16 @@ const http = require("http");
 const WebSocket = require("ws");
 
 const app = express();
+app.use(express.json());
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server, path: "/events" });
 
 const PORT = process.env.PORT || 3000;
-const username = (process.env.TIKTOK_USERNAME || "vinnipyh99")
+let username = (process.env.TIKTOK_USERNAME || "vinnipyh99")
   .replace(/^@/, "")
   .trim();
+
+const switchKey = process.env.ACCOUNT_SWITCH_KEY || "";
 const testKey = process.env.TEST_EVENT_KEY || "";
 
 let currentConnection = null;
@@ -30,6 +33,76 @@ app.get("/", (_req, res) => {
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", time: new Date().toISOString() });
+});
+
+app.post("/switch-account", (req, res) => {
+  if (!switchKey) {
+    return res.status(503).json({
+      status: "error",
+      message: "ACCOUNT_SWITCH_KEY is not configured"
+    });
+  }
+
+  if (req.get("x-switch-key") !== switchKey) {
+    return res.status(403).json({
+      status: "error",
+      message: "Invalid switch key"
+    });
+  }
+
+  const newUsername = String(req.body?.username || "")
+    .trim()
+    .replace(/^@/, "");
+
+  if (!/^[a-zA-Z0-9._]{2,24}$/.test(newUsername)) {
+    return res.status(400).json({
+      status: "error",
+      message: "Invalid TikTok username"
+    });
+  }
+
+  if (newUsername.toLowerCase() === username.toLowerCase()) {
+    return res.json({
+      status: "ok",
+      username,
+      message: "This account is already selected"
+    });
+  }
+
+  const oldConnection = currentConnection;
+
+  // Сначала отключаем старый эфир.
+  currentConnection = null;
+  connecting = false;
+
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+
+  if (oldConnection) {
+    try {
+      oldConnection.disconnect();
+    } catch (error) {
+      console.error("Disconnect error:", error.message);
+    }
+  }
+
+  username = newUsername;
+
+  console.log("Active TikTok account changed to:", username);
+
+  // Подключаем выбранный аккаунт, если интеграция включена.
+  if (process.env.TIKTOK_ENABLED === "true") {
+    startTikTok();
+  }
+
+  res.json({
+    status: "ok",
+    username,
+    tiktokEnabled: process.env.TIKTOK_ENABLED === "true",
+    message: "Account selection updated"
+  });
 });
 
 app.get("/test-gift", (req, res) => {
