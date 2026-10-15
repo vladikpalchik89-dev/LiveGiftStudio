@@ -1381,6 +1381,59 @@ private void displayVoiceSettings() {
     }
 
     
+private String[] getTikTokAccounts() {
+    return new String[] {
+        prefs.getString("tiktok_account_1", "vinnipyh99"),
+        prefs.getString("tiktok_account_2", ""),
+        prefs.getString("tiktok_account_3", "")
+    };
+}
+
+private void showTikTokAccounts() {
+    String[] accounts = getTikTokAccounts();
+    String[] labels = new String[3];
+
+    for (int i = 0; i < accounts.length; i++) {
+        labels[i] = (i + 1) + ". " +
+                (accounts[i].isEmpty() ? "Не задан" : "@" + accounts[i]);
+    }
+
+    new AlertDialog.Builder(this)
+            .setTitle("🎵 TikTok — аккаунты")
+            .setItems(labels, (dialog, which) -> editTikTokAccount(which))
+            .setNegativeButton("Закрыть", null)
+            .show();
+}
+
+private void editTikTokAccount(int index) {
+    EditText input = new EditText(this);
+    input.setSingleLine(true);
+    input.setHint("Ник без @");
+    input.setText(getTikTokAccounts()[index]);
+
+    new AlertDialog.Builder(this)
+            .setTitle("Аккаунт " + (index + 1))
+            .setView(input)
+            .setNegativeButton("Отмена", null)
+            .setPositiveButton("Сохранить", (dialog, which) -> {
+                String username = input.getText().toString()
+                        .trim().replace("@", "");
+
+                if (username.isEmpty()) {
+                    message("Введи ник TikTok");
+                    return;
+                }
+
+                prefs.edit()
+                        .putString("tiktok_account_" + (index + 1), username)
+                        .apply();
+
+                message("Аккаунт @" + username + " сохранён");
+                showTikTokAccounts();
+            })
+            .show();
+}
+
     private void showTikTokConnection() {
         EditText input = new EditText(this);
         input.setHint("Например: @username");
