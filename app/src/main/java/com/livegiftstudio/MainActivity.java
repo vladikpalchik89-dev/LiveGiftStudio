@@ -1717,4 +1717,119 @@ private int lighten(int color) {
             Math.min(255, Color.blue(color) + 60)
     );
 }
+  
+private void showSoundLibrary() {
+    String[] categories = {
+            "😂 Мемы",
+            "🤣 Смешные фразы",
+            "🎵 Мелодии",
+            "💥 Звуковые эффекты",
+            "🎁 Звуки подарков",
+            "🔔 Звук подписки"
+    };
+
+    new AlertDialog.Builder(this)
+            .setTitle("🔊 Библиотека LiveGiftStudio PRO")
+            .setItems(categories, (dialog, which) -> {
+                if (which == 4) {
+                    showGiftCatalog();
+                } else if (which == 5) {
+                    chooseFollowSound();
+                } else {
+                    showSoundCategory(categories[which]);
+                }
+            })
+            .setNegativeButton("Закрыть", null)
+            .show();
+}
+
+private void showSoundCategory(String category) {
+    String[] options = {
+            "📂 Выбрать аудиофайл с телефона",
+            "▶ Проверить выбранный файл",
+            "🗑 Удалить выбранный файл"
+    };
+
+    new AlertDialog.Builder(this)
+            .setTitle(category)
+            .setItems(options, (dialog, which) -> {
+                String key = getLibraryCategoryKey(category);
+
+                if (which == 0) {
+                    chooseLibrarySoundFor(key);
+                } else if (which == 1) {
+                    previewLibrarySound(key);
+                } else {
+                    prefs.edit()
+                            .remove("library_sound_" + key)
+                            .apply();
+                    message("Звук категории удалён");
+                }
+            })
+            .setNegativeButton("Назад",
+                    (dialog, which) -> showSoundLibrary())
+            .show();
+}
+
+private String getLibraryCategoryKey(String category) {
+    if (category.contains("Мемы")) return "memes";
+    if (category.contains("Смешные")) return "funny";
+    if (category.contains("Мелодии")) return "melodies";
+    return "effects";
+}
+
+private void chooseLibrarySound() {
+    showSoundLibrary();
+}
+
+private void chooseLibrarySoundFor(String key) {
+    selectedGiftKey = null;
+
+    Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+    intent.addCategory(Intent.CATEGORY_OPENABLE);
+    intent.setType("audio/*");
+    intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+    intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+
+    try {
+        startActivityForResult(intent, 503 + getLibraryCategoryNumber(key));
+    } catch (Exception e) {
+        message("Не удалось открыть выбор аудиофайла");
+    }
+}
+
+private int getLibraryCategoryNumber(String key) {
+    if ("memes".equals(key)) return 1;
+    if ("funny".equals(key)) return 2;
+    if ("melodies".equals(key)) return 3;
+    return 4;
+}
+
+private void previewLibrarySound(String key) {
+    String saved = prefs.getString("library_sound_" + key, null);
+
+    if (saved == null) {
+        message("Сначала добавь аудиофайл в эту категорию");
+        return;
+    }
+
+    stopPreview();
+
+    try {
+        previewPlayer = new MediaPlayer();
+        previewPlayer.setDataSource(this, Uri.parse(saved));
+        previewPlayer.setOnPreparedListener(player -> player.start());
+        previewPlayer.setOnCompletionListener(player -> stopPreview());
+        previewPlayer.setOnErrorListener((player, what, extra) -> {
+            stopPreview();
+            message("Не удалось воспроизвести файл");
+            return true;
+        });
+        previewPlayer.prepareAsync();
+    } catch (Exception e) {
+        stopPreview();
+        message("Ошибка воспроизведения");
+    }
+}
+  
 }
