@@ -249,7 +249,14 @@ private void buildInterface() {
         v -> resetStats(),
         v -> showStats()
     );
-
+    
+addMenuRow(
+        "⚙️\nНастройки\nоформления", 0xFF00C8B4,
+        "♻️\nСбросить\nоформление", 0xFF3949AB,
+        v -> showAppearanceSettings(),
+        v -> resetAppearance()
+);
+    
     statsText = new TextView(this);
     statsText.setTextColor(Color.WHITE);
     statsText.setTextSize(16);
@@ -258,7 +265,171 @@ private void buildInterface() {
 
     updateStats();
 }
-          
+    
+private void showAppearanceSettings() {
+    String[] options = {
+            "🌌 Фон приложения",
+            "🎨 Цвет кнопок",
+            "🔘 Форма кнопок",
+            "🔠 Размер текста",
+            "✏️ Изменить надпись кнопки"
+    };
+
+    new AlertDialog.Builder(this)
+            .setTitle("⚙️ Оформление LiveGiftStudio")
+            .setItems(options, (dialog, which) -> {
+                switch (which) {
+                    case 0:
+                        chooseAppBackground();
+                        break;
+                    case 1:
+                        chooseButtonColor();
+                        break;
+                    case 2:
+                        chooseButtonShape();
+                        break;
+                    case 3:
+                        chooseAppFontSize();
+                        break;
+                    case 4:
+                        editButtonLabel();
+                        break;
+                }
+            })
+            .setNegativeButton("Закрыть", null)
+            .show();
+}
+
+private void chooseAppBackground() {
+    String[] names = {"🌌 Тёмно-синий", "⚫ Чёрный", "🟣 Фиолетовый", "🟢 Тёмно-зелёный"};
+    int[] colors = {
+            0xFF030716,
+            0xFF101010,
+            0xFF211038,
+            0xFF06251C
+    };
+
+    new AlertDialog.Builder(this)
+            .setTitle("Выбери фон")
+            .setItems(names, (dialog, which) -> {
+                prefs.edit().putInt("app_bg_color", colors[which]).apply();
+                buildInterface();
+            })
+            .setNegativeButton("Отмена", null)
+            .show();
+}
+
+private void chooseButtonColor() {
+    String[] names = {"💗 Розовый", "💙 Синий", "💜 Фиолетовый", "💚 Зелёный", "🧡 Оранжевый"};
+    int[] colors = {
+            0xFFFF1493,
+            0xFF087BFF,
+            0xFF7928FF,
+            0xFF00C853,
+            0xFFFF8800
+    };
+
+    new AlertDialog.Builder(this)
+            .setTitle("Выбери цвет кнопок")
+            .setItems(names, (dialog, which) -> {
+                prefs.edit().putInt("button_color", colors[which]).apply();
+                buildInterface();
+            })
+            .setNegativeButton("Отмена", null)
+            .show();
+}
+
+private void chooseButtonShape() {
+    String[] names = {"⬜ Квадратные", "▢ Слегка закруглённые", "⭕ Сильно закруглённые"};
+    int[] radiuses = {4, 14, 25};
+
+    new AlertDialog.Builder(this)
+            .setTitle("Форма кнопок")
+            .setItems(names, (dialog, which) -> {
+                prefs.edit().putInt("button_radius", radiuses[which]).apply();
+                buildInterface();
+            })
+            .setNegativeButton("Отмена", null)
+            .show();
+}
+
+private void chooseAppFontSize() {
+    String[] names = {"Маленький", "Обычный", "Крупный", "Очень крупный"};
+    int[] sizes = {13, 16, 19, 22};
+
+    new AlertDialog.Builder(this)
+            .setTitle("Размер текста")
+            .setItems(names, (dialog, which) -> {
+                prefs.edit().putInt("app_font_size", sizes[which]).apply();
+                buildInterface();
+            })
+            .setNegativeButton("Отмена", null)
+            .show();
+}
+
+private void editButtonLabel() {
+    String[] buttons = {
+            "Подарки и мои звуки",
+            "Настроить голос",
+            "Звук подписки",
+            "Тест анимации",
+            "Подключение TikTok",
+            "Открыть донаты",
+            "ИИ-фото",
+            "Оценка аккаунта",
+            "Реклама",
+            "Другая услуга",
+            "История заказов",
+            "Статистика",
+            "Записать подарок",
+            "Записать донат",
+            "Сбросить статистику",
+            "LiveGiftStudio PRO"
+    };
+
+    new AlertDialog.Builder(this)
+            .setTitle("Какую кнопку изменить?")
+            .setItems(buttons, (dialog, which) -> {
+                EditText input = new EditText(this);
+                input.setHint("Новый текст или эмодзи");
+                input.setSingleLine(false);
+
+                new AlertDialog.Builder(this)
+                        .setTitle("Новая надпись")
+                        .setView(input)
+                        .setPositiveButton("Сохранить", (d, w) -> {
+                            String value = input.getText().toString().trim();
+                            if (!value.isEmpty()) {
+                                prefs.edit()
+                                        .putString("custom_label_" + which, value)
+                                        .apply();
+                                message("Надпись сохранена");
+                            }
+                        })
+                        .setNegativeButton("Отмена", null)
+                        .show();
+            })
+            .setNegativeButton("Отмена", null)
+            .show();
+}
+
+private void resetAppearance() {
+    android.content.SharedPreferences.Editor editor = prefs.edit();
+
+    editor.remove("app_bg_color");
+    editor.remove("button_color");
+    editor.remove("button_radius");
+    editor.remove("app_font_size");
+
+    for (int i = 0; i < 16; i++) {
+        editor.remove("custom_label_" + i);
+    }
+
+    editor.apply();
+    buildInterface();
+    message("Оформление сброшено");
+}
+      
 private int dp(float value) {
     return (int) (value * getResources()
             .getDisplayMetrics().density + 0.5f);
