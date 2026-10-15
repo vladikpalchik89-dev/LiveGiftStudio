@@ -59,6 +59,8 @@ public class OverlayService extends Service {
     private TextToSpeech textToSpeech;
 
     private boolean ttsReady = false;
+    private String lastGiftEventKey = "";
+private long lastGiftEventTime = 0;
     private Runnable removeTask;
     private boolean destroyed = false;
 
@@ -244,7 +246,19 @@ private void startForegroundNotification() {
 
                     String username = event.optString(
                             "username", "Зритель");
+                    
+String giftEventKey = username + "|" + gift;
+long now = System.currentTimeMillis();
 
+if (giftEventKey.equals(lastGiftEventKey)
+        && now - lastGiftEventTime < 2000) {
+    android.util.Log.d(
+            TAG, "Повтор подарка пропущен: " + giftEventKey);
+    return;
+}
+
+lastGiftEventKey = giftEventKey;
+lastGiftEventTime = now;
                     int count = event.optInt("repeatCount", 1);
 
                     if (count < 1) {
