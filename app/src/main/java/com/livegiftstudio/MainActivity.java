@@ -258,10 +258,7 @@ private void buildInterface() {
 
     updateStats();
 }
-
-
-    private void addButton(
-            
+          
 private int dp(float value) {
     return (int) (value * getResources()
             .getDisplayMetrics().density + 0.5f);
