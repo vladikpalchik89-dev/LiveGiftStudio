@@ -218,7 +218,7 @@ setBackgroundColor(
     addMenuRow(
         "🎵\nПодключение\nTikTok LIVE", 0xFF087BFF,
         "💰\nОткрыть\nдонаты", 0xFF00D6B7,
-        v -> showTikTokConnection(),
+        v -> showTikTokAccounts(),
         v -> openLink(DONATE_URL)
     );
 
@@ -1391,16 +1391,48 @@ private String[] getTikTokAccounts() {
 
 private void showTikTokAccounts() {
     String[] accounts = getTikTokAccounts();
+    String active = prefs.getString("active_tiktok_account", "vinnipyh99");
     String[] labels = new String[3];
 
     for (int i = 0; i < accounts.length; i++) {
-        labels[i] = (i + 1) + ". " +
-                (accounts[i].isEmpty() ? "Не задан" : "@" + accounts[i]);
+        String nick = accounts[i].isEmpty()
+                ? "Не задан"
+                : "@" + accounts[i];
+
+        labels[i] = nick
+                + (accounts[i].equalsIgnoreCase(active)
+                ? "  ✓ АКТИВЕН"
+                : "");
     }
 
     new AlertDialog.Builder(this)
-            .setTitle("🎵 TikTok — аккаунты")
-            .setItems(labels, (dialog, which) -> editTikTokAccount(which))
+            .setTitle("🎵 Выбери активный аккаунт")
+            .setItems(labels, (dialog, which) -> {
+                if (accounts[which].isEmpty()) {
+                    editTikTokAccount(which);
+                    return;
+                }
+
+                new AlertDialog.Builder(this)
+                        .setTitle("Аккаунт @" + accounts[which])
+                        .setItems(
+                                new String[]{"✅ Сделать активным", "✏️ Изменить ник"},
+                                (d, action) -> {
+                                    if (action == 0) {
+                                        prefs.edit()
+                                                .putString("active_tiktok_account", accounts[which])
+                                                .putString("tiktok_username", accounts[which])
+                                                .apply();
+
+                                        message("Переключаю сервер на @" + accounts[which]);
+switchServerAccount(accounts[which]);
+                                    } else {
+                                        editTikTokAccount(which);
+                                    }
+                                })
+                        .setNegativeButton("Назад", (d, w) -> showTikTokAccounts())
+                        .show();
+            })
             .setNegativeButton("Закрыть", null)
             .show();
 }
@@ -1433,7 +1465,88 @@ private void editTikTokAccount(int index) {
             })
             .show();
 }
+private void switchServerAccount(String username) {
+    new Thread(() -> {
+        HttpURLConnection connection = null;
 
+        try {
+            URL url = new URL(
+                    "https://livegiftstudio.onrender.com/switch-account"
+            );
+
+            connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod("POST");
+            connection.setConnectTimeout(15000);
+            connection.setReadTimeout(15000);
+            connection.setDoOutput(true);
+            connection.setRequestProperty(
+                    "Content-Type", "application/json; charset=UTF-8"
+            );
+
+            String key = prefs.getString("account_switch_key", "");
+
+if (key.isEmpty()) {
+    runOnUiThread(() -> {
+        EditText keyInput = new EditText(MainActivity.this);
+        keyInput.setSingleLine(true);
+        keyInput.setHint("Введи ключ из Render");
+
+        new AlertDialog.Builder(MainActivity.this)
+                .setTitle("🔐 Ключ переключения")
+                .setMessage("Введи значение ACCOUNT_SWITCH_KEY из настроек Render.")
+                .setView(keyInput)
+                .setNegativeButton("Отмена", null)
+                .setPositiveButton("Сохранить", (dialog, which) -> {
+                    String enteredKey = keyInput.getText().toString().trim();
+
+                    if (enteredKey.isEmpty()) {
+                        message("Ключ не введён");
+                        return;
+                    }
+
+                    prefs.edit()
+                            .putString("account_switch_key", enteredKey)
+                            .apply();
+
+                    switchServerAccount(username);
+                })
+                .show();
+    });
+    return;
+}
+
+            connection.setRequestProperty("x-switch-key", key);
+
+            JSONObject json = new JSONObject();
+            json.put("username", username);
+
+            try (OutputStream output = connection.getOutputStream()) {
+                output.write(json.toString().getBytes(
+                        StandardCharsets.UTF_8
+                ));
+            }
+
+            int status = connection.getResponseCode();
+
+            runOnUiThread(() -> {
+                if (status >= 200 && status < 300) {
+                    message("Сервер переключён на @" + username);
+                } else {
+                    message("Сервер не переключился. Код: " + status);
+                }
+            });
+
+        } catch (Exception e) {
+            runOnUiThread(() ->
+                    message("Ошибка переключения: " + e.getMessage())
+            );
+        } finally {
+            if (connection != null) {
+                connection.disconnect();
+            }
+        }
+    }).start();
+}
     private void showTikTokConnection() {
         EditText input = new EditText(this);
         input.setHint("Например: @username");
