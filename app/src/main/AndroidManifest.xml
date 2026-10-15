@@ -23,9 +23,11 @@
 
         </activity>
 
+        
         <service
             android:name=".OverlayService"
-            android:exported="false" />
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
 
     </application>
 
