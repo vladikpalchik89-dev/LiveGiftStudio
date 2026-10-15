@@ -25,7 +25,7 @@ import android.widget.ListView;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
-
+import android.graphics.drawable.GradientDrawable;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -161,105 +161,196 @@ public class MainActivity extends Activity {
         buildInterface();
     }
 
-    private void buildInterface() {
-        ScrollView scroll = new ScrollView(this);
+    
+private void buildInterface() {
+    ScrollView scroll = new ScrollView(this);
+    scroll.setFillViewport(true);
+    scroll.setBackgroundColor(Color.rgb(3, 7, 22));
 
-        container = new LinearLayout(this);
-        container.setOrientation(LinearLayout.VERTICAL);
-        container.setPadding(24, 24, 24, 32);
-        container.setBackgroundColor(Color.rgb(18, 18, 30));
+    container = new LinearLayout(this);
+    container.setOrientation(LinearLayout.VERTICAL);
+    container.setPadding(dp(12), dp(12), dp(12), dp(24));
+    container.setBackgroundColor(Color.rgb(3, 7, 22));
 
-        scroll.addView(container);
-        setContentView(scroll);
+    scroll.addView(container);
+    setContentView(scroll);
 
-        TextView title = new TextView(this);
-        title.setText("🎬 LiveGiftStudio PRO");
-        title.setTextSize(27);
-        title.setTextColor(Color.WHITE);
-        title.setGravity(Gravity.CENTER);
-        title.setPadding(0, 12, 0, 12);
-        container.addView(title);
+    TextView title = new TextView(this);
+    title.setText("🎬 LiveGiftStudio PRO");
+    title.setTextSize(29);
+    title.setTypeface(null, android.graphics.Typeface.BOLD);
+    title.setTextColor(Color.WHITE);
+    title.setGravity(Gravity.CENTER);
+    title.setShadowLayer(dp(12), 0, 0, Color.CYAN);
+    title.setPadding(0, dp(12), 0, dp(4));
+    container.addView(title);
 
-        TextView subtitle = new TextView(this);
-        subtitle.setText("Инструменты для TikTok LIVE");
-        subtitle.setTextSize(16);
-        subtitle.setTextColor(Color.LTGRAY);
-        subtitle.setGravity(Gravity.CENTER);
-        subtitle.setPadding(0, 0, 0, 20);
-        container.addView(subtitle);
+    TextView subtitle = new TextView(this);
+    subtitle.setText("Инструменты для TikTok LIVE");
+    subtitle.setTextSize(17);
+    subtitle.setTypeface(null, android.graphics.Typeface.BOLD);
+    subtitle.setTextColor(Color.rgb(230, 235, 255));
+    subtitle.setGravity(Gravity.CENTER);
+    subtitle.setPadding(0, dp(4), 0, dp(20));
+    container.addView(subtitle);
 
-        addButton("🎁 Подарки и мои звуки",
-                v -> showGiftCatalog());
+    addMenuRow(
+        "🎁\nПодарки\nи мои звуки", 0xFFFF1493,
+        "🎙️\nНастроить\nголос и озвучку", 0xFF008CFF,
+        v -> showGiftCatalog(),
+        v -> showVoiceSettings()
+    );
 
-        addButton("🗣️ Настроить голос и озвучку",
-                v -> showVoiceSettings());
+    addMenuRow(
+        "🔔\nВыбрать\nзвук подписки", 0xFFFFB900,
+        "🎬\nТест\nанимации", 0xFF9B20FF,
+        v -> chooseFollowSound(),
+        v -> startOverlay()
+    );
 
-        addButton("🔔 Выбрать звук подписки",
-                v -> chooseFollowSound());
+    addMenuRow(
+        "🎵\nПодключение\nTikTok LIVE", 0xFF087BFF,
+        "💰\nОткрыть\nдонаты", 0xFF00D6B7,
+        v -> showTikTokConnection(),
+        v -> openLink(DONATE_URL)
+    );
 
-        addButton("🎬 Тест анимации",
-                v -> startOverlay());
+    addMenuRow(
+        "🤖\nИИ-фото —\n50 ₽", 0xFFFF1493,
+        "⭐\nОценка аккаунта —\n50 ₽", 0xFF7B20FF,
+        v -> createOrder("ИИ-фото", 50),
+        v -> createOrder("Оценка аккаунта", 50)
+    );
 
-        
-        addButton("📱 Подключение TikTok LIVE",
-                v -> showTikTokConnection());
+    addMenuRow(
+        "📢\nРеклама —\n100 ₽", 0xFF087BFF,
+        "💬\nДругая\nуслуга", 0xFFFF1764,
+        v -> createOrder("Реклама", 100),
+        v -> createOrder("Другая услуга", 0)
+    );
 
-        addButton("💰 Открыть донаты",
-                v -> openLink(DONATE_URL));
+    addMenuRow(
+        "🛍️\nИстория\nзаказов", 0xFF087BFF,
+        "📊\nСтатистика", 0xFF7928FF,
+        v -> showHistory(),
+        v -> showStats()
+    );
 
-        addButton("🤖 ИИ-фото — 50 ₽",
-                v -> createOrder("ИИ-фото", 50));
+    addMenuRow(
+        "🎁\nЗаписать\nподарок", 0xFF00C853,
+        "🪙\nЗаписать\nдонат", 0xFFFF1764,
+        v -> addDonation("gift"),
+        v -> addDonation("donation")
+    );
 
-        addButton("⭐ Оценка аккаунта — 50 ₽",
-                v -> createOrder("Оценка аккаунта", 50));
+    addMenuRow(
+        "🔄\nСбросить\nстатистику", 0xFF3949AB,
+        "✨\nLiveGiftStudio\nPRO", 0xFF008CFF,
+        v -> resetStats(),
+        v -> showStats()
+    );
 
-        addButton("📢 Реклама — 100 ₽",
-                v -> createOrder("Реклама", 100));
+    statsText = new TextView(this);
+    statsText.setTextColor(Color.WHITE);
+    statsText.setTextSize(16);
+    statsText.setPadding(dp(12), dp(24), dp(12), dp(12));
+    container.addView(statsText);
 
-        addButton("💬 Другая услуга",
-                v -> createOrder("Другая услуга", 0));
+    updateStats();
+}
 
-        addButton("📋 История заказов",
-                v -> showHistory());
-
-        addButton("📊 Статистика",
-                v -> showStats());
-
-        addButton("➕ Записать подарок",
-                v -> addDonation("gift"));
-
-        addButton("➕ Записать донат",
-                v -> addDonation("donation"));
-
-        addButton("🔄 Сбросить статистику",
-                v -> resetStats());
-
-        statsText = new TextView(this);
-        statsText.setTextColor(Color.WHITE);
-        statsText.setTextSize(16);
-        statsText.setPadding(8, 24, 8, 12);
-        container.addView(statsText);
-
-        updateStats();
-    }
 
     private void addButton(
-            String text, View.OnClickListener listener) {
+            
+private int dp(float value) {
+    return (int) (value * getResources()
+            .getDisplayMetrics().density + 0.5f);
+}
 
-        Button button = new Button(this);
-        button.setText(text);
-        button.setTextSize(15);
-        button.setAllCaps(false);
+private void addMenuRow(
+        String leftText, int leftColor,
+        String rightText, int rightColor,
+        View.OnClickListener leftAction,
+        View.OnClickListener rightAction) {
 
-        LinearLayout.LayoutParams params =
-                new LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT);
+    LinearLayout row = new LinearLayout(this);
+    row.setOrientation(LinearLayout.HORIZONTAL);
+    row.setGravity(Gravity.CENTER_VERTICAL);
 
-        params.setMargins(0, 6, 0, 6);
-        container.addView(button, params);
-        button.setOnClickListener(listener);
-    }
+    LinearLayout.LayoutParams rowParams =
+            new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT);
+
+    rowParams.setMargins(0, 0, 0, dp(10));
+    container.addView(row, rowParams);
+
+    row.addView(createNeonButton(
+            leftText, leftColor, leftAction),
+            new LinearLayout.LayoutParams(
+                    0, dp(112), 1f));
+
+    View gap = new View(this);
+    row.addView(gap,
+            new LinearLayout.LayoutParams(dp(10), 1));
+
+    row.addView(createNeonButton(
+            rightText, rightColor, rightAction),
+            new LinearLayout.LayoutParams(
+                    0, dp(112), 1f));
+}
+
+private TextView createNeonButton(
+        String text, int color,
+        View.OnClickListener listener) {
+
+    TextView button = new TextView(this);
+    button.setText(text + "\n›");
+    button.setTextColor(Color.WHITE);
+    button.setTextSize(16);
+    button.setTypeface(null, android.graphics.Typeface.BOLD);
+    button.setGravity(Gravity.CENTER);
+    button.setPadding(dp(5), dp(6), dp(5), dp(6));
+    button.setMaxLines(4);
+    button.setShadowLayer(dp(4), 0, 0, color);
+    button.setClickable(true);
+    button.setFocusable(true);
+    button.setOnClickListener(listener);
+
+    int darker = darken(color);
+
+    GradientDrawable background = new GradientDrawable(
+            GradientDrawable.Orientation.TL_BR,
+            new int[] {
+                    lighten(color),
+                    color,
+                    darker,
+                    Color.rgb(8, 12, 36)
+            });
+
+    background.setCornerRadius(dp(25));
+    background.setStroke(dp(2), lighten(color));
+
+    button.setBackground(background);
+    button.setElevation(dp(5));
+
+    return button;
+}
+
+private int darken(int color) {
+    return Color.rgb(
+            (int) (Color.red(color) * 0.48f),
+            (int) (Color.green(color) * 0.48f),
+            (int) (Color.blue(color) * 0.48f));
+}
+
+private int lighten(int color) {
+    return Color.rgb(
+            Math.min(255, Color.red(color) + 65),
+            Math.min(255, Color.green(color) + 65),
+            Math.min(255, Color.blue(color) + 65));
+}
+
 
     private void showGiftCatalog() {
         LinearLayout layout = new LinearLayout(this);
