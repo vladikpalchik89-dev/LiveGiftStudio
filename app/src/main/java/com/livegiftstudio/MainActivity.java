@@ -160,8 +160,7 @@ private int menuRowIndex = 0;
         loadStats();
         buildInterface();
     }
-
-    
+ 
 private void buildInterface() {
     ScrollView scroll = new ScrollView(this);
     scroll.setFillViewport(true);
@@ -408,9 +407,11 @@ private void editButtonLabel() {
                             String value = input.getText().toString().trim();
                             if (!value.isEmpty()) {
                                 prefs.edit()
-                                        .putString("custom_label_" + which, value)
-                                        .apply();
-                                message("Надпись сохранена");
+        .putString("custom_label_" + which, value)
+        .apply();
+
+buildInterface();
+message("Надпись сохранена");
                             }
                         })
                         .setNegativeButton("Отмена", null)
@@ -428,7 +429,7 @@ private void resetAppearance() {
     editor.remove("button_radius");
     editor.remove("app_font_size");
 
-    for (int i = 0; i < 16; i++) {
+    for (int i = 0; i < 18; i++) {
         editor.remove("custom_label_" + i);
     }
 
