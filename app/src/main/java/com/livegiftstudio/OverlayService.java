@@ -554,7 +554,6 @@ lastGiftEventTime = now;
     }
 
     private void playFollowSound() {
-    private void playFollowSound() {
     stopCurrentSound();
 
     String savedUri = prefs.getString(
