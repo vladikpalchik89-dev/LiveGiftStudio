@@ -144,6 +144,24 @@ private int menuRowIndex = 0;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        
+try {
+    Intent serviceIntent =
+            new Intent(MainActivity.this, OverlayService.class);
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        startForegroundService(serviceIntent);
+    } else {
+        startService(serviceIntent);
+    }
+} catch (Exception e) {
+    android.util.Log.e(
+            "LiveGiftStudio",
+            "Не удалось запустить сервис",
+            e
+    );
+}
+
 
         prefs = getSharedPreferences(
                 "LiveGiftStudio", MODE_PRIVATE);
