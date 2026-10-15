@@ -684,6 +684,36 @@ private TextView createNeonButton(
 
         super.onActivityResult(requestCode, resultCode, data);
 
+if (requestCode >= 504 && requestCode <= 507) {
+    if (resultCode == RESULT_OK
+            && data != null
+            && data.getData() != null) {
+
+        Uri uri = data.getData();
+        String key;
+
+        switch (requestCode) {
+            case 504: key = "memes"; break;
+            case 505: key = "funny"; break;
+            case 506: key = "melodies"; break;
+            default: key = "effects"; break;
+        }
+
+        try {
+            getContentResolver().takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        } catch (Exception ignored) {}
+
+        prefs.edit()
+                .putString("library_sound_" + key, uri.toString())
+                .apply();
+
+        message("Звук сохранён в библиотеке");
+    }
+    return;
+}
+
         if (requestCode == PICK_FOLLOW_SOUND) {
             if (resultCode == RESULT_OK
                     && data != null
