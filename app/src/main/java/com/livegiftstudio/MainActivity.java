@@ -1500,9 +1500,6 @@ private void displayVoiceSettings() {
         executor.shutdown();
         super.onDestroy();
     }
-}
-
-
 private int darken(int color) {
     return Color.rgb(
             (int) (Color.red(color) * 0.55f),
@@ -1518,4 +1515,4 @@ private int lighten(int color) {
             Math.min(255, Color.blue(color) + 60)
     );
 }
-
+}
