@@ -1502,3 +1502,20 @@ private void displayVoiceSettings() {
     }
 }
 
+
+private int darken(int color) {
+    return Color.rgb(
+            (int) (Color.red(color) * 0.55f),
+            (int) (Color.green(color) * 0.55f),
+            (int) (Color.blue(color) * 0.55f)
+    );
+}
+
+private int lighten(int color) {
+    return Color.rgb(
+            Math.min(255, Color.red(color) + 60),
+            Math.min(255, Color.green(color) + 60),
+            Math.min(255, Color.blue(color) + 60)
+    );
+}
+
