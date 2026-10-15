@@ -482,37 +482,48 @@ private void addMenuRow(
 
 
 private TextView createNeonButton(
-        String text, int color,
-        View.OnClickListener listener) {
+        String text,
+        int color,
+        View.OnClickListener listener,
+        String buttonId) {
 
     TextView button = new TextView(this);
-    button.setText(text + "\n›");
-    button.setTextColor(Color.WHITE); 
-    button.setTextSize(
-        prefs.getInt("app_font_size", 16)
-);
+
+    String savedText = prefs.getString(buttonId, null);
+
+    if (savedText != null && !savedText.trim().isEmpty()) {
+        button.setText(savedText + "\n›");
+    } else {
+        button.setText(text + "\n›");
+    }
+
+    button.setTextColor(Color.WHITE);
+    button.setTextSize(prefs.getInt("app_font_size", 16));
     button.setTypeface(null, android.graphics.Typeface.BOLD);
     button.setGravity(Gravity.CENTER);
     button.setPadding(dp(5), dp(6), dp(5), dp(6));
     button.setMaxLines(4);
+
+    color = prefs.getInt("button_color", color);
     button.setShadowLayer(dp(4), 0, 0, color);
     button.setClickable(true);
     button.setFocusable(true);
     button.setOnClickListener(listener);
-color = prefs.getInt("button_color", color);
-    int darker = darken(color); 
+
+    int darker = darken(color);
+
     GradientDrawable background = new GradientDrawable(
             GradientDrawable.Orientation.TL_BR,
-            new int[] {
+            new int[]{
                     lighten(color),
                     color,
                     darker,
                     Color.rgb(8, 12, 36)
             });
 
-background.setCornerRadius(
-        dp(prefs.getInt("button_radius", 25))
-);
+    background.setCornerRadius(
+            dp(prefs.getInt("button_radius", 25)));
+
     background.setStroke(dp(2), lighten(color));
 
     button.setBackground(background);
@@ -520,19 +531,9 @@ background.setCornerRadius(
 
     return button;
 }
-private int darken(int color) {
-    return Color.rgb(
-            (int) (Color.red(color) * 0.48f),
-            (int) (Color.green(color) * 0.48f),
-            (int) (Color.blue(color) * 0.48f));
-}
 
-private int lighten(int color) {
-    return Color.rgb(
-            Math.min(255, Color.red(color) + 65),
-            Math.min(255, Color.green(color) + 65),
-            Math.min(255, Color.blue(color) + 65));
-}
+
+            
 
 
     private void showGiftCatalog() {
