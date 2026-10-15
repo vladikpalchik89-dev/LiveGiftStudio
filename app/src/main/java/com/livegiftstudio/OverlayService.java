@@ -1,6 +1,9 @@
 package com.livegiftstudio;
 
 import android.app.Service;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
@@ -37,7 +40,9 @@ import okhttp3.WebSocketListener;
 
 public class OverlayService extends Service {
 
-    private static final String TAG = "LiveGiftStudio";
+    private static final String TAG = "LiveGiftStudio";  
+    private static final String CHANNEL_ID = "livegiftstudio_service";
+    private static final int NOTIFICATION_ID = 1001;
     private static final String SOCKET_URL =
             "wss://livegiftstudio.onrender.com/events";
 
@@ -60,7 +65,7 @@ public class OverlayService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
-
+    startForegroundNotification();
         prefs = getSharedPreferences(
                 "LiveGiftStudio", MODE_PRIVATE);
 
@@ -94,6 +99,44 @@ public class OverlayService extends Service {
     public IBinder onBind(Intent intent) {
         return null;
     }
+    
+private void startForegroundNotification() {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        NotificationChannel channel = new NotificationChannel(
+                CHANNEL_ID,
+                "LiveGiftStudio — работа в фоне",
+                NotificationManager.IMPORTANCE_LOW
+        );
+
+        channel.setDescription(
+                "Подключение к TikTok LIVE и озвучка сообщений"
+        );
+
+        NotificationManager manager =
+                (NotificationManager) getSystemService(
+                        NOTIFICATION_SERVICE
+                );
+
+        if (manager != null) {
+            manager.createNotificationChannel(channel);
+        }
+    }
+
+    Notification.Builder builder;
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        builder = new Notification.Builder(this, CHANNEL_ID);
+    } else {
+        builder = new Notification.Builder(this);
+    }
+
+    builder.setContentTitle("LiveGiftStudio PRO")
+            .setContentText("Озвучка TikTok LIVE работает в фоне")
+            .setSmallIcon(android.R.drawable.ic_media_play)
+            .setOngoing(true);
+
+    startForeground(NOTIFICATION_ID, builder.build());
+}
 
     @Override
     public int onStartCommand(
