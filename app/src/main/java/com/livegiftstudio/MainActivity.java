@@ -42,7 +42,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class MainActivity extends Activity {
-
+private int menuRowIndex = 0;
     private static final String DONATE_URL =
             "https://www.donationalerts.com/r/vladdonat99";
 
@@ -165,12 +165,19 @@ public class MainActivity extends Activity {
 private void buildInterface() {
     ScrollView scroll = new ScrollView(this);
     scroll.setFillViewport(true);
-    scroll.setBackgroundColor(Color.rgb(3, 7, 22));
+    scroll.
+setBackgroundColor(
+        prefs.getInt("app_bg_color", Color.rgb(3, 7, 22))
+);
 
     container = new LinearLayout(this);
     container.setOrientation(LinearLayout.VERTICAL);
     container.setPadding(dp(12), dp(12), dp(12), dp(24));
-    container.setBackgroundColor(Color.rgb(3, 7, 22));
+    container.
+setBackgroundColor(
+        prefs.getInt("app_bg_color", Color.rgb(3, 7, 22))
+);
+
 
     scroll.addView(container);
     setContentView(scroll);
@@ -435,6 +442,7 @@ private int dp(float value) {
             .getDisplayMetrics().density + 0.5f);
 }
 
+
 private void addMenuRow(
         String leftText, int leftColor,
         String rightText, int rightColor,
@@ -453,8 +461,11 @@ private void addMenuRow(
     rowParams.setMargins(0, 0, 0, dp(10));
     container.addView(row, rowParams);
 
+    int rowIndex = menuRowIndex++;
+
     row.addView(createNeonButton(
-            leftText, leftColor, leftAction),
+            leftText, leftColor, leftAction,
+            "custom_label_" + (rowIndex * 2)),
             new LinearLayout.LayoutParams(
                     0, dp(112), 1f));
 
@@ -463,10 +474,12 @@ private void addMenuRow(
             new LinearLayout.LayoutParams(dp(10), 1));
 
     row.addView(createNeonButton(
-            rightText, rightColor, rightAction),
+            rightText, rightColor, rightAction,
+            "custom_label_" + (rowIndex * 2 + 1)),
             new LinearLayout.LayoutParams(
                     0, dp(112), 1f));
 }
+
 
 private TextView createNeonButton(
         String text, int color,
@@ -474,8 +487,10 @@ private TextView createNeonButton(
 
     TextView button = new TextView(this);
     button.setText(text + "\n›");
-    button.setTextColor(Color.WHITE);
-    button.setTextSize(16);
+    button.setTextColor(Color.WHITE); 
+    button.setTextSize(
+        prefs.getInt("app_font_size", 16)
+);
     button.setTypeface(null, android.graphics.Typeface.BOLD);
     button.setGravity(Gravity.CENTER);
     button.setPadding(dp(5), dp(6), dp(5), dp(6));
@@ -484,9 +499,8 @@ private TextView createNeonButton(
     button.setClickable(true);
     button.setFocusable(true);
     button.setOnClickListener(listener);
-
-    int darker = darken(color);
-
+color = prefs.getInt("button_color", color);
+    int darker = darken(color); 
     GradientDrawable background = new GradientDrawable(
             GradientDrawable.Orientation.TL_BR,
             new int[] {
@@ -496,7 +510,9 @@ private TextView createNeonButton(
                     Color.rgb(8, 12, 36)
             });
 
-    background.setCornerRadius(dp(25));
+background.setCornerRadius(
+        dp(prefs.getInt("button_radius", 25))
+);
     background.setStroke(dp(2), lighten(color));
 
     button.setBackground(background);
@@ -504,7 +520,6 @@ private TextView createNeonButton(
 
     return button;
 }
-
 private int darken(int color) {
     return Color.rgb(
             (int) (Color.red(color) * 0.48f),
