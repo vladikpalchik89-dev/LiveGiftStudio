@@ -1063,9 +1063,15 @@ private void displayVoiceSettings() {
         }
 
         try {
-            Intent intent = new Intent(this, OverlayService.class);
-            intent.putExtra("overlay_text", "🎁 ТЕСТ АНИМАЦИИ!");
-            startService(intent);
+            
+Intent intent = new Intent(this, OverlayService.class);
+intent.putExtra("overlay_text", "🎁 ТЕСТ АНИМАЦИИ!");
+
+if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+    startForegroundService(intent);
+} else {
+    startService(intent);
+}
             message("Команда анимации отправлена");
         } catch (Exception e) {
             message("Не удалось запустить анимацию");
@@ -1594,8 +1600,13 @@ if (key.isEmpty()) {
 
                     try {
                         Intent serviceIntent =
-                                new Intent(MainActivity.this, OverlayService.class);
-                        startService(serviceIntent);
+        new Intent(MainActivity.this, OverlayService.class);
+
+if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+    startForegroundService(serviceIntent);
+} else {
+    startService(serviceIntent);
+}
                     } catch (Exception e) {
                         message("Ник сохранён, но сервис не запустился");
                         return;
