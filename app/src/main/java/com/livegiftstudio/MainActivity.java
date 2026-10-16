@@ -1848,24 +1848,32 @@ private void showTikTokAccounts() {
 
                 new AlertDialog.Builder(this)
                         .setTitle("Аккаунт @" + accounts[which])
-                        .setItems(
-                                new String[]{"✅ Сделать активным", "✏️ Изменить ник"},
-                                (d, action) -> {
-                                    if (action == 0) {
-                                        prefs.edit()
-                                                .putString("active_tiktok_account", accounts[which])
-                                                .putString("tiktok_username", accounts[which])
-                                                .apply();
+                        
+                         .setItems(
+    new String[]{
+        "✅ Сделать активным",
+        "✏️ Изменить ник",
+        "🔎 Проверить подключение"
+    },       (d, action) -> {
+                                 
+(d, action) -> {
+    if (action == 0) {
+        prefs.edit()
+                .putString("active_tiktok_account", accounts[which])
+                .putString("tiktok_username", accounts[which])
+                .apply();
 
-                                        message("Переключаю сервер на @" + accounts[which]);
-switchServerAccount(accounts[which]);
-                                    } else {
-                                        editTikTokAccount(which);
-                                    }
-                                })
-                        .setNegativeButton("Назад", (d, w) -> showTikTokAccounts())
-                        .show();
-            })
+        message("Переключаю сервер на @" + accounts[which]);
+        switchServerAccount(accounts[which]);
+
+    } else if (action == 1) {
+        editTikTokAccount(which);
+
+    } else if (action == 2) {
+        checkServerConnection(accounts[which]);
+    }
+})
+   
             .setNegativeButton("Закрыть", null)
             .show();
 }
