@@ -1846,38 +1846,36 @@ private void showTikTokAccounts() {
                     return;
                 }
 
-                new AlertDialog.Builder(this)
-                        .setTitle("Аккаунт @" + accounts[which])
-                        
-                       
-.setItems(
-        new String[]{
-                "✅ Сделать активным",
-                "✏️ Изменить ник",
-                "🔎 Проверить подключение"
-        },
-        (d, action) -> {
-            if (action == 0) {
-                prefs.edit()
-                        .putString("active_tiktok_account", accounts[which])
-                        .putString("tiktok_username", accounts[which])
-                        .apply();
+                
 
-                message("Переключаю сервер на @" + accounts[which]);
-                switchServerAccount(accounts[which]);
+new AlertDialog.Builder(this)
+        .setTitle("Аккаунт @" + accounts[which])
+        .setItems(
+                new String[]{
+                        "✅ Сделать активным",
+                        "✏️ Изменить ник",
+                        "🔎 Проверить подключение"
+                },
+                (d, action) -> {
+                    if (action == 0) {
+                        prefs.edit()
+                                .putString("active_tiktok_account", accounts[which])
+                                .putString("tiktok_username", accounts[which])
+                                .apply();
 
-            } else if (action == 1) {
-                editTikTokAccount(which);
+                        message("Переключаю сервер на @" + accounts[which]);
+                        switchServerAccount(accounts[which]);
 
-            } else if (action == 2) {
-                checkServerConnection(accounts[which]);
-            }
-        }
-)
-     
-            .setNegativeButton("Закрыть", null)
-            .show();
-}
+                    } else if (action == 1) {
+                        editTikTokAccount(which);
+
+                    } else if (action == 2) {
+                        checkServerConnection(accounts[which]);
+                    }
+                }
+        )
+        .setNegativeButton("Закрыть", null)
+        .show();
 
 private void editTikTokAccount(int index) {
     EditText input = new EditText(this);
