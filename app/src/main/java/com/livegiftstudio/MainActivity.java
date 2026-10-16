@@ -1825,19 +1825,14 @@ private String[] getTikTokAccounts() {
     };
 }
 
+
 private void showTikTokAccounts() {
-    
-String[] accounts;
 
-try {
-    accounts = getTikTokAccounts();
-} catch (Exception e) {
-    message("Ошибка загрузки аккаунтов: " + e.getMessage());
-    return;
-}
+    String[] accounts = getTikTokAccounts();
+    String active = prefs.getString(
+            "active_tiktok_account", "vinnipyh99");
 
-    String active = prefs.getString("active_tiktok_account", "vinnipyh99");
-    String[] labels = new String[3];
+    String[] labels = new String[accounts.length];
 
     for (int i = 0; i < accounts.length; i++) {
         String nick = accounts[i].isEmpty()
@@ -1853,44 +1848,52 @@ try {
     new AlertDialog.Builder(this)
             .setTitle("🎵 Выбери активный аккаунт")
             .setItems(labels, (dialog, which) -> {
+
                 if (accounts[which].isEmpty()) {
                     editTikTokAccount(which);
                     return;
                 }
 
-                
+                new AlertDialog.Builder(this)
+                        .setTitle("Аккаунт @" + accounts[which])
+                        .setItems(
+                                new String[]{
+                                        "✅ Сделать активным",
+                                        "✏️ Изменить ник",
+                                        "🔎 Проверить подключение"
+                                },
+                                (d, action) -> {
 
-new AlertDialog.Builder(this)
-        .setTitle("Аккаунт @" + accounts[which])
-        .setItems(
-                new String[]{
-                        "✅ Сделать активным",
-                        "✏️ Изменить ник",
-                        "🔎 Проверить подключение"
-                },
-                (d, action) -> {
-                    if (action == 0) {
-                        prefs.edit()
-                                .putString("active_tiktok_account", accounts[which])
-                                .putString("tiktok_username", accounts[which])
-                                .apply();
+                                    if (action == 0) {
+                                        prefs.edit()
+                                                .putString(
+                                                        "active_tiktok_account",
+                                                        accounts[which])
+                                                .putString(
+                                                        "tiktok_username",
+                                                        accounts[which])
+                                                .apply();
 
-                        message("Переключаю сервер на @" + accounts[which]);
-                        switchServerAccount(accounts[which]);
+                                        message("Переключаю сервер на @"
+                                                + accounts[which]);
 
-                    } else if (action == 1) {
-                        editTikTokAccount(which);
+                                        switchServerAccount(accounts[which]);
 
-                    } else if (action == 2) {
-                        checkServerConnection(accounts[which]);
-                    }
-              
-                }
-        )
-                .setNegativeButton("Закрыть", null)
-        .show();
-    });
-}
+                                    } else if (action == 1) {
+                                        editTikTokAccount(which);
+
+                                    } else if (action == 2) {
+                                        checkServerConnection(
+                                                accounts[which]);
+                                    }
+                                }
+                        )
+                        .setNegativeButton("Закрыть", null)
+                        .show();
+            })
+            .setNegativeButton("Закрыть", null)
+            .show();
+}                
 private void editTikTokAccount(int index) {
     EditText input = new EditText(this);
     input.setSingleLine(true);
