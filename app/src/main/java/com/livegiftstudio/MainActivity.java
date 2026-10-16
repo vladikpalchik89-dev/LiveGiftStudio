@@ -941,7 +941,9 @@ private void deleteLibrarySound(String category, int index) {
             dialog.dismiss();
             showGiftSoundOptions();
         });
-
+prefs.edit()
+        .putInt("gift_coins_" + giftKey, coins)
+        .apply();
         dialog.show();
     }
 
