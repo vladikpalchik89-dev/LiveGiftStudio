@@ -713,6 +713,7 @@ private void chooseLibrarySound(String category) {
 }
 
 // Меню отдельной записи
+
 private void showLibrarySoundOptions(String category, int index) {
     JSONArray sounds = getLibrarySounds(category);
     JSONObject sound = sounds.optJSONObject(index);
@@ -723,6 +724,7 @@ private void showLibrarySoundOptions(String category, int index) {
     }
 
     String name = sound.optString("name", "Звук");
+    String uri = sound.optString("uri", "");
 
     new AlertDialog.Builder(this)
             .setTitle("🎵 " + name)
@@ -730,6 +732,7 @@ private void showLibrarySoundOptions(String category, int index) {
                     new String[]{
                             "▶ Проверить звук",
                             "⏸ Пауза / продолжить",
+                            "🔔 Назначить на подписку",
                             "🗑 Удалить запись"
                     },
                     (dialog, which) -> {
@@ -737,6 +740,17 @@ private void showLibrarySoundOptions(String category, int index) {
                             playLibrarySound(category, index);
                         } else if (which == 1) {
                             pauseLibrarySound();
+                        } else if (which == 2) {
+                            if (uri.isEmpty()) {
+                                message("Файл не найден");
+                                return;
+                            }
+
+                            prefs.edit()
+                                    .putString("follow_sound_uri", uri)
+                                    .apply();
+
+                            message("Звук назначен на подписку: " + name);
                         } else {
                             deleteLibrarySound(category, index);
                         }
