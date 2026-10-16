@@ -1875,10 +1875,10 @@ new AlertDialog.Builder(this)
               
                 }
         )
-        .setNegativeButton("Закрыть", null)
+                .setNegativeButton("Закрыть", null)
         .show();
+    });
 }
-
 private void editTikTokAccount(int index) {
     EditText input = new EditText(this);
     input.setSingleLine(true);
