@@ -65,7 +65,17 @@ private int menuRowIndex = 0;
     private LinearLayout container;
     private TextView statsText;
     private MediaPlayer previewPlayer;
+// Категория, в которую сейчас добавляем звук
+private String libraryCategory;
 
+// Индекс записи, которая сейчас играет
+private int playingLibrarySound = -1;
+
+// Список звуков будет храниться в SharedPreferences
+private static final String LIBRARY_MEMES = "library_memes";
+private static final String LIBRARY_FUNNY = "library_funny";
+private static final String LIBRARY_MELODIES = "library_melodies";
+private static final String LIBRARY_EFFECTS = "library_effects";
     private String selectedGiftKey;
     private String selectedGiftName;
 
@@ -232,7 +242,12 @@ setBackgroundColor(
         v -> chooseFollowSound(),
         v -> startOverlay()
     );
-
+addMenuRow(
+        "🔊\nБиблиотека\nзвуков", 0xFF00C8FF,
+        "🎵\nМои\nаудиофайлы", 0xFF00C853,
+        v -> showSoundLibrary(),
+        v -> showSoundLibrary()
+);
     addMenuRow(
         "🎵\nПодключение\nTikTok LIVE", 0xFF087BFF,
         "💰\nОткрыть\nдонаты", 0xFF00D6B7,
@@ -552,10 +567,290 @@ private TextView createNeonButton(
     return button;
 }
 
+// Открыть категории библиотеки
+private void showSoundLibrary() {
+    String[] categories = {
+            "😂 Мемы",
+            "🤣 Смешные фразы",
+            "🎵 Мелодии",
+            "💥 Эффекты"
+    };
 
+    new AlertDialog.Builder(this)
+            .setTitle("🔊 Библиотека звуков")
+            .setItems(categories, (dialog, which) -> {
+                switch (which) {
+                    case 0:
+                        showLibraryCategory("memes");
+                        break;
+                    case 1:
+                        showLibraryCategory("funny");
+                        break;
+                    case 2:
+                        showLibraryCategory("melodies");
+                        break;
+                    case 3:
+                        showLibraryCategory("effects");
+                        break;
+                }
+            })
+            .setNegativeButton("Закрыть", null)
+            .show();
+}
+
+// Название категории
+private String getLibraryCategoryName(String category) {
+    switch (category) {
+        case "memes":
+            return "Мемы";
+        case "funny":
+            return "Смешные фразы";
+        case "melodies":
+            return "Мелодии";
+        default:
+            return "Эффекты";
+    }
+}
+
+// Ключ для хранения списка
+private String getLibraryKey(String category) {
+    switch (category) {
+        case "memes":
+            return LIBRARY_MEMES;
+        case "funny":
+            return LIBRARY_FUNNY;
+        case "melodies":
+            return LIBRARY_MELODIES;
+        default:
+            return LIBRARY_EFFECTS;
+    }
+}
+
+// Прочитать список звуков из памяти телефона
+private JSONArray getLibrarySounds(String category) {
+    try {
+        return new JSONArray(
+                prefs.getString(getLibraryKey(category), "[]")
+        );
+    } catch (Exception e) {
+        return new JSONArray();
+    }
+}
+
+// Показать все записи в категории
+private void showLibraryCategory(String category) {
+    libraryCategory = category;
+
+    JSONArray sounds = getLibrarySounds(category);
+    ArrayList<String> names = new ArrayList<>();
+
+    for (int i = 0; i < sounds.length(); i++) {
+        JSONObject sound = sounds.optJSONObject(i);
+
+        if (sound != null) {
+            names.add("🎵 " + sound.optString("name", "Звук"));
+        }
+    }
+
+    String[] items = names.toArray(new String[0]);
+
+    AlertDialog dialog = new AlertDialog.Builder(this)
+            .setTitle("📂 " + getLibraryCategoryName(category))
+            .setItems(items, (d, which) -> {
+                showLibrarySoundOptions(category, which);
+            })
+            .setPositiveButton("➕ Добавить звук", (d, w) -> {
+                chooseLibrarySound(category);
+            })
+            .setNegativeButton("Назад", (d, w) -> {
+                showSoundLibrary();
+            })
+            .create();
+
+    dialog.show();
+
+    // Если список пустой, всё равно можно добавлять записи
+    if (names.isEmpty()) {
+        dialog.setTitle(
+                "📂 " + getLibraryCategoryName(category)
+                        + "\nСписок пуст. Добавь аудиофайл."
+        );
+    }
+}
+
+// Выбор аудиофайла с телефона
+private void chooseLibrarySound(String category) {
+    libraryCategory = category;
+
+    Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+    intent.addCategory(Intent.CATEGORY_OPENABLE);
+    intent.setType("audio/*");
+    intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+    intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+
+    try {
+        int requestCode;
+
+        switch (category) {
+            case "memes":
+                requestCode = 504;
+                break;
+            case "funny":
+                requestCode = 505;
+                break;
+            case "melodies":
+                requestCode = 506;
+                break;
+            default:
+                requestCode = 507;
+                break;
+        }
+
+        startActivityForResult(intent, requestCode);
+    } catch (Exception e) {
+        message("Не удалось открыть выбор аудиофайла");
+    }
+}
+
+// Меню отдельной записи
+private void showLibrarySoundOptions(String category, int index) {
+    JSONArray sounds = getLibrarySounds(category);
+    JSONObject sound = sounds.optJSONObject(index);
+
+    if (sound == null) {
+        message("Запись не найдена");
+        return;
+    }
+
+    String name = sound.optString("name", "Звук");
+
+    new AlertDialog.Builder(this)
+            .setTitle("🎵 " + name)
+            .setItems(
+                    new String[]{
+                            "▶ Проверить звук",
+                            "⏸ Пауза / продолжить",
+                            "🗑 Удалить запись"
+                    },
+                    (dialog, which) -> {
+                        if (which == 0) {
+                            playLibrarySound(category, index);
+                        } else if (which == 1) {
+                            pauseLibrarySound();
+                        } else {
+                            deleteLibrarySound(category, index);
+                        }
+                    }
+            )
+            .setNegativeButton("Назад", (d, w) -> {
+                showLibraryCategory(category);
+            })
+            .show();
+}
+
+// Запуск или продолжение прослушивания
+private void playLibrarySound(String category, int index) {
+    JSONArray sounds = getLibrarySounds(category);
+    JSONObject sound = sounds.optJSONObject(index);
+
+    if (sound == null) {
+        message("Звук не найден");
+        return;
+    }
+
+    String uriText = sound.optString("uri", "");
+
+    if (uriText.isEmpty()) {
+        message("Файл не найден");
+        return;
+    }
+
+    // Если этот же файл уже стоит на паузе — продолжить
+    if (previewPlayer != null && playingLibrarySound == index) {
+        try {
+            if (!previewPlayer.isPlaying()) {
+                previewPlayer.start();
+                message("Воспроизведение продолжено");
+                return;
+            }
+        } catch (Exception ignored) {}
+    }
+
+    stopPreview();
+
+    try {
+        previewPlayer = new MediaPlayer();
+        playingLibrarySound = index;
+
+        previewPlayer.setDataSource(
+                this, Uri.parse(uriText)
+        );
+
+        previewPlayer.setOnPreparedListener(player -> {
+            player.start();
+            message("▶ " + sound.optString("name", "Звук"));
+        });
+
+        previewPlayer.setOnCompletionListener(player -> {
+            stopPreview();
+        });
+
+        previewPlayer.setOnErrorListener((player, what, extra) -> {
+            stopPreview();
+            message("Не удалось воспроизвести файл");
+            return true;
+        });
+
+        previewPlayer.prepareAsync();
+
+    } catch (Exception e) {
+        stopPreview();
+        message("Ошибка воспроизведения");
+    }
+}
+
+// Пауза
+private void pauseLibrarySound() {
+    if (previewPlayer == null) {
+        message("Сейчас ничего не играет");
+        return;
+    }
+
+    try {
+        if (previewPlayer.isPlaying()) {
+            previewPlayer.pause();
+            message("⏸ Звук поставлен на паузу");
+        } else {
+            previewPlayer.start();
+            message("▶ Воспроизведение продолжено");
+        }
+    } catch (Exception e) {
+        stopPreview();
+        message("Не удалось поставить звук на паузу");
+    }
+}
+
+// Удалить одну запись
+private void deleteLibrarySound(String category, int index) {
+    JSONArray oldSounds = getLibrarySounds(category);
+    JSONArray newSounds = new JSONArray();
+
+    for (int i = 0; i < oldSounds.length(); i++) {
+        if (i != index) {
+            newSounds.put(oldSounds.optJSONObject(i));
+        }
+    }
+
+    prefs.edit()
+            .putString(getLibraryKey(category), newSounds.toString())
+            .apply();
+
+    stopPreview();
+    message("Запись удалена");
+
+    showLibraryCategory(category);
+}
             
-
-
     private void showGiftCatalog() {
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
@@ -676,7 +971,101 @@ private TextView createNeonButton(
             int requestCode, int resultCode, Intent data) {
 
         super.onActivityResult(requestCode, resultCode, data);
+        
+// Обработка звуков библиотеки
+if (requestCode >= 504 && requestCode <= 507) {
 
+    if (resultCode == RESULT_OK
+            && data != null
+            && data.getData() != null) {
+
+        Uri uri = data.getData();
+
+        String category;
+
+        switch (requestCode) {
+            case 504:
+                category = "memes";
+                break;
+            case 505:
+                category = "funny";
+                break;
+            case 506:
+                category = "melodies";
+                break;
+            default:
+                category = "effects";
+                break;
+        }
+
+        try {
+            getContentResolver().takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+            );
+        } catch (Exception ignored) {}
+
+        // Получаем настоящее имя файла
+        String fileName = uri.getLastPathSegment();
+
+        try {
+            android.database.Cursor cursor =
+                    getContentResolver().query(
+                            uri,
+                            null,
+                            null,
+                            null,
+                            null
+                    );
+
+            if (cursor != null) {
+                if (cursor.moveToFirst()) {
+                    int nameIndex = cursor.getColumnIndex(
+                            android.provider.OpenableColumns.DISPLAY_NAME
+                    );
+
+                    if (nameIndex >= 0) {
+                        fileName = cursor.getString(nameIndex);
+                    }
+                }
+
+                cursor.close();
+            }
+        } catch (Exception ignored) {}
+
+        if (fileName == null || fileName.trim().isEmpty()) {
+            fileName = "Аудиозапись";
+        }
+
+        // Добавляем файл, не удаляя предыдущие
+        JSONArray sounds = getLibrarySounds(category);
+
+        JSONObject newSound = new JSONObject();
+
+        try {
+            newSound.put("name", fileName);
+            newSound.put("uri", uri.toString());
+
+            sounds.put(newSound);
+
+            prefs.edit()
+                    .putString(
+                            getLibraryKey(category),
+                            sounds.toString()
+                    )
+                    .apply();
+
+            message("Добавлено: " + fileName);
+
+        } catch (Exception e) {
+            message("Не удалось сохранить запись");
+        }
+
+        showLibraryCategory(category);
+    }
+
+    return;
+}
         if (requestCode == PICK_FOLLOW_SOUND) {
             if (resultCode == RESULT_OK
                     && data != null
@@ -765,19 +1154,25 @@ private TextView createNeonButton(
     }
 
     private void stopPreview() {
-        if (previewPlayer == null) {
-            return;
-        }
-
+    if (previewPlayer != null) {
         try {
             previewPlayer.setOnPreparedListener(null);
             previewPlayer.setOnCompletionListener(null);
             previewPlayer.setOnErrorListener(null);
+
+            if (previewPlayer.isPlaying()) {
+                previewPlayer.stop();
+            }
+
             previewPlayer.release();
+
         } catch (Exception ignored) {}
 
         previewPlayer = null;
     }
+
+    playingLibrarySound = -1;
+}
 
     
     private void showVoiceSettings() {
@@ -1678,7 +2073,21 @@ if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
         });
     }
 
+@Override
+protected void onStop() {
+    // При уходе с экрана или сворачивании приложения
+    // предварительное прослушивание прекращается
+    stopPreview();
 
+    if (voicePreview != null) {
+        try {
+            voicePreview.stop();
+        } catch (Exception ignored) {}
+    }
+
+    super.onStop();
+}
+    
     @Override
     protected void onDestroy() {
         stopPreview();
