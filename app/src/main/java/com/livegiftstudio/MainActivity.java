@@ -894,11 +894,67 @@ private void deleteLibrarySound(String category, int index) {
         ArrayList<String> visibleNames = new ArrayList<>(names);
         ArrayList<String> visibleKeys = new ArrayList<>(keys);
 
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(
-                this, android.R.layout.simple_list_item_1,
-                visibleNames);
+        
+ArrayAdapter<String> adapter = new ArrayAdapter<String>(
+        this,
+        android.R.layout.simple_list_item_1,
+        visibleNames) {
 
-        list.setAdapter(adapter);
+    @Override
+    public View getView(
+            int position,
+            View convertView,
+            android.view.ViewGroup parent) {
+
+        LinearLayout row = new LinearLayout(MainActivity.this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(8), dp(6), dp(8), dp(6));
+
+        ImageView image = new ImageView(MainActivity.this);
+
+        String key = visibleKeys.get(position);
+
+        int imageId = getResources().getIdentifier(
+                "gift_" + key,
+                "drawable",
+                getPackageName()
+        );
+
+        if (imageId == 0) {
+            imageId = getResources().getIdentifier(
+                    "gift_default",
+                    "drawable",
+                    getPackageName()
+            );
+        }
+
+        if (imageId != 0) {
+            image.setImageResource(imageId);
+        }
+
+        image.setScaleType(ImageView.ScaleType.FIT_CENTER);
+
+        row.addView(image, new LinearLayout.LayoutParams(
+                dp(48), dp(48)));
+
+        TextView label = new TextView(MainActivity.this);
+        label.setText(visibleNames.get(position));
+        label.setTextColor(Color.WHITE);
+        label.setTextSize(16);
+        label.setPadding(dp(12), 0, 0, 0);
+
+        row.addView(label, new LinearLayout.LayoutParams(
+                0,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                1f));
+
+        return row;
+    }
+};
+
+list.setAdapter(adapter);
+
 
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle("🎁 Каталог подарков")
@@ -942,9 +998,7 @@ private void deleteLibrarySound(String category, int index) {
             dialog.dismiss();
             showGiftSoundOptions();
         });
-prefs.edit()
-        .putInt("gift_coins_" + giftKey, coins)
-        .apply();
+
         dialog.show();
     }
 
