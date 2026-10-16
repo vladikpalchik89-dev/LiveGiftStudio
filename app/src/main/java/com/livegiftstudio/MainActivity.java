@@ -1826,7 +1826,16 @@ private String[] getTikTokAccounts() {
 }
 
 private void showTikTokAccounts() {
-    String[] accounts = getTikTokAccounts();
+    
+String[] accounts;
+
+try {
+    accounts = getTikTokAccounts();
+} catch (Exception e) {
+    message("Ошибка загрузки аккаунтов: " + e.getMessage());
+    return;
+}
+
     String active = prefs.getString("active_tiktok_account", "vinnipyh99");
     String[] labels = new String[3];
 
