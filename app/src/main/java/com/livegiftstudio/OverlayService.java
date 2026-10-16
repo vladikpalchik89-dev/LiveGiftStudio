@@ -329,7 +329,34 @@ lastGiftEventTime = now;
             }
         });
     }
+private int getGiftImageResource(String gift) {
+    String key = getGiftKey(gift);
 
+    int resourceId = getResources().getIdentifier(
+            "gift_" + key,
+            "drawable",
+            getPackageName()
+    );
+
+    if (resourceId == 0) {
+        resourceId = getResources().getIdentifier(
+                "gift_default",
+                "drawable",
+                getPackageName()
+        );
+    }
+
+    return resourceId;
+}
+
+private int getGiftCoins(String gift) {
+    // Цены задаются отдельно и только после проверки.
+    // -1 означает, что цена пока не настроена.
+    String key = getGiftKey(gift);
+
+    return prefs.getInt("gift_coins_" + key, -1);
+}
+    
     private String getGiftKey(String gift) {
         String name = gift.toLowerCase(Locale.ROOT);
 
@@ -672,89 +699,115 @@ lastGiftEventTime = now;
     }
 
     private void showGift(String message, String gift) {
-        if (destroyed || windowManager == null) {
-            return;
-        }
+    if (destroyed || windowManager == null) return;
 
-        if (removeTask != null) {
-            handler.removeCallbacks(removeTask);
-            removeTask = null;
-        }
+    if (removeTask != null) {
+        handler.removeCallbacks(removeTask);
+        removeTask = null;
+    }
 
-        removeOverlay();
+    removeOverlay();
 
-        overlay = new TextView(this);
-        overlay.setText(message);
-        overlay.setTextColor(Color.WHITE);
-        overlay.setTextSize(25);
-        overlay.setGravity(Gravity.CENTER);
-        overlay.setPadding(35, 26, 35, 26);
-        overlay.setMaxWidth(950);
-        overlay.setElevation(24);
+    overlay = new TextView(this);
+    overlay.setTextColor(Color.WHITE);
+    overlay.setTextSize(22);
+    overlay.setGravity(Gravity.CENTER);
+    overlay.setPadding(35, 26, 35, 26);
+    overlay.setMaxWidth(950);
+    overlay.setElevation(24);
+    overlay.setLineSpacing(4f, 1.0f);
 
-        GradientDrawable background = new GradientDrawable(
-                GradientDrawable.Orientation.TL_BR,
-                getColors(gift));
+    int coins = getGiftCoins(gift);
+    String displayMessage = message;
 
-        background.setCornerRadius(32);
-        background.setStroke(3, Color.WHITE);
-        overlay.setBackground(background);
+    if (coins >= 0) {
+        displayMessage += "\n🪙 " + coins + " монет";
+    }
 
-        int type = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
-                ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-                : WindowManager.LayoutParams.TYPE_PHONE;
+    overlay.setText(displayMessage);
 
-        WindowManager.LayoutParams params =
-                new WindowManager.LayoutParams(
-                        WindowManager.LayoutParams.WRAP_CONTENT,
-                        WindowManager.LayoutParams.WRAP_CONTENT,
-                        type,
-                        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                                | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
-                                | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
-                        PixelFormat.TRANSLUCENT);
-
-        params.gravity =
-                Gravity.TOP | Gravity.CENTER_HORIZONTAL;
-        params.y = 160;
-
+    int imageRes = getGiftImageResource(gift);
+    if (imageRes != 0) {
         try {
-            windowManager.addView(overlay, params);
+            android.graphics.drawable.Drawable image =
+                    getResources().getDrawable(imageRes);
 
-            AnimationSet animation = new AnimationSet(false);
+            int imageSize = (int) (
+                    100 * getResources().getDisplayMetrics().density
+            );
 
-            ScaleAnimation scale = new ScaleAnimation(
-                    0.2f, 1.0f, 0.2f, 1.0f,
-                    Animation.RELATIVE_TO_SELF, 0.5f,
-                    Animation.RELATIVE_TO_SELF, 0.5f);
+            image.setBounds(0, 0, imageSize, imageSize);
 
-            scale.setDuration(650);
-            scale.setInterpolator(
-                    new OvershootInterpolator());
-
-            AlphaAnimation alpha =
-                    new AlphaAnimation(0.0f, 1.0f);
-
-            alpha.setDuration(450);
-
-            animation.addAnimation(scale);
-            animation.addAnimation(alpha);
-
-            overlay.startAnimation(animation);
-
-            removeTask = () -> {
-                removeOverlay();
-                removeTask = null;
-            };
-
-            handler.postDelayed(removeTask, 4000);
-
+            overlay.setCompoundDrawablePadding(12);
+            overlay.setCompoundDrawables(
+                    null, image, null, null
+            );
         } catch (Exception e) {
-            android.util.Log.e(
-                    TAG, "Cannot display overlay", e);
-            removeOverlay();
+            android.util.Log.e(TAG, "Gift image error", e);
         }
     }
+
+    GradientDrawable background = new GradientDrawable(
+            GradientDrawable.Orientation.TL_BR,
+            getColors(gift)
+    );
+
+    background.setCornerRadius(32);
+    background.setStroke(3, Color.WHITE);
+    overlay.setBackground(background);
+
+    int type = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+            ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            : WindowManager.LayoutParams.TYPE_PHONE;
+
+    WindowManager.LayoutParams params =
+            new WindowManager.LayoutParams(
+                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    type,
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                            | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+                            | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                    PixelFormat.TRANSLUCENT
+            );
+
+    params.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
+    params.y = 160;
+
+    try {
+        windowManager.addView(overlay, params);
+
+        AnimationSet animation = new AnimationSet(false);
+
+        ScaleAnimation scale = new ScaleAnimation(
+                0.2f, 1.0f, 0.2f, 1.0f,
+                Animation.RELATIVE_TO_SELF, 0.5f,
+                Animation.RELATIVE_TO_SELF, 0.5f
+        );
+
+        scale.setDuration(650);
+        scale.setInterpolator(new OvershootInterpolator());
+
+        AlphaAnimation alpha = new AlphaAnimation(0.0f, 1.0f);
+        alpha.setDuration(450);
+
+        animation.addAnimation(scale);
+        animation.addAnimation(alpha);
+
+        overlay.startAnimation(animation);
+
+        removeTask = () -> {
+            removeOverlay();
+            removeTask = null;
+        };
+
+        handler.postDelayed(removeTask, 4000);
+
+    } catch (Exception e) {
+        android.util.Log.e(TAG, "Cannot display overlay", e);
+        removeOverlay();
+    }
+}
 
     private void removeOverlay() {
         if (overlay != null) {
