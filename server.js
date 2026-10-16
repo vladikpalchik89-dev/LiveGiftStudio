@@ -161,12 +161,49 @@ function getUserName(data) {
     "Зритель";
 }
 
+
 function getGiftName(data) {
   return data?.giftDetails?.giftName ||
     data?.extendedGiftInfo?.name ||
     data?.giftName ||
     data?.gift?.name ||
     (data?.giftId ? "Подарок " + data.giftId : "Подарок");
+}
+
+function getGiftInfo(data) {
+  const giftDetails = data?.giftDetails || {};
+  const extended = data?.extendedGiftInfo || {};
+  const gift = data?.gift || {};
+
+  const rawGiftId =
+    data?.giftId ??
+    giftDetails?.giftId ??
+    extended?.giftId ??
+    gift?.id ??
+    null;
+
+  const rawDiamondCount =
+    data?.diamondCount ??
+    giftDetails?.diamondCount ??
+    extended?.diamondCount ??
+    gift?.diamondCount ??
+    null;
+
+  const rawRepeatCount = Number(data?.repeatCount || 1);
+
+  return {
+    giftName: getGiftName(data),
+    giftId: rawGiftId == null ? null : String(rawGiftId),
+    giftDiamondCount:
+      rawDiamondCount != null &&
+      Number.isFinite(Number(rawDiamondCount))
+        ? Number(rawDiamondCount)
+        : null,
+    repeatCount: Number.isFinite(rawRepeatCount)
+      ? Math.max(1, rawRepeatCount)
+      : 1,
+    repeatEnd: data?.repeatEnd ?? data?.repeat_end ?? null
+  };
 }
 
 wss.on("connection", (socket) => {
@@ -223,18 +260,23 @@ function startTikTok() {
 
     currentConnection = connection;
 
-    connection.on(WebcastEvent.GIFT || "gift", (data) => {
-      if (connection !== currentConnection) return;
+    
+connection.on(WebcastEvent.GIFT || "gift", (data) => {
+  if (connection !== currentConnection) return;
 
-      sendEvent({
-        type: "gift",
-        username: getUserName(data),
-        giftName: getGiftName(data),
-        repeatCount: data?.repeatCount || 1,
-        timestamp: Date.now()
-      });
-    });
+  const info = getGiftInfo(data);
 
+  sendEvent({
+    type: "gift",
+    username: getUserName(data),
+    giftName: info.giftName,
+    giftId: info.giftId,
+    giftDiamondCount: info.giftDiamondCount,
+    repeatCount: info.repeatCount,
+    repeatEnd: info.repeatEnd,
+    timestamp: Date.now()
+  });
+});
     
     connection.on(WebcastEvent.CHAT || "chat", (data) => {
       if (connection !== currentConnection) return;
