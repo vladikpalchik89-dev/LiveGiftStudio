@@ -250,8 +250,11 @@ addMenuRow(
 );
     addMenuRow(
         "🎵\nПодключение\nTikTok LIVE", 0xFF087BFF,
-        "💰\nОткрыть\nдонаты", 0xFF00D6B7,
-        v -> showTikTokAccounts(),
+        "💰\nОткрыть\nдонаты", 0xFF00D6B7,       
+v -> {
+    message("Нажатие на кнопку TikTok LIVE");
+    showTikTokAccounts();
+},
         v -> openLink(DONATE_URL)
     );
 
