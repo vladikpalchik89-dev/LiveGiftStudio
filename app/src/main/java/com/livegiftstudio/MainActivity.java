@@ -85,72 +85,33 @@ private static final String LIBRARY_EFFECTS = "library_effects";
     private int donationIncome;
     private int orders;
 
-    private final String[][] giftCatalog = {
-            {"rose", "🌹 Роза"},
-            {"heart", "❤️ Сердце"},
-            {"finger_heart", "🫰 Сердечко пальцами"},
-            {"tiktok", "🎵 TikTok"},
-            {"coffee", "☕ Кофе"},
-            {"ice_cream", "🍦 Мороженое"},
-            {"perfume", "💐 Парфюм"},
-            {"love_you", "💗 Люблю тебя"},
-            {"gg", "🎮 GG"},
-            {"donut", "🍩 Пончик"},
-            {"sunglasses", "🕶️ Очки"},
-            {"cap", "🧢 Кепка"},
-            {"paper_crane", "🕊️ Журавлик"},
-            {"swan", "🦢 Лебедь"},
-            {"concert", "🎤 Концерт"},
-            {"fireworks", "🎆 Фейерверк"},
-            {"galaxy", "🌌 Галактика"},
-            {"universe", "🌠 Вселенная"},
-            {"lion", "🦁 Лев"},
-            {"diamond", "💎 Алмаз"},
-            {"crown", "👑 Корона"},
-            {"unicorn", "🦄 Единорог"},
-            {"tiger", "🐯 Тигр"},
-            {"castle", "🏰 Замок"},
-            {"sports_car", "🏎️ Спортивная машина"},
-            {"yacht", "🛥️ Яхта"},
-            {"dragon_flame", "🐉 Пламя дракона"},
-            {"phoenix", "🔥 Феникс"},
-            {"rocket", "🚀 Ракета"},
-            {"planet", "🪐 Планета"},
-            {"star", "⭐ Звезда"},
-            {"lightning", "⚡ Молния"},
-            {"football", "⚽ Футбольный мяч"},
-            {"basketball", "🏀 Баскетбол"},
-            {"cake", "🎂 Торт"},
-            {"birthday", "🎉 Праздник"},
-            {"balloon", "🎈 Шарик"},
-            {"bouquet", "💐 Букет"},
-            {"teddy_bear", "🧸 Мишка"},
-            {"music", "🎶 Музыка"},
-            {"microphone", "🎙️ Микрофон"},
-            {"drum", "🥁 Барабан"},
-            {"guitar", "🎸 Гитара"},
-            {"motorcycle", "🏍️ Мотоцикл"},
-            {"train", "🚂 Поезд"},
-            {"airplane", "✈️ Самолёт"},
-            {"house", "🏠 Дом"},
-            {"ring", "💍 Кольцо"},
-            {"watch", "⌚ Часы"},
-            {"money", "💸 Деньги"},
-            {"gold", "🪙 Золотая монета"},
-            {"fire", "🔥 Огонь"},
-            {"rainbow", "🌈 Радуга"},
-            {"butterfly", "🦋 Бабочка"},
-            {"flower", "🌸 Цветок"},
-            {"cat", "🐱 Кот"},
-            {"dog", "🐶 Собака"},
-            {"rabbit", "🐰 Кролик"},
-            {"panda", "🐼 Панда"},
-            {"champagne", "🥂 Праздничный бокал"},
-            {"trophy", "🏆 Кубок"},
-            {"medal", "🏅 Медаль"},
-            {"love", "💕 Любовь"},
-            {"default", "🎁 Другой подарок"}
-    };
+    
+private final String[][] giftCatalog = {
+    {"rose", "🌹 Роза"},
+    {"rose_1", "🌹 Роза 2"},
+    {"finger_heart", "🫰 Сердечко пальцами"},
+    {"tiktok", "🎵 TikTok"},
+    {"donut", "🍩 Пончик"},
+    {"ice_cream_cone", "🍦 Рожок мороженого"},
+    {"bravo", "👏 Браво"},
+    {"confetti", "🎉 Конфетти"},
+    {"butterfly", "🦋 Бабочка"},
+    {"ticket", "🎟️ Билет"},
+    {"corgi", "🐶 Корги"},
+    {"squirrel", "🐿️ Белка"},
+    {"teddy_bear", "🧸 Мишка"},
+    {"pomegranate", "🍎 Гранат"},
+    {"perfume", "🌸 Парфюм"},
+    {"hat_moustache", "🎩 Шляпа с усами"},
+    {"from_the_heart", "❤️ От всего сердца"},
+    {"heart_from_hands", "🫶 Сердце из рук"},
+    {"friendship_pendant", "💞 Подвеска дружбы"},
+    {"love_more", "💗 Больше любви"},
+    {"you_are_amazing", "🌟 Ты потрясающий"},
+    {"flying_airplanes", "✈️ Летающие самолётики"},
+    {"intense_reaction", "😲 Сильная реакция"},
+    {"slowmo", "🐢 Замедление"}
+};
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -940,7 +901,7 @@ ArrayAdapter<String> adapter = new ArrayAdapter<String>(
 
         TextView label = new TextView(MainActivity.this);
         label.setText(visibleNames.get(position));
-        label.setTextColor(Color.WHITE);
+        label.setTextColor(Color.BLACK);
         label.setTextSize(16);
         label.setPadding(dp(12), 0, 0, 0);
 
