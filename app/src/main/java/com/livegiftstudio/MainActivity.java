@@ -1872,11 +1872,13 @@ new AlertDialog.Builder(this)
                     } else if (action == 2) {
                         checkServerConnection(accounts[which]);
                     }
+              
                 }
         )
         .setNegativeButton("Закрыть", null)
         .show();
-            }
+}
+
 private void editTikTokAccount(int index) {
     EditText input = new EditText(this);
     input.setSingleLine(true);
