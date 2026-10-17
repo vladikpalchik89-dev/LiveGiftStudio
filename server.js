@@ -105,6 +105,7 @@ app.post("/switch-account", (req, res) => {
   });
 });
 
+
 app.get("/test-gift", (req, res) => {
   if (!testKey) {
     return res.status(503).json({
@@ -129,7 +130,10 @@ app.get("/test-gift", (req, res) => {
     test: true
   };
 
-  
+  sendEvent(event);
+  res.json({ status: "ok", message: "Test gift sent", event });
+});
+
 app.get("/test-donation", (req, res) => {
   if (!testKey) {
     return res.status(503).json({
@@ -162,9 +166,6 @@ app.get("/test-donation", (req, res) => {
   });
 });
 
-  sendEvent(event);
-  res.json({ status: "ok", message: "Test gift sent", event });
-});
 
 function sendEvent(event) {
   const message = JSON.stringify(event);
