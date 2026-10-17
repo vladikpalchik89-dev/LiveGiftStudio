@@ -243,7 +243,8 @@ async function startDonationAlerts() {
       autoOpen: false,
       widgetBehavior: false
     });
-
+donationAlertsWidget.socket.socketUrl =
+  "wss://socket7.donationalerts.ru";
     donationAlertsWidget.socket.on(EventName.Donation, (donation) => {
       sendEvent({
         type: "donation",
