@@ -61,6 +61,7 @@ public class OverlayService extends Service {
     private TextToSpeech textToSpeech;
 
     private boolean ttsReady = false;
+    private volatile boolean chatSpeechEnabled = true;
     private String lastGiftEventKey = "";
 private long lastGiftEventTime = 0;
     private Runnable removeTask;
@@ -147,15 +148,17 @@ private void startForegroundNotification() {
 public int onStartCommand(
         Intent intent, int flags, int startId) {
         if (intent != null
-            && ACTION_STOP_CHAT_SPEECH.equals(intent.getAction())) {
+        && ACTION_STOP_CHAT_SPEECH.equals(intent.getAction())) {
 
-        if (textToSpeech != null) {
-            textToSpeech.stop();
-        }
+    chatSpeechEnabled = false;
 
-        android.util.Log.d(TAG, "Озвучка остановлена");
-        return START_STICKY;
+    if (textToSpeech != null) {
+        textToSpeech.stop();
     }
+
+    android.util.Log.d(TAG, "Озвучка чата выключена");
+    return START_STICKY;
+}
 
     if (intent != null) {
         String testDonation =
@@ -252,7 +255,7 @@ public int onStartCommand(
                         String comment = event.optString(
                                 "comment", "");
 
-                        if (!comment.trim().isEmpty()) {
+                        if (chatSpeechEnabled && !comment.trim().isEmpty()) {
                             handler.post(() -> {
                                 if (!destroyed) {
                                     speakTextForUser(
