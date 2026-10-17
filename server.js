@@ -431,9 +431,31 @@ connection.on(WebcastEvent.GIFT || "gift", (data) => {
     );
 
     connection.on(
-      WebcastEvent.STREAM_END || "streamEnd",
-      () => handleDisconnect("stream ended")
-    );
+  WebcastEvent.STREAM_END || "streamEnd",
+  () => {
+    if (connection !== currentConnection) return;
+
+    console.log("TikTok LIVE ended. Stopping chat events.");
+
+    // Останавливаем обработку чата старого эфира.
+    currentConnection = null;
+    connecting = false;
+
+    // Сообщаем Android, что эфир завершился.
+    sendEvent({
+      type: "stream_end",
+      timestamp: Date.now()
+    });
+
+    try {
+      connection.disconnect();
+    } catch (error) {
+      console.error("Stream end disconnect error:", error.message);
+    }
+
+    scheduleReconnect("stream ended");
+  }
+);
 
     connection.connect()
       .then(() => {
