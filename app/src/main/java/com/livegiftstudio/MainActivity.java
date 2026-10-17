@@ -2162,7 +2162,19 @@ if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             }
         });
     }
+@Override
+protected void onStart() {
+    super.onStart();
 
+    Intent startSpeechIntent =
+            new Intent(MainActivity.this, OverlayService.class);
+
+    startSpeechIntent.setAction(
+            "com.livegiftstudio.START_CHAT_SPEECH"
+    );
+
+    startService(startSpeechIntent);
+}
 @Override
 protected void onStop() {
     // При уходе с экрана или сворачивании приложения
