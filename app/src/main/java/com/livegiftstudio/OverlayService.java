@@ -44,6 +44,8 @@ public class OverlayService extends Service {
     private static final String CHANNEL_ID = "livegiftstudio_service";
     private static final String ACTION_STOP_CHAT_SPEECH =
         "com.livegiftstudio.STOP_CHAT_SPEECH";
+    private static final String ACTION_START_CHAT_SPEECH =
+        "com.livegiftstudio.START_CHAT_SPEECH";
     private static final int NOTIFICATION_ID = 1001;
     private static final String SOCKET_URL =
             "wss://livegiftstudio.onrender.com/events";
@@ -159,7 +161,14 @@ public int onStartCommand(
     android.util.Log.d(TAG, "Озвучка чата выключена");
     return START_STICKY;
 }
+if (intent != null
+        && ACTION_START_CHAT_SPEECH.equals(intent.getAction())) {
 
+    chatSpeechEnabled = true;
+
+    android.util.Log.d(TAG, "Озвучка чата включена");
+    return START_STICKY;
+}
     if (intent != null) {
         String testDonation =
                 intent.getStringExtra("test_donation");
