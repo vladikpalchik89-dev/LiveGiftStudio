@@ -276,6 +276,7 @@ async function startDonationAlerts() {
       require("donationalerts-api");
 
     const socket = new DASocket(token, {
+  socketUrl: "wss://socket7.donationalerts.ru",
   autoConnect: false
 });
 
