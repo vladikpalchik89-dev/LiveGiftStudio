@@ -237,6 +237,24 @@ private void startForegroundNotification() {
                         return;
                     }
 
+                   // ТЕСТОВЫЙ ДОНАТ — без реальной оплаты
+if (type.equals("test_donation")) {
+    handler.post(() -> {
+        if (!destroyed) {
+            showGift(
+                    "💰 ДОНАТ 50 RUB\n@ТестовыйЗритель\n💬 Проверка озвучки!",
+                    "donation"
+            );
+
+            speakText(
+                    "Тестовый донат от Тестовый зритель. "
+                    + "Сумма 50 рублей. Проверка озвучки!"
+            );
+        }
+    });
+
+    return;
+} 
                    
                     // Донат из DonationAlerts
                     if (type.equals("donation")) {
