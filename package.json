@@ -10,6 +10,7 @@
   "dependencies": {
     "express": "^4.21.2",
     "tiktok-live-connector": "^2.5.0",
-    "ws": "^8.18.0"
+    "ws": "^8.18.0",
+    "donationalerts-api": "1.1.0"
   }
 }
