@@ -140,26 +140,45 @@ private void startForegroundNotification() {
     startForeground(NOTIFICATION_ID, builder.build());
 }
 
-    @Override
-    public int onStartCommand(
-            Intent intent, int flags, int startId) {
+    
+@Override
+public int onStartCommand(
+        Intent intent, int flags, int startId) {
 
-        if (intent != null) {
-            String text = intent.getStringExtra("overlay_text");
+    if (intent != null) {
+        String testDonation =
+                intent.getStringExtra("test_donation");
 
-            if (text != null && !text.trim().isEmpty()) {
-                handler.post(() -> {
-                    if (!destroyed) {
-                        showGift(text, "rose");
-                        playGiftSound("rose");
-                    }
-                });
-            }
+        if ("yes".equals(testDonation)) {
+            handler.post(() -> {
+                if (!destroyed) {
+                    showGift(
+                            "💰 ДОНАТ 50 RUB\n@ТестовыйЗритель\n💬 Проверка озвучки!",
+                            "donation"
+                    );
+
+                    speakText(
+                            "Тестовый донат от Тестового зрителя. "
+                            + "Сумма 50 рублей. Проверка озвучки!"
+                    );
+                }
+            });
         }
 
-        return START_STICKY;
+        String text = intent.getStringExtra("overlay_text");
+
+        if (text != null && !text.trim().isEmpty()) {
+            handler.post(() -> {
+                if (!destroyed) {
+                    showGift(text, "rose");
+                    playGiftSound("rose");
+                }
+            });
+        }
     }
 
+    return START_STICKY;
+}
     private void connectToServer() {
         if (destroyed) {
             return;
