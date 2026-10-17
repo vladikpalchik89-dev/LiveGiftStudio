@@ -242,8 +242,9 @@ async function startDonationAlerts() {
       require("donationalerts-api");
 
     const socket = new DASocket(token, {
-      autoConnect: false
-    });
+  socketUrl: 7,
+  autoConnect: false
+});
 
     socket.on(EventName.Donation, (donation) => {
       sendEvent({
