@@ -227,7 +227,18 @@ public int onStartCommand(
 
                     String type = event.optString(
                             "type", "").toLowerCase(Locale.ROOT);
-
+                    if (type.equals("stream_end")) {
+    handler.post(() -> {
+        if (!destroyed && textToSpeech != null) {
+            textToSpeech.stop();
+            android.util.Log.d(
+                TAG,
+                "Эфир завершён: очередь озвучки очищена"
+            );
+        }
+    });
+    return;
+}
                     // Новый подписчик
                     if (type.equals("follow")
                             || type.equals("followed")
