@@ -226,6 +226,7 @@ server.listen(PORT, "0.0.0.0", () => {
 });
 
 
+
 let donationAlertsWidget = null;
 
 async function startDonationAlerts() {
@@ -237,15 +238,14 @@ async function startDonationAlerts() {
   }
 
   try {
-    const { DAWidget, EventName } = require("donationalerts-api");
+    const { DAWidget, DASocket, EventName } =
+      require("donationalerts-api");
 
-    donationAlertsWidget = new DAWidget(token, {
-      autoOpen: false,
-      widgetBehavior: false
+    const socket = new DASocket(token, {
+      autoConnect: false
     });
-donationAlertsWidget.socket.socketUrl =
-  "wss://socket7.donationalerts.ru";
-    donationAlertsWidget.socket.on(EventName.Donation, (donation) => {
+
+    socket.on(EventName.Donation, (donation) => {
       sendEvent({
         type: "donation",
         username: String(donation.username || "Зритель"),
@@ -256,12 +256,18 @@ donationAlertsWidget.socket.socketUrl =
       });
     });
 
-    await donationAlertsWidget.open();
-    console.log("DonationAlerts connection initialized");
+    await socket.connect();
+    console.log("DonationAlerts socket connected");
+
+    donationAlertsWidget = socket;
   } catch (error) {
-    console.error("DonationAlerts connection failed:", error.message);
+    console.error(
+      "DonationAlerts connection failed:",
+      error.stack || error.message
+    );
   }
 }
+
 
 function scheduleReconnect(reason) {
   if (stopped || process.env.TIKTOK_ENABLED !== "true") return;
