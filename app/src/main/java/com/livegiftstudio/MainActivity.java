@@ -204,6 +204,13 @@ setBackgroundColor(
         v -> chooseFollowSound(),
         v -> startOverlay()
     );
+    
+addMenuRow(
+        "🧪\nТест\nдоната 50 ₽", 0xFF00C853,
+        "💰\nОткрыть\nдонаты", 0xFFFF1493,
+        v -> testDonation(),
+        v -> openLink(DONATE_URL)
+);
 addMenuRow(
         "🔊\nБиблиотека\nзвуков", 0xFF00C8FF,
         "🎵\nМои\nаудиофайлы", 0xFF00C853,
@@ -1507,6 +1514,33 @@ if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             message("Не удалось запустить анимацию");
         }
     }
+
+private void testDonation() {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+            && !Settings.canDrawOverlays(this)) {
+        message("Разреши показ поверх других приложений");
+        Intent settingsIntent = new Intent(
+                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:" + getPackageName())
+        );
+        startActivity(settingsIntent);
+        return;
+    }
+
+    Intent intent = new Intent(this, OverlayService.class);
+    intent.putExtra("test_donation", "yes");
+
+    try {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent);
+        } else {
+            startService(intent);
+        }
+        message("Запущен тест доната 50 ₽");
+    } catch (Exception e) {
+        message("Не удалось запустить тест доната");
+    }
+}
 
     private void createOrder(String service, int amount) {
         LinearLayout form = new LinearLayout(this);
