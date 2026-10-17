@@ -218,10 +218,49 @@ wss.on("connection", (socket) => {
   socket.on("error", (error) => console.error("WebSocket error:", error.message));
 });
 
+
 server.listen(PORT, "0.0.0.0", () => {
   console.log("LiveGiftStudio server listening on", PORT);
   startTikTok();
+  startDonationAlerts();
 });
+
+
+let donationAlertsWidget = null;
+
+async function startDonationAlerts() {
+  const token = process.env.DONATIONALERTS_TOKEN;
+
+  if (!token) {
+    console.log("DonationAlerts paused: token is missing");
+    return;
+  }
+
+  try {
+    const { DAWidget, EventName } = require("donationalerts-api");
+
+    donationAlertsWidget = new DAWidget(token, {
+      autoOpen: false,
+      widgetBehavior: false
+    });
+
+    donationAlertsWidget.socket.on(EventName.Donation, (donation) => {
+      sendEvent({
+        type: "donation",
+        username: String(donation.username || "Зритель"),
+        amount: donation.amountMain ?? donation.amount ?? 0,
+        currency: String(donation.currency || "RUB"),
+        message: String(donation.message || ""),
+        timestamp: Date.now()
+      });
+    });
+
+    await donationAlertsWidget.open();
+    console.log("DonationAlerts connection initialized");
+  } catch (error) {
+    console.error("DonationAlerts connection failed:", error.message);
+  }
+}
 
 function scheduleReconnect(reason) {
   if (stopped || process.env.TIKTOK_ENABLED !== "true") return;
