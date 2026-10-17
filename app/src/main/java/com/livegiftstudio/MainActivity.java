@@ -2175,6 +2175,21 @@ protected void onStop() {
         } catch (Exception ignored) {}
     }
 
+        if (voicePreview != null) {
+        try {
+            voicePreview.stop();
+        } catch (Exception ignored) {}
+    }
+
+    Intent stopSpeechIntent =
+            new Intent(MainActivity.this, OverlayService.class);
+
+    stopSpeechIntent.setAction(
+            "com.livegiftstudio.STOP_CHAT_SPEECH"
+    );
+
+    startService(stopSpeechIntent);
+
     super.onStop();
 }
     
