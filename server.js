@@ -129,6 +129,39 @@ app.get("/test-gift", (req, res) => {
     test: true
   };
 
+  
+app.get("/test-donation", (req, res) => {
+  if (!testKey) {
+    return res.status(503).json({
+      status: "error",
+      message: "TEST_EVENT_KEY is not configured"
+    });
+  }
+
+  if (req.query.key !== testKey) {
+    return res.status(403).json({
+      status: "error",
+      message: "Invalid test key"
+    });
+  }
+
+  const event = {
+    type: "donation",
+    username: "Тестовый зритель",
+    amount: 50,
+    currency: "RUB",
+    message: "Проверка доната",
+    timestamp: Date.now(),
+    test: true
+  };
+
+  sendEvent(event);
+  res.json({
+    status: "ok",
+    message: "Test donation sent"
+  });
+});
+
   sendEvent(event);
   res.json({ status: "ok", message: "Test gift sent", event });
 });
