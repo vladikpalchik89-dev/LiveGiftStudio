@@ -237,6 +237,57 @@ private void startForegroundNotification() {
                         return;
                     }
 
+                   
+                    // Донат из DonationAlerts
+                    if (type.equals("donation")) {
+                        String donor = event.optString(
+                                "username", "Зритель");
+
+                        String amount = event.optString(
+                                "amount", "0");
+
+                        String currency = event.optString(
+                                "currency", "RUB");
+
+                        String donationText = event.optString(
+                                "message", "").trim();
+
+                        String displayMessage =
+                                "💰 ДОНАТ " + amount + " "
+                                        + currency
+                                        + "\n@" + donor;
+
+                        if (!donationText.isEmpty()) {
+                            displayMessage +=
+                                    "\n💬 " + donationText;
+                        }
+
+                        final String finalDisplayMessage =
+                                displayMessage;
+
+                        handler.post(() -> {
+                            if (!destroyed) {
+                                showGift(
+                                        finalDisplayMessage,
+                                        "donation"
+                                );
+
+                                String speech =
+                                        "Донат от " + donor
+                                        + ". Сумма " + amount
+                                        + " " + currency;
+
+                                if (!donationText.isEmpty()) {
+                                    speech += ". Сообщение: "
+                                            + donationText;
+                                }
+
+                                speakText(speech);
+                            }
+                        });
+
+                        return;
+                    } 
                     // Подарок
                     if (!type.equals("gift")) {
                         return;
