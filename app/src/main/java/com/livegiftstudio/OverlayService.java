@@ -1212,4 +1212,73 @@ private void speakTextForUser(
 
         super.onDestroy();
     }
+   
+private static class GifView extends View {
+    private final Movie movie;
+    private final Paint paint =
+            new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final long startTime;
+
+    GifView(android.content.Context context, Uri uri)
+            throws Exception {
+        super(context);
+
+        java.io.InputStream input =
+                context.getContentResolver()
+                        .openInputStream(uri);
+
+        if (input == null) {
+            throw new java.io.IOException(
+                    "Не удалось открыть GIF");
+        }
+
+        Movie loadedMovie;
+        try {
+            loadedMovie = Movie.decodeStream(input);
+        } finally {
+            input.close();
+        }
+
+        if (loadedMovie == null
+                || loadedMovie.width() <= 0
+                || loadedMovie.height() <= 0) {
+            throw new java.io.IOException(
+                    "Некорректный GIF");
+        }
+
+        movie = loadedMovie;
+        startTime = SystemClock.uptimeMillis();
+    }
+
+    @Override
+    protected void onDraw(Canvas canvas) {
+        super.onDraw(canvas);
+
+        int duration = movie.duration();
+        if (duration <= 0) duration = 1000;
+
+        int elapsed = (int) (
+                (SystemClock.uptimeMillis() - startTime)
+                        % duration);
+
+        movie.setTime(elapsed);
+
+        float scale = Math.min(
+                getWidth() / (float) movie.width(),
+                getHeight() / (float) movie.height());
+
+        float x = (getWidth()
+                - movie.width() * scale) / 2f;
+        float y = (getHeight()
+                - movie.height() * scale) / 2f;
+
+        canvas.save();
+        canvas.translate(x, y);
+        canvas.scale(scale, scale);
+        movie.draw(canvas, 0, 0, paint);
+        canvas.restore();
+
+        postInvalidateDelayed(33);
+    }
 }
+ 
