@@ -780,9 +780,24 @@ private int getGiftCoins(String gift) {
     String savedUri = prefs.getString(
             "follow_sound_uri", null);
 
-    if (savedUri != null && !savedUri.trim().isEmpty()) {
+    android.util.Log.d(
+            TAG,
+            "FOLLOW SOUND URI: " + savedUri);
+
+    if (savedUri == null || savedUri.trim().isEmpty()) {
+        android.util.Log.w(
+                TAG,
+                "Звук подписки не выбран — запускаю стандартный");
+        playBuiltInSound("heart");
+        return;
+    }
+
+    try {
         playCustomSound(savedUri, "heart");
-    } else {
+    } catch (Exception e) {
+        android.util.Log.e(
+                TAG,
+                "Ошибка запуска звука подписки", e);
         playBuiltInSound("heart");
     }
 }
