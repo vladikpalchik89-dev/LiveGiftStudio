@@ -495,16 +495,33 @@ connection.on(WebcastEvent.GIFT || "gift", (data) => {
     error?.stack
   ].filter(Boolean).join(" ");
 
-  if (
-    /SignatureRateLimitError|rate_limit_account_day|rate limit/i.test(errorText)
-  ) {
-    console.error(
-      "EulerStream daily limit reached. Automatic reconnect paused."
-    );
-    return;
+  
+if (
+  /SignatureRateLimitError|rate_limit_account_day|rate limit/i.test(errorText)
+) {
+  console.error(
+    "EulerStream daily limit reached. Automatic reconnect paused."
+  );
+  return;
+}
+
+if (/requested user isn't online|user is not online/i.test(errorText)) {
+  console.log(
+    "TikTok user is offline. Retrying in 5 minutes."
+  );
+
+  if (!reconnectTimer) {
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
+      startTikTok();
+    }, 5 * 60 * 1000);
   }
 
-  scheduleReconnect("connection failed");
+  return;
+}
+
+scheduleReconnect("connection failed");
+
 });
 
   } catch (error) {
