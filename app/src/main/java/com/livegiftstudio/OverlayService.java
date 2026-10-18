@@ -509,6 +509,23 @@ private int getGiftCoins(String gift) {
     
     private String getGiftKey(String gift) {
         String name = gift.toLowerCase(Locale.ROOT);
+                if (name.contains("rose_1")) return "rose_1";
+        if (name.contains("ice_cream_cone")) return "ice_cream_cone";
+        if (name.contains("you_are_amazing")) return "you_are_amazing";
+        if (name.contains("bravo")) return "bravo";
+        if (name.contains("confetti")) return "confetti";
+        if (name.contains("ticket")) return "ticket";
+        if (name.contains("corgi")) return "corgi";
+        if (name.contains("squirrel")) return "squirrel";
+        if (name.contains("pomegranate")) return "pomegranate";
+        if (name.contains("hat_moustache")) return "hat_moustache";
+        if (name.contains("from_the_heart")) return "from_the_heart";
+        if (name.contains("heart_from_hands")) return "heart_from_hands";
+        if (name.contains("friendship_pendant")) return "friendship_pendant";
+        if (name.contains("love_more")) return "love_more";
+        if (name.contains("flying_airplanes")) return "flying_airplanes";
+        if (name.contains("intense_reaction")) return "intense_reaction";
+        if (name.contains("slowmo")) return "slowmo";
 
         if (name.contains("finger heart")
                 || name.contains("finger_heart")
