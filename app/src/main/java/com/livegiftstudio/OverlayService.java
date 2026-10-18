@@ -1112,19 +1112,39 @@ private void showAnimationPreview(String uriString) {
     }
 }
 
-    private void removeOverlay() {
+    
+private void removeOverlay() {
+    if (removeTask != null) {
+        handler.removeCallbacks(removeTask);
+        removeTask = null;
+    }
+
     if (overlayView != null) {
         try {
-            overlayView.clearAnimation();
-
             if (overlayView instanceof VideoView) {
                 ((VideoView) overlayView).stopPlayback();
             }
 
+            if (overlayView instanceof ViewGroup) {
+                ViewGroup group = (ViewGroup) overlayView;
+
+                for (int i = 0; i < group.getChildCount(); i++) {
+                    View child = group.getChildAt(i);
+
+                    if (child instanceof VideoView) {
+                        ((VideoView) child).stopPlayback();
+                    }
+                }
+            }
+
+            overlayView.clearAnimation();
+
             if (windowManager != null) {
                 windowManager.removeView(overlayView);
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            android.util.Log.e(
+                    TAG, "Ошибка закрытия анимации", e);
         }
 
         overlayView = null;
