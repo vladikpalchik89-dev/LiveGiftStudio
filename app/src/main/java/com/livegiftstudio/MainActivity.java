@@ -55,6 +55,8 @@ private int menuRowIndex = 0;
 
     private static final int PICK_SOUND = 501;
     private static final int PICK_FOLLOW_SOUND = 502;
+    private static final int PICK_MEDIA_FOLDER = 508;
+private static final int PICK_MEDIA_FILES = 509;
 private static final int PICK_ANIMATION_FOLLOWER = 601;
 private static final int PICK_ANIMATION_DONATION = 602;
 private static final int PICK_ANIMATION_GIFT = 603;
@@ -227,6 +229,30 @@ addMenuRow(
         v -> showSoundLibrary(),
         v -> showSoundLibrary()
 );
+    
+    addMenuRow(
+        "📚\nМоя\nмедиатека", 0xFF00C853,
+        "📁\nЗагрузить\nмедиафайлы", 0xFF008CFF,
+        v -> showMediaLibrary(),
+        v -> {
+            new AlertDialog.Builder(this)
+                    .setTitle("Загрузка медиа")
+                    .setItems(
+                            new String[]{
+                                    "📁 Загрузить папку",
+                                    "📄 Загрузить файлы"
+                            },
+                            (dialog, which) -> {
+                                if (which == 0) {
+                                    chooseMediaFolder();
+                                } else {
+                                    chooseMediaFiles();
+                                }
+                            })
+                    .show();
+        }
+    );
+
     addMenuRow(
         "🎵\nПодключение\nTikTok LIVE", 0xFF087BFF,
         "💰\nОткрыть\nдонаты", 0xFF00D6B7,       
@@ -1215,6 +1241,50 @@ list.setAdapter(adapter);
 
         super.onActivityResult(requestCode, resultCode, data);
         
+        // Импорт выбранной папки
+if (requestCode == PICK_MEDIA_FOLDER) {
+    if (resultCode != RESULT_OK || data == null
+            || data.getData() == null) {
+        return;
+    }
+
+    Uri folderUri = data.getData();
+
+    try {
+        getContentResolver().takePersistableUriPermission(
+                folderUri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION
+        );
+
+        importMediaFolder(folderUri);
+
+    } catch (Exception e) {
+        message("Не удалось открыть папку");
+    }
+
+    return;
+}
+
+// Импорт отдельных файлов
+if (requestCode == PICK_MEDIA_FILES) {
+    if (resultCode != RESULT_OK || data == null) {
+        return;
+    }
+
+    if (data.getClipData() != null) {
+        android.content.ClipData clips = data.getClipData();
+
+        for (int i = 0; i < clips.getItemCount(); i++) {
+            Uri fileUri = clips.getItemAt(i).getUri();
+            importMediaFile(fileUri);
+        }
+
+    } else if (data.getData() != null) {
+        importMediaFile(data.getData());
+    }
+
+    return;
+}
         if (requestCode >= PICK_ANIMATION_FOLLOWER
         && requestCode <= PICK_ANIMATION_GIFT) {
 
@@ -1721,6 +1791,248 @@ private void displayVoiceSettings() {
             message("Не удалось открыть выбор звука");
         }
     }
+private void chooseMediaFolder() {
+    Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+    intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+    intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+
+    try {
+        startActivityForResult(intent, PICK_MEDIA_FOLDER);
+    } catch (Exception e) {
+        message("Не удалось открыть выбор папки");
+    }
+}
+
+private void chooseMediaFiles() {
+    Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+    intent.addCategory(Intent.CATEGORY_OPENABLE);
+    intent.setType("*/*");
+    intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+    intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+    intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+
+    try {
+        startActivityForResult(intent, PICK_MEDIA_FILES);
+    } catch (Exception e) {
+        message("Не удалось открыть выбор файлов");
+    }
+}
+    
+private void importMediaFile(Uri uri) {
+    if (uri == null) return;
+
+    try {
+        getContentResolver().takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION
+        );
+    } catch (Exception ignored) {}
+
+    String name = "media_file";
+    String mime = getContentResolver().getType(uri);
+
+    try (android.database.Cursor cursor =
+            getContentResolver().query(
+                    uri, null, null, null, null)) {
+        if (cursor != null && cursor.moveToFirst()) {
+            int index = cursor.getColumnIndex(
+                    android.provider.OpenableColumns.DISPLAY_NAME);
+            if (index >= 0) {
+                name = cursor.getString(index);
+            }
+        }
+    } catch (Exception ignored) {}
+
+    copyMediaToApp(uri, name, mime);
+}
+
+private void importMediaFolder(Uri treeUri) {
+    importMediaFolderContents(treeUri,
+            android.provider.DocumentsContract.getTreeDocumentId(treeUri));
+}
+
+private void importMediaFolderContents(Uri treeUri, String parentId) {
+    android.net.Uri childrenUri =
+            android.provider.DocumentsContract.buildChildDocumentsUriUsingTree(
+                    treeUri, parentId);
+
+    try (android.database.Cursor cursor =
+            getContentResolver().query(
+                    childrenUri,
+                    new String[] {
+                            android.provider.DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                            android.provider.DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+                            android.provider.DocumentsContract.Document.COLUMN_MIME_TYPE
+                    },
+                    null, null, null)) {
+
+        if (cursor == null) return;
+
+        while (cursor.moveToNext()) {
+            String id = cursor.getString(0);
+            String name = cursor.getString(1);
+            String mime = cursor.getString(2);
+
+            if (android.provider.DocumentsContract.Document.MIME_TYPE_DIR
+                    .equals(mime)) {
+                importMediaFolderContents(treeUri, id);
+            } else {
+                Uri fileUri =
+                        android.provider.DocumentsContract.buildDocumentUriUsingTree(
+                                treeUri, id);
+                copyMediaToApp(fileUri, name, mime);
+            }
+        }
+    } catch (Exception e) {
+        message("Ошибка чтения папки: " + e.getMessage());
+    }
+}
+
+private void copyMediaToApp(Uri uri, String name, String mime) {
+    java.io.File directory =
+            new java.io.File(getFilesDir(), "media_library");
+
+    if (!directory.exists() && !directory.mkdirs()) {
+        message("Не удалось создать хранилище");
+        return;
+    }
+
+    String safeName = name == null ? "media_file" :
+            name.replaceAll("[\\\\/:*?\"<>|]", "_");
+
+    String storedName = System.currentTimeMillis()
+            + "_" + safeName;
+
+    java.io.File destination =
+            new java.io.File(directory, storedName);
+
+    try (java.io.InputStream input =
+                 getContentResolver().openInputStream(uri);
+         java.io.OutputStream output =
+                 new java.io.FileOutputStream(destination)) {
+
+        if (input == null) {
+            message("Не удалось прочитать файл: " + safeName);
+            return;
+        }
+
+        byte[] buffer = new byte[8192];
+        int length;
+
+        while ((length = input.read(buffer)) != -1) {
+            output.write(buffer, 0, length);
+        }
+
+        JSONArray library;
+        try {
+            library = new JSONArray(
+                    prefs.getString("media_library_items", "[]"));
+        } catch (Exception e) {
+            library = new JSONArray();
+        }
+
+        JSONObject item = new JSONObject();
+        item.put("name", safeName);
+        item.put("file", storedName);
+        item.put("mime", mime == null ? "" : mime);
+
+        library.put(item);
+
+        prefs.edit()
+                .putString("media_library_items", library.toString())
+                .apply();
+
+        message("Сохранено: " + safeName);
+
+    } catch (Exception e) {
+        if (destination.exists()) destination.delete();
+        message("Ошибка сохранения: " + safeName);
+    }
+}
+
+private void showMediaLibrary() {
+    JSONArray library;
+
+    try {
+        library = new JSONArray(
+                prefs.getString("media_library_items", "[]"));
+    } catch (Exception e) {
+        library = new JSONArray();
+    }
+
+    if (library.length() == 0) {
+        new AlertDialog.Builder(this)
+                .setTitle("📚 Моя медиатека")
+                .setMessage("Пока нет файлов.\nЗагрузи папку или отдельные файлы.")
+                .setPositiveButton("Загрузить папку",
+                        (dialog, which) -> chooseMediaFolder())
+                .setNeutralButton("Загрузить файлы",
+                        (dialog, which) -> chooseMediaFiles())
+                .setNegativeButton("Закрыть", null)
+                .show();
+        return;
+    }
+
+    String[] names = new String[library.length()];
+
+    for (int i = 0; i < library.length(); i++) {
+        JSONObject item = library.optJSONObject(i);
+        String name = item == null ? "Файл" :
+                item.optString("name", "Файл");
+        String mime = item == null ? "" :
+                item.optString("mime", "");
+
+        String type = "Файл";
+        if (mime.startsWith("audio/")) type = "🔊 Звук";
+        else if (mime.startsWith("video/")) type = "🎬 Видео";
+        else if (mime.equals("image/gif")) type = "✨ GIF";
+        else if (mime.startsWith("image/")) type = "🖼️ Фото";
+
+        names[i] = type + " — " + name;
+    }
+
+    new AlertDialog.Builder(this)
+            .setTitle("📚 Моя медиатека")
+            .setItems(names, (dialog, which) -> {
+                JSONObject item = library.optJSONObject(which);
+                if (item == null) return;
+
+                String name = item.optString("name", "Файл");
+                String stored = item.optString("file", "");
+                String mime = item.optString("mime", "");
+
+                new AlertDialog.Builder(this)
+                        .setTitle(name)
+                        .setMessage("Тип: " + mime)
+                        .setPositiveButton("Назначить", (d, w) -> {
+                            message("Файл выбран: " + name
+                                    + ". Следующим шагом подключим назначение.");
+                        })
+                        .setNeutralButton("Загрузить ещё", (d, w) -> {
+                            new AlertDialog.Builder(this)
+                                    .setItems(
+                                            new String[]{"📁 Загрузить папку",
+                                                    "📄 Загрузить файлы"},
+                                            (dlg, choice) -> {
+                                                if (choice == 0) {
+                                                    chooseMediaFolder();
+                                                } else {
+                                                    chooseMediaFiles();
+                                                }
+                                            })
+                                    .show();
+                        })
+                        .setNegativeButton("Назад",
+                                (d, w) -> showMediaLibrary())
+                        .show();
+            })
+            .setPositiveButton("📁 Папка",
+                    (dialog, which) -> chooseMediaFolder())
+            .setNeutralButton("📄 Файлы",
+                    (dialog, which) -> chooseMediaFiles())
+            .setNegativeButton("Закрыть", null)
+            .show();
+}
 
     private void startOverlay() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
