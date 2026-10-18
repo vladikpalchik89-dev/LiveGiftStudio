@@ -1950,17 +1950,20 @@ private void copyMediaToApp(Uri uri, String name, String mime) {
     }
 }
 
-private void showMediaLibrary() {
-    JSONArray library;
 
+private void showMediaLibrary() {
+    final JSONArray mediaLibrary;
+
+    JSONArray loaded;
     try {
-        library = new JSONArray(
+        loaded = new JSONArray(
                 prefs.getString("media_library_items", "[]"));
     } catch (Exception e) {
-        library = new JSONArray();
+        loaded = new JSONArray();
     }
+    mediaLibrary = loaded;
 
-    if (library.length() == 0) {
+    if (mediaLibrary.length() == 0) {
         new AlertDialog.Builder(this)
                 .setTitle("📚 Моя медиатека")
                 .setMessage("Пока нет файлов.\nЗагрузи папку или отдельные файлы.")
@@ -1973,10 +1976,10 @@ private void showMediaLibrary() {
         return;
     }
 
-    String[] names = new String[library.length()];
+    String[] names = new String[mediaLibrary.length()];
 
-    for (int i = 0; i < library.length(); i++) {
-        JSONObject item = library.optJSONObject(i);
+    for (int i = 0; i < mediaLibrary.length(); i++) {
+        JSONObject item = mediaLibrary.optJSONObject(i);
         String name = item == null ? "Файл" :
                 item.optString("name", "Файл");
         String mime = item == null ? "" :
@@ -1994,25 +1997,26 @@ private void showMediaLibrary() {
     new AlertDialog.Builder(this)
             .setTitle("📚 Моя медиатека")
             .setItems(names, (dialog, which) -> {
-                JSONObject item = library.optJSONObject(which);
+                final JSONObject item =
+                        mediaLibrary.optJSONObject(which);
                 if (item == null) return;
 
                 String name = item.optString("name", "Файл");
-                String stored = item.optString("file", "");
                 String mime = item.optString("mime", "");
 
                 new AlertDialog.Builder(this)
                         .setTitle(name)
                         .setMessage("Тип: " + mime)
-                        .setPositiveButton("Назначить", (d, w) -> {
-                            message("Файл выбран: " + name
-                                    + ". Следующим шагом подключим назначение.");
-                        })
+                        .setPositiveButton("Назначить", (d, w) ->
+                                message("Выбран файл: " + name
+                                        + ". Назначение подключим отдельно."))
                         .setNeutralButton("Загрузить ещё", (d, w) -> {
                             new AlertDialog.Builder(this)
                                     .setItems(
-                                            new String[]{"📁 Загрузить папку",
-                                                    "📄 Загрузить файлы"},
+                                            new String[]{
+                                                    "📁 Загрузить папку",
+                                                    "📄 Загрузить файлы"
+                                            },
                                             (dlg, choice) -> {
                                                 if (choice == 0) {
                                                     chooseMediaFolder();
@@ -2033,6 +2037,7 @@ private void showMediaLibrary() {
             .setNegativeButton("Закрыть", null)
             .show();
 }
+
 
     private void startOverlay() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
