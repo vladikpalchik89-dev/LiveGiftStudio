@@ -277,6 +277,8 @@ if (previewUri != null && !previewUri.isEmpty()) {
     });
     return;
 }
+                    
+
                     // Новый подписчик
                     if (type.equals("follow")
                             || type.equals("followed")
@@ -286,11 +288,19 @@ if (previewUri != null && !previewUri.isEmpty()) {
                                 "username", "Зритель");
 
                         handler.post(() -> {
-                          if (!destroyed) {
-    playFollowSound();
-    speakText(
-            "Новый подписчик. " + username);
-}  
+                            if (!destroyed) {
+                                showGift(
+                                        "💖 НОВЫЙ ПОДПИСЧИК\n@"
+                                                + username,
+                                        "follower"
+                                );
+
+                                playFollowSound();
+
+                                speakText(
+                                        "Новый подписчик. " + username
+                                );
+                            }
                         });
 
                         return;
