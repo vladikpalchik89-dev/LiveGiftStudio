@@ -196,7 +196,27 @@ if (previewUri != null && !previewUri.isEmpty()) {
 
     return START_NOT_STICKY;
 }
+String testFollow =
+        intent.getStringExtra("test_follow");
 
+if ("yes".equals(testFollow)) {
+    handler.post(() -> {
+        if (!destroyed) {
+            showGift(
+                    "💖 ТЕСТ ПОДПИСКИ\n@ТестовыйЗритель",
+                    "follower"
+            );
+
+            playFollowSound();
+
+            speakText(
+                    "Новый подписчик. Тестовый зритель"
+            );
+        }
+    });
+
+    return START_NOT_STICKY;
+}
 
         String testDonation =
                 intent.getStringExtra("test_donation");
