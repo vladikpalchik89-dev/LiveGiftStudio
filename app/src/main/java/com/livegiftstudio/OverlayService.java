@@ -63,6 +63,7 @@ public class OverlayService extends Service {
 
     private WindowManager windowManager;
     private TextView overlay;
+    private View overlayView;
     private SharedPreferences prefs;
 
     private OkHttpClient client;
@@ -153,31 +154,49 @@ private void startForegroundNotification() {
     startForeground(NOTIFICATION_ID, builder.build());
 }
 
-    
+ 
 @Override
 public int onStartCommand(
         Intent intent, int flags, int startId) {
-        if (intent != null
-        && ACTION_STOP_CHAT_SPEECH.equals(intent.getAction())) {
 
-    chatSpeechEnabled = false;
+    if (intent != null
+            && ACTION_STOP_CHAT_SPEECH.equals(intent.getAction())) {
 
-    if (textToSpeech != null) {
-        textToSpeech.stop();
+        chatSpeechEnabled = false;
+
+        if (textToSpeech != null) {
+            textToSpeech.stop();
+        }
+
+        android.util.Log.d(TAG, "Озвучка чата выключена");
+        return START_STICKY;
     }
 
-    android.util.Log.d(TAG, "Озвучка чата выключена");
-    return START_STICKY;
-}
-if (intent != null
-        && ACTION_START_CHAT_SPEECH.equals(intent.getAction())) {
+    if (intent != null
+            && ACTION_START_CHAT_SPEECH.equals(intent.getAction())) {
 
-    chatSpeechEnabled = true;
+        chatSpeechEnabled = true;
 
-    android.util.Log.d(TAG, "Озвучка чата включена");
-    return START_STICKY;
-}
+        android.util.Log.d(TAG, "Озвучка чата включена");
+        return START_STICKY;
+    }
+
     if (intent != null) {
+        
+String previewUri =
+        intent.getStringExtra("preview_animation_uri");
+
+if (previewUri != null && !previewUri.isEmpty()) {
+    handler.post(() -> {
+        if (!destroyed) {
+            showAnimationPreview(previewUri);
+        }
+    });
+
+    return START_NOT_STICKY;
+}
+
+
         String testDonation =
                 intent.getStringExtra("test_donation");
 
@@ -191,7 +210,7 @@ if (intent != null
 
                     speakText(
                             "Тестовый донат от Тестового зрителя. "
-                            + "Сумма 50 рублей. Проверка озвучки!"
+                                    + "Сумма 50 рублей. Проверка озвучки!"
                     );
                 }
             });
@@ -211,6 +230,7 @@ if (intent != null
 
     return START_STICKY;
 }
+   
     private void connectToServer() {
         if (destroyed) {
             return;
@@ -827,7 +847,8 @@ private int getGiftCoins(String gift) {
         }
     }
 
-    private void showGift(String message, String gift) {
+    
+private void showGift(String message, String gift) {
     if (destroyed || windowManager == null) return;
 
     if (removeTask != null) {
@@ -837,14 +858,75 @@ private int getGiftCoins(String gift) {
 
     removeOverlay();
 
-    overlay = new TextView(this);
-    overlay.setTextColor(Color.WHITE);
-    overlay.setTextSize(22);
-    overlay.setGravity(Gravity.CENTER);
-    overlay.setPadding(35, 26, 35, 26);
-    overlay.setMaxWidth(950);
-    overlay.setElevation(24);
-    overlay.setLineSpacing(4f, 1.0f);
+    String animationKey;
+
+    if ("follower".equals(gift)) {
+        animationKey = "animation_follower_uri";
+    } else if ("donation".equals(gift)) {
+        animationKey = "animation_donation_uri";
+    } else {
+        animationKey = "animation_gift_" + getGiftKey(gift);
+    }
+
+    String savedUri = prefs.getString(animationKey, "");
+
+    FrameLayout root = new FrameLayout(this);
+    root.setPadding(16, 16, 16, 16);
+
+    GradientDrawable background = new GradientDrawable(
+            GradientDrawable.Orientation.TL_BR,
+            getColors(gift)
+    );
+    background.setCornerRadius(32);
+    background.setStroke(3, Color.WHITE);
+    root.setBackground(background);
+
+    root.setElevation(24);
+
+    if (!savedUri.isEmpty()) {
+        try {
+            Uri uri = Uri.parse(savedUri);
+            String path = uri.toString().toLowerCase();
+
+            if (path.contains(".gif")) {
+                GifView gifView = new GifView(this, uri);
+
+                FrameLayout.LayoutParams gifParams =
+                        new FrameLayout.LayoutParams(
+                                280,
+                                280,
+                                Gravity.CENTER
+                        );
+
+                root.addView(gifView, gifParams);
+
+            } else {
+                VideoView videoView = new VideoView(this);
+                videoView.setVideoURI(uri);
+                videoView.setOnPreparedListener(player -> {
+                    player.setLooping(true);
+                    player.start();
+                });
+
+                FrameLayout.LayoutParams videoParams =
+                        new FrameLayout.LayoutParams(
+                                280,
+                                280,
+                                Gravity.CENTER
+                        );
+
+                root.addView(videoView, videoParams);
+            }
+        } catch (Exception e) {
+            android.util.Log.e(TAG, "Animation error", e);
+        }
+    }
+
+    TextView text = new TextView(this);
+    text.setTextColor(Color.WHITE);
+    text.setTextSize(20);
+    text.setGravity(Gravity.CENTER);
+    text.setPadding(20, 16, 20, 16);
 
     int coins = getGiftCoins(gift);
     String displayMessage = message;
@@ -853,37 +935,16 @@ private int getGiftCoins(String gift) {
         displayMessage += "\n🪙 " + coins + " монет";
     }
 
-    overlay.setText(displayMessage);
+    text.setText(displayMessage);
 
-    int imageRes = getGiftImageResource(gift);
-    if (imageRes != 0) {
-        try {
-            android.graphics.drawable.Drawable image =
-                    getResources().getDrawable(imageRes);
-
-            int imageSize = (int) (
-                    100 * getResources().getDisplayMetrics().density
+    FrameLayout.LayoutParams textParams =
+            new FrameLayout.LayoutParams(
+                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL
             );
 
-            image.setBounds(0, 0, imageSize, imageSize);
-
-            overlay.setCompoundDrawablePadding(12);
-            overlay.setCompoundDrawables(
-                    null, image, null, null
-            );
-        } catch (Exception e) {
-            android.util.Log.e(TAG, "Gift image error", e);
-        }
-    }
-
-    GradientDrawable background = new GradientDrawable(
-            GradientDrawable.Orientation.TL_BR,
-            getColors(gift)
-    );
-
-    background.setCornerRadius(32);
-    background.setStroke(3, Color.WHITE);
-    overlay.setBackground(background);
+    root.addView(text, textParams);
 
     int type = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
             ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -891,8 +952,8 @@ private int getGiftCoins(String gift) {
 
     WindowManager.LayoutParams params =
             new WindowManager.LayoutParams(
-                    WindowManager.LayoutParams.WRAP_CONTENT,
-                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    320,
+                    380,
                     type,
                     WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                             | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
@@ -904,7 +965,10 @@ private int getGiftCoins(String gift) {
     params.y = 160;
 
     try {
-        windowManager.addView(overlay, params);
+        overlayView = root;
+        overlay = text;
+
+        windowManager.addView(root, params);
 
         AnimationSet animation = new AnimationSet(false);
 
@@ -923,14 +987,14 @@ private int getGiftCoins(String gift) {
         animation.addAnimation(scale);
         animation.addAnimation(alpha);
 
-        overlay.startAnimation(animation);
+        root.startAnimation(animation);
 
         removeTask = () -> {
             removeOverlay();
             removeTask = null;
         };
 
-        handler.postDelayed(removeTask, 4000);
+        handler.postDelayed(removeTask, 6000);
 
     } catch (Exception e) {
         android.util.Log.e(TAG, "Cannot display overlay", e);
@@ -938,20 +1002,129 @@ private int getGiftCoins(String gift) {
     }
 }
 
-    private void removeOverlay() {
-        if (overlay != null) {
-            try {
-                overlay.clearAnimation();
+}
 
-                if (windowManager != null) {
-                    windowManager.removeView(overlay);
-                }
-            } catch (Exception ignored) {
+private void showAnimationPreview(String uriString) {
+    if (destroyed || windowManager == null) return;
+
+    removeOverlay();
+
+    Uri uri = Uri.parse(uriString);
+
+    FrameLayout root = new FrameLayout(this);
+    root.setBackgroundColor(Color.argb(220, 10, 10, 30));
+
+    TextView label = new TextView(this);
+    label.setText("🎬 Предпросмотр анимации");
+    label.setTextColor(Color.WHITE);
+    label.setTextSize(18);
+    label.setGravity(Gravity.CENTER);
+
+    FrameLayout.LayoutParams labelParams =
+            new FrameLayout.LayoutParams(
+                    WindowManager.LayoutParams.MATCH_PARENT,
+                    60,
+                    Gravity.BOTTOM
+            );
+
+    root.addView(label, labelParams);
+
+    try {
+        String mime = getContentResolver().getType(uri);
+
+        if (mime != null && mime.equals("image/gif")) {
+            GifView gif = new GifView(this, uri);
+
+            FrameLayout.LayoutParams mediaParams =
+                    new FrameLayout.LayoutParams(
+                            280, 280, Gravity.CENTER
+                    );
+
+            root.addView(gif, mediaParams);
+        } else {
+            VideoView video = new VideoView(this);
+            video.setVideoURI(uri);
+            video.setOnPreparedListener(player -> {
+                player.setLooping(true);
+                player.start();
+            });
+
+            FrameLayout.LayoutParams mediaParams =
+                    new FrameLayout.LayoutParams(
+                            280, 280, Gravity.CENTER
+                    );
+
+            root.addView(video, mediaParams);
+        }
+    } catch (Exception e) {
+        android.util.Log.e(TAG, "Preview error", e);
+        return;
+    }
+
+    int type = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+            ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            : WindowManager.LayoutParams.TYPE_PHONE;
+
+    WindowManager.LayoutParams params =
+            new WindowManager.LayoutParams(
+                    320, 380, type,
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                            | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+                            | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                    PixelFormat.TRANSLUCENT
+            );
+
+    params.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
+    params.y = 160;
+
+    overlayView = root;
+    overlay = label;
+
+    try {
+        windowManager.addView(root, params);
+
+        removeTask = () -> {
+            removeOverlay();
+            removeTask = null;
+        };
+
+        handler.postDelayed(removeTask, 10000);
+    } catch (Exception e) {
+        android.util.Log.e(TAG, "Cannot show preview", e);
+        removeOverlay();
+    }
+}
+
+    private void removeOverlay() {
+    if (overlayView != null) {
+        try {
+            overlayView.clearAnimation();
+
+            if (overlayView instanceof VideoView) {
+                ((VideoView) overlayView).stopPlayback();
             }
 
-            overlay = null;
+            if (windowManager != null) {
+                windowManager.removeView(overlayView);
+            }
+        } catch (Exception ignored) {
         }
+
+        overlayView = null;
+        overlay = null;
+    } else if (overlay != null) {
+        try {
+            overlay.clearAnimation();
+
+            if (windowManager != null) {
+                windowManager.removeView(overlay);
+            }
+        } catch (Exception ignored) {
+        }
+
+        overlay = null;
     }
+}
 
     // 30 вариантов звучания и настройка громкости.
 private void speakText(String text) {
