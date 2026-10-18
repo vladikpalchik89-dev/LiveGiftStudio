@@ -289,13 +289,30 @@ if (previewUri != null && !previewUri.isEmpty()) {
 
                         handler.post(() -> {
                             if (!destroyed) {
-                                showGift(
-                                        "💖 НОВЫЙ ПОДПИСЧИК\n@"
-                                                + username,
-                                        "follower"
-                                );
+                                try {
+    android.util.Log.d(TAG, "FOLLOW: перед showGift");
 
-                                playFollowSound();
+    showGift(
+            "💖 НОВЫЙ ПОДПИСЧИК\n@" + username,
+            "follower"
+    );
+
+    android.util.Log.d(TAG, "FOLLOW: после showGift");
+
+} catch (Exception e) {
+    android.util.Log.e(TAG, "FOLLOW showGift error", e);
+}
+
+try {
+    android.util.Log.d(TAG, "FOLLOW: перед playFollowSound");
+
+    playFollowSound();
+
+    android.util.Log.d(TAG, "FOLLOW: после playFollowSound");
+
+} catch (Exception e) {
+    android.util.Log.e(TAG, "FOLLOW sound error", e);
+}
 
                                 speakText(
                                         "Новый подписчик. " + username
