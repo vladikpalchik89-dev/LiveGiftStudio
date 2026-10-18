@@ -965,13 +965,9 @@ private void showGift(String message, String gift) {
     FrameLayout root = new FrameLayout(this);
     root.setPadding(16, 16, 16, 16);
 
-    GradientDrawable background = new GradientDrawable(
-            GradientDrawable.Orientation.TL_BR,
-            getColors(gift)
-    );
-    background.setCornerRadius(32);
-    background.setStroke(3, Color.WHITE);
-    root.setBackground(background);
+    root.setBackgroundColor(Color.TRANSPARENT);
+root.setBackground(null);
+root.setElevation(0);
 
     root.setElevation(24);
 
