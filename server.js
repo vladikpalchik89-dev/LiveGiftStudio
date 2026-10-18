@@ -304,17 +304,31 @@ async function startDonationAlerts() {
 }
 
 
+
 function scheduleReconnect(reason) {
   if (stopped || process.env.TIKTOK_ENABLED !== "true") return;
   if (reconnectTimer) return;
 
-  console.log("TikTok reconnect scheduled:", reason);
+  const isRateLimit =
+    String(reason || "").toLowerCase().includes("rate limit") ||
+    String(reason || "").toLowerCase().includes("connection failed");
+
+  const delay = isRateLimit ? 5 * 60 * 1000 : 60 * 1000;
+
+  console.log(
+    "TikTok reconnect scheduled:",
+    reason,
+    "in",
+    Math.round(delay / 1000),
+    "seconds"
+  );
 
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null;
     startTikTok();
-  }, 25000);
+  }, delay);
 }
+
 
 function startTikTok() {
   if (stopped || process.env.TIKTOK_ENABLED !== "true") {
@@ -463,15 +477,36 @@ connection.on(WebcastEvent.GIFT || "gift", (data) => {
         connecting = false;
         console.log("TikTok LIVE connected:", username);
       })
-      .catch((error) => {
-        if (connection !== currentConnection) return;
-        connecting = false;
-        console.error(
-          "TikTok connection failed:",
-          error.stack || error.message
-        );
-        scheduleReconnect("connection failed");
-      });
+      
+.catch((error) => {
+  if (connection !== currentConnection) return;
+
+  connecting = false;
+
+  console.error(
+    "TikTok connection failed:",
+    error.stack || error.message
+  );
+
+  const errorText = [
+    error?.name,
+    error?.message,
+    error?.cause?.message,
+    error?.stack
+  ].filter(Boolean).join(" ");
+
+  if (
+    /SignatureRateLimitError|rate_limit_account_day|rate limit/i.test(errorText)
+  ) {
+    console.error(
+      "EulerStream daily limit reached. Automatic reconnect paused."
+    );
+    return;
+  }
+
+  scheduleReconnect("connection failed");
+});
+
   } catch (error) {
     connecting = false;
     console.error("TikTok connector error:", error.stack || error.message);
