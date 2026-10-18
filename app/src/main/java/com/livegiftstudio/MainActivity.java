@@ -397,8 +397,8 @@ private void testAnimation(String type) {
     } else if ("donation".equals(type)) {
         key = "animation_donation_uri";
     } else {
-        key = "animation_gift_" + type;
-    }
+    key = "animation_gift_" + selectedGiftKey;
+}
 
     String uri = prefs.getString(key, "");
 
@@ -407,9 +407,17 @@ private void testAnimation(String type) {
         return;
     }
 
-    Intent intent = new Intent(this, OverlayService.class);
-    intent.putExtra("preview_animation", type);
+    
+Intent intent = new Intent(this, OverlayService.class);
+intent.putExtra("preview_animation", type);
+intent.putExtra("preview_animation_uri", uri);
 
+if ("gift".equals(type)) {
+    intent.putExtra(
+            "preview_animation_gift_key",
+            selectedGiftKey
+    );
+}
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
         startForegroundService(intent);
     } else {
