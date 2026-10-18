@@ -389,6 +389,7 @@ private void testSavedAnimation() {
             .show();
 }
 
+
 private void testAnimation(String type) {
     String key;
 
@@ -396,9 +397,17 @@ private void testAnimation(String type) {
         key = "animation_follower_uri";
     } else if ("donation".equals(type)) {
         key = "animation_donation_uri";
+    } else if ("gift".equals(type)) {
+        if (selectedGiftKey == null || selectedGiftKey.isEmpty()) {
+            message("Сначала выбери подарок");
+            return;
+        }
+
+        key = "animation_gift_" + selectedGiftKey;
     } else {
-    key = "animation_gift_" + selectedGiftKey;
-}
+        message("Неизвестный тип анимации");
+        return;
+    }
 
     String uri = prefs.getString(key, "");
 
@@ -407,25 +416,31 @@ private void testAnimation(String type) {
         return;
     }
 
-    
-Intent intent = new Intent(this, OverlayService.class);
-intent.putExtra("preview_animation", type);
-intent.putExtra("preview_animation_uri", uri);
+    Intent intent = new Intent(this, OverlayService.class);
+    intent.putExtra("preview_animation", type);
+    intent.putExtra("preview_animation_uri", uri);
 
-if ("gift".equals(type)) {
-    intent.putExtra(
-            "preview_animation_gift_key",
-            selectedGiftKey
-    );
-}
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        startForegroundService(intent);
-    } else {
-        startService(intent);
+    if ("gift".equals(type)) {
+        intent.putExtra(
+                "preview_animation_gift_key",
+                selectedGiftKey
+        );
     }
 
-    message("Запускаю проверку анимации");
+    try {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent);
+        } else {
+            startService(intent);
+        }
+
+        message("Запускаю проверку анимации");
+    } catch (Exception e) {
+        message("Не удалось запустить анимацию");
+        android.util.Log.e("LiveGiftStudio", "Animation preview error", e);
+    }
 }
+
 
 private void showAnimationGiftCatalog() {
     String[] names = new String[giftCatalog.length];
