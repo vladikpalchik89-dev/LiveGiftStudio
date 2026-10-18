@@ -200,6 +200,18 @@ String testFollow =
         intent.getStringExtra("test_follow");
 
 if ("yes".equals(testFollow)) {
+    String testFollowSound =
+        intent.getStringExtra("test_follow_sound");
+
+if ("yes".equals(testFollowSound)) {
+    handler.post(() -> {
+        if (!destroyed) {
+            playFollowSound();
+        }
+    });
+
+    return START_NOT_STICKY;
+}
     handler.post(() -> {
         if (!destroyed) {
             showGift(
