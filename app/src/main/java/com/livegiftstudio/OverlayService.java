@@ -18,6 +18,7 @@ import android.widget.VideoView;
 import android.graphics.PixelFormat;
 import android.graphics.drawable.GradientDrawable;
 import android.media.MediaPlayer;
+import android.widget.MediaController;
 import android.speech.tts.TextToSpeech;
 import android.speech.tts.Voice;
 import android.net.Uri;
@@ -1000,8 +1001,6 @@ private void showGift(String message, String gift) {
         android.util.Log.e(TAG, "Cannot display overlay", e);
         removeOverlay();
     }
-}
-
 }
 
 private void showAnimationPreview(String uriString) {
