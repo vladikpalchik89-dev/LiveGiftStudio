@@ -207,7 +207,12 @@ setBackgroundColor(
         v -> chooseFollowSound(),
         v -> startOverlay()
     );
-    
+    addMenuRow(
+        "💖\nПроверить\nподписку", 0xFFFF1493,
+        "🔊\nПроверить\nзвук", 0xFF00C853,
+        v -> testFollowEvent(),
+        v -> testFollowSound()
+);
 addMenuRow(
         "🧪\nТест\nдоната 50 ₽", 0xFF00C853,
         "💰\nОткрыть\nдонаты", 0xFFFF1493,
@@ -365,7 +370,19 @@ private void chooseAnimationFile(int requestCode) {
         message("Не удалось открыть выбор файла");
     }
 }
+private void testFollowEvent() {
+    Intent intent = new Intent(this, OverlayService.class);
+    intent.putExtra("test_follow", "yes");
+    startOverlay();
+    startService(intent);
+}
 
+private void testFollowSound() {
+    Intent intent = new Intent(this, OverlayService.class);
+    intent.putExtra("test_follow_sound", "yes");
+    startOverlay();
+    startService(intent);
+}
 private void testSavedAnimation() {
     new AlertDialog.Builder(this)
             .setTitle("▶ Проверка анимации")
