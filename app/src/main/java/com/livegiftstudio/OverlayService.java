@@ -917,7 +917,13 @@ private void showGift(String message, String gift) {
 
 String mimeType = getContentResolver().getType(uri);
 
-if ("image/gif".equals(mimeType)) {
+String fileName = uri.getLastPathSegment();
+boolean isGif =
+        "image/gif".equalsIgnoreCase(mimeType)
+        || (fileName != null
+        && fileName.toLowerCase(Locale.ROOT).contains(".gif"));
+
+if (isGif) {
                 GifView gifView = new GifView(this, uri);
 
                 FrameLayout.LayoutParams gifParams =
