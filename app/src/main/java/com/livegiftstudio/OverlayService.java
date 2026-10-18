@@ -1281,4 +1281,4 @@ private static class GifView extends View {
         postInvalidateDelayed(33);
     }
 }
- 
+}
