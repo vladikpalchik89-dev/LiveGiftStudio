@@ -55,7 +55,10 @@ private int menuRowIndex = 0;
 
     private static final int PICK_SOUND = 501;
     private static final int PICK_FOLLOW_SOUND = 502;
-
+private static final int PICK_ANIMATION_FOLLOWER = 601;
+private static final int PICK_ANIMATION_DONATION = 602;
+private static final int PICK_ANIMATION_GIFT = 603;
+private String selectedAnimationType = "follower";
     private TextToSpeech voicePreview;
     private boolean voicePreviewReady = false;
 
@@ -261,7 +264,14 @@ v -> {
         v -> resetStats(),
         v -> showStats()
     );
-    
+    addMenuRow(
+        "🎞️\nНастроить\nанимации",
+        0xFF9B20FF,
+        "▶️\nПроверить\nанимацию",
+        0xFF00C8FF,
+        v -> showAnimationSettings(),
+        v -> testSavedAnimation()
+);
 addMenuRow(
         "⚙️\nНастройки\nоформления", 0xFF00C8B4,
         "♻️\nСбросить\nоформление", 0xFF3949AB,
@@ -277,7 +287,156 @@ addMenuRow(
 
     updateStats();
 }
-    
+   private void showAnimationSettings() {
+    String[] options = {
+            "🔔 Анимация нового подписчика",
+            "🎁 Анимация подарка TikTok",
+            "💰 Анимация DonationAlerts",
+            "▶ Проверить анимацию подписки",
+            "▶ Проверить анимацию доната",
+            "🗑 Сбросить анимацию подписки",
+            "🗑 Сбросить анимацию доната"
+    };
+
+    new AlertDialog.Builder(this)
+            .setTitle("🎞️ GIF и видео")
+            .setItems(options, (dialog, which) -> {
+                switch (which) {
+                    case 0:
+                        selectedAnimationType = "follower";
+                        chooseAnimationFile(PICK_ANIMATION_FOLLOWER);
+                        break;
+
+                    case 1:
+                        showAnimationGiftCatalog();
+                        break;
+
+                    case 2:
+                        selectedAnimationType = "donation";
+                        chooseAnimationFile(PICK_ANIMATION_DONATION);
+                        break;
+
+                    case 3:
+                        testAnimation("follower");
+                        break;
+
+                    case 4:
+                        testAnimation("donation");
+                        break;
+
+                    case 5:
+                        prefs.edit()
+                                .remove("animation_follower_uri")
+                                .apply();
+                        message("Анимация подписки сброшена");
+                        break;
+
+                    case 6:
+                        prefs.edit()
+                                .remove("animation_donation_uri")
+                                .apply();
+                        message("Анимация доната сброшена");
+                        break;
+                }
+            })
+            .setNegativeButton("Закрыть", null)
+            .show();
+}
+
+private void chooseAnimationFile(int requestCode) {
+    Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+    intent.addCategory(Intent.CATEGORY_OPENABLE);
+    intent.setType("*/*");
+    intent.putExtra(
+            Intent.EXTRA_MIME_TYPES,
+            new String[]{
+                    "image/gif",
+                    "video/mp4",
+                    "video/webm",
+                    "video/3gpp"
+            }
+    );
+    intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+    intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+
+    try {
+        startActivityForResult(intent, requestCode);
+    } catch (Exception e) {
+        message("Не удалось открыть выбор файла");
+    }
+}
+
+private void testSavedAnimation() {
+    new AlertDialog.Builder(this)
+            .setTitle("▶ Проверка анимации")
+            .setItems(
+                    new String[]{
+                            "🔔 Подписка",
+                            "🎁 Подарок",
+                            "💰 Донат"
+                    },
+                    (dialog, which) -> {
+                        if (which == 0) {
+                            testAnimation("follower");
+                        } else if (which == 1) {
+                            showAnimationGiftCatalog();
+                        } else {
+                            testAnimation("donation");
+                        }
+                    }
+            )
+            .setNegativeButton("Отмена", null)
+            .show();
+}
+
+private void testAnimation(String type) {
+    String key;
+
+    if ("follower".equals(type)) {
+        key = "animation_follower_uri";
+    } else if ("donation".equals(type)) {
+        key = "animation_donation_uri";
+    } else {
+        key = "animation_gift_" + type;
+    }
+
+    String uri = prefs.getString(key, "");
+
+    if (uri.isEmpty()) {
+        message("Сначала выбери файл анимации");
+        return;
+    }
+
+    Intent intent = new Intent(this, OverlayService.class);
+    intent.putExtra("preview_animation", type);
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        startForegroundService(intent);
+    } else {
+        startService(intent);
+    }
+
+    message("Запускаю проверку анимации");
+}
+
+private void showAnimationGiftCatalog() {
+    String[] names = new String[giftCatalog.length];
+
+    for (int i = 0; i < giftCatalog.length; i++) {
+        names[i] = giftCatalog[i][1];
+    }
+
+    new AlertDialog.Builder(this)
+            .setTitle("🎁 Выбери подарок")
+            .setItems(names, (dialog, which) -> {
+                selectedGiftKey = giftCatalog[which][0];
+                selectedGiftName = giftCatalog[which][1];
+                selectedAnimationType = "gift";
+                chooseAnimationFile(PICK_ANIMATION_GIFT);
+            })
+            .setNegativeButton("Отмена", null)
+            .show();
+} 
 private void showAppearanceSettings() {
     String[] options = {
             "🌌 Фон приложения",
@@ -1014,6 +1173,47 @@ list.setAdapter(adapter);
 
         super.onActivityResult(requestCode, resultCode, data);
         
+        if (requestCode >= PICK_ANIMATION_FOLLOWER
+        && requestCode <= PICK_ANIMATION_GIFT) {
+
+    if (resultCode != RESULT_OK
+            || data == null
+            || data.getData() == null) {
+        return;
+    }
+
+    Uri uri = data.getData();
+
+    try {
+        getContentResolver().takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION
+        );
+    } catch (Exception ignored) {}
+
+    String key;
+
+    if (requestCode == PICK_ANIMATION_FOLLOWER) {
+        key = "animation_follower_uri";
+    } else if (requestCode == PICK_ANIMATION_DONATION) {
+        key = "animation_donation_uri";
+    } else {
+        if (selectedGiftKey == null) {
+            message("Сначала выбери подарок");
+            return;
+        }
+
+        key = "animation_gift_" + selectedGiftKey;
+    }
+
+    prefs.edit()
+            .putString(key, uri.toString())
+            .apply();
+
+    message("Анимация сохранена");
+
+    return;
+}
 // Обработка звуков библиотеки
 if (requestCode >= 504 && requestCode <= 507) {
 
