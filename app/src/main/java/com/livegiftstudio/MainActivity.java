@@ -206,12 +206,14 @@ setBackgroundColor(
         "🎬\nТест\nанимации", 0xFF9B20FF,
         v -> chooseFollowSound(),
         v -> startOverlay()
-    );
-    addMenuRow(
+);
+
+addMenuRow(
         "💖\nПроверить\nподписку", 0xFFFF1493,
-        "🔊\nПроверить\nзвук", 0xFF00C853,
+        "",
+        0xFF00C853,
         v -> testFollowEvent(),
-        v -> testFollowSound()
+        v -> {}
 );
 addMenuRow(
         "🧪\nТест\nдоната 50 ₽", 0xFF00C853,
