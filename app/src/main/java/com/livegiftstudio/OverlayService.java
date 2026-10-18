@@ -279,11 +279,9 @@ if (intent != null
                             handler.post(() -> {
                                 if (!destroyed) {
                                     speakTextForUser(
-                                            username,
-                                            username
-                                                    + " пишет: "
-                                                    + comment
-                                    );
+        null,
+        comment
+);
                                 }
                             });
                         }
