@@ -887,9 +887,10 @@ private void showGift(String message, String gift) {
     if (!savedUri.isEmpty()) {
         try {
             Uri uri = Uri.parse(savedUri);
-            String path = uri.toString().toLowerCase();
 
-            if (path.contains(".gif")) {
+String mimeType = getContentResolver().getType(uri);
+
+if ("image/gif".equals(mimeType)) {
                 GifView gifView = new GifView(this, uri);
 
                 FrameLayout.LayoutParams gifParams =
