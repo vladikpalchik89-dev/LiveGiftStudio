@@ -34,7 +34,7 @@ import android.view.animation.AnimationSet;
 import android.view.animation.OvershootInterpolator;
 import android.view.animation.ScaleAnimation;
 import android.widget.TextView;
-
+import android.widget.LinearLayout;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
@@ -990,18 +990,20 @@ private void showGift(String message, String gift) {
     }
 
     String savedUri = prefs.getString(animationKey, "");
-
-    FrameLayout root = new FrameLayout(this);
-    root.setPadding(16, 16, 16, 16);
-
-    root.setBackgroundColor(Color.TRANSPARENT);
-root.setBackground(null);
-root.setElevation(0);
-
-    root.setElevation(24);
-
+   
+LinearLayout root = new LinearLayout(this);
+root.setOrientation(LinearLayout.VERTICAL);
+root.setGravity(Gravity.CENTER_HORIZONTAL);
+root.setPadding(8, 8, 8, 8);
+root.setBackgroundColor(Color.TRANSPARENT);
     if (!savedUri.isEmpty()) {
         try {
+         FrameLayout animationContainer = new FrameLayout(this);
+LinearLayout.LayoutParams animationAreaParams =
+        new LinearLayout.LayoutParams(
+                300,
+                300
+        );   
             Uri uri = Uri.parse(savedUri);
 
 String mimeType = getContentResolver().getType(uri);
@@ -1022,7 +1024,7 @@ if (isGif) {
                                 Gravity.CENTER
                         );
 
-                root.addView(gifView, gifParams);
+                animationContainer.addView(gifView, gifParams);
 
             } else {
                 VideoView videoView = new VideoView(this);
@@ -1039,9 +1041,10 @@ if (isGif) {
         Gravity.TOP | Gravity.CENTER_HORIZONTAL
 );
 
-                root.addView(videoView, videoParams);
+                animationContainer.addView(videoView, videoParams);
             }
-        } catch (Exception e) {
+                    root.addView(animationContainer, animationAreaParams);
+        } catch ( e) {
             android.util.Log.e(TAG, "Animation error", e);
         }
     }
@@ -1061,17 +1064,16 @@ if (isGif) {
 
     text.setText(displayMessage);
 
-    FrameLayout.LayoutParams textParams =
-        new FrameLayout.LayoutParams(
-                WindowManager.LayoutParams.MATCH_PARENT,
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL
+    
+LinearLayout.LayoutParams textParams =
+        new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
         );
 
-textParams.bottomMargin = 8;
+textParams.topMargin = 8;
 
-    root.addView(text, textParams);
-
+root.addView(text, textParams);
     int type = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
             ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
             : WindowManager.LayoutParams.TYPE_PHONE;
@@ -1080,7 +1082,7 @@ textParams.bottomMargin = 8;
 WindowManager.LayoutParams params =
         new WindowManager.LayoutParams(
                 340,
-                500,
+                460
                 type,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                         | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
