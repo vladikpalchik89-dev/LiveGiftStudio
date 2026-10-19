@@ -1010,9 +1010,10 @@ String mimeType = getContentResolver().getType(uri);
 
 String fileName = uri.getLastPathSegment();
 
-boolean isImage =
-        mimeType != null
-        && mimeType.toLowerCase(Locale.ROOT).startsWith("image/");
+boolean isGif =
+        "image/gif".equalsIgnoreCase(mimeType)
+        || (fileName != null
+        && fileName.toLowerCase(Locale.ROOT).endsWith(".gif"));
 
 if (fileName != null) {
     String lowerName = fileName.toLowerCase(Locale.ROOT);
