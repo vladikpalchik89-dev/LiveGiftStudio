@@ -1078,8 +1078,9 @@ textParams.bottomMargin = 12;
 
     WindowManager.LayoutParams params =
             new WindowManager.LayoutParams(
-                    340,
-                    440,
+                    new WindowManager.LayoutParams(
+        340,
+        500,
                     type,
                     WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                             | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
