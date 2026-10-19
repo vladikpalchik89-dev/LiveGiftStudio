@@ -492,6 +492,7 @@ private void testAnimation(String type) {
 }
 
 
+
 private void showAnimationGiftCatalog() {
     String[] names = new String[giftCatalog.length];
 
@@ -505,11 +506,42 @@ private void showAnimationGiftCatalog() {
                 selectedGiftKey = giftCatalog[which][0];
                 selectedGiftName = giftCatalog[which][1];
                 selectedAnimationType = "gift";
-                chooseAnimationFile(PICK_ANIMATION_GIFT);
+
+                String key = "animation_gift_" + selectedGiftKey;
+
+                new AlertDialog.Builder(this)
+                        .setTitle(selectedGiftName)
+                        .setItems(
+                                new String[]{
+                                        "🎞️ Назначить фото, GIF или видео",
+                                        "▶ Проверить анимацию",
+                                        "🗑 Сбросить анимацию"
+                                },
+                                (d, action) -> {
+                                    if (action == 0) {
+                                        chooseAnimationFile(
+                                                PICK_ANIMATION_GIFT
+                                        );
+                                    } else if (action == 1) {
+                                        testAnimation(selectedGiftKey);
+                                    } else {
+                                        prefs.edit()
+                                                .remove(key)
+                                                .apply();
+
+                                        message(
+                                                "Анимация подарка сброшена"
+                                        );
+                                    }
+                                }
+                        )
+                        .setNegativeButton("Назад", null)
+                        .show();
             })
             .setNegativeButton("Отмена", null)
             .show();
-} 
+}
+
 private void showAppearanceSettings() {
     String[] options = {
             "🌌 Фон приложения",
