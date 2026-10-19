@@ -1034,9 +1034,9 @@ if (isGif) {
 
                 FrameLayout.LayoutParams videoParams =
                         new FrameLayout.LayoutParams(
-                                280,
-                                280,
-                                Gravity.CENTER
+                                300,
+                                300,
+Gravity.TOP | Gravity.CENTER_HORIZONTAL
                         );
 
                 root.addView(videoView, videoParams);
@@ -1048,7 +1048,7 @@ if (isGif) {
 
     TextView text = new TextView(this);
     text.setTextColor(Color.WHITE);
-    text.setTextSize(20);
+    text.setTextSize(18);
     text.setGravity(Gravity.CENTER);
     text.setPadding(20, 16, 20, 16);
 
@@ -1062,11 +1062,13 @@ if (isGif) {
     text.setText(displayMessage);
 
     FrameLayout.LayoutParams textParams =
-            new FrameLayout.LayoutParams(
-                    WindowManager.LayoutParams.WRAP_CONTENT,
-                    WindowManager.LayoutParams.WRAP_CONTENT,
-                    Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL
-            );
+        new FrameLayout.LayoutParams(
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL
+        );
+
+textParams.bottomMargin = 12;
 
     root.addView(text, textParams);
 
@@ -1076,8 +1078,8 @@ if (isGif) {
 
     WindowManager.LayoutParams params =
             new WindowManager.LayoutParams(
-                    320,
-                    380,
+                    340,
+                    440,
                     type,
                     WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                             | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
