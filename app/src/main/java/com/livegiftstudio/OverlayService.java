@@ -1004,10 +1004,10 @@ LinearLayout.LayoutParams animationAreaParams =
                 300,
                 300
         );   
-            Uri uri = Uri.parse(savedUri);
+            
+Uri uri = Uri.parse(savedUri);
 
 String mimeType = getContentResolver().getType(uri);
-
 String fileName = uri.getLastPathSegment();
 
 boolean isGif =
@@ -1015,8 +1015,13 @@ boolean isGif =
         || (fileName != null
         && fileName.toLowerCase(Locale.ROOT).endsWith(".gif"));
 
+boolean isImage =
+        mimeType != null
+        && mimeType.toLowerCase(Locale.ROOT).startsWith("image/");
+
 if (fileName != null) {
     String lowerName = fileName.toLowerCase(Locale.ROOT);
+
     if (lowerName.endsWith(".jpg")
             || lowerName.endsWith(".jpeg")
             || lowerName.endsWith(".png")
@@ -1027,6 +1032,7 @@ if (fileName != null) {
 }
 
 if (isGif) {
+
     GifView gifView = new GifView(this, uri);
 
     FrameLayout.LayoutParams gifParams =
