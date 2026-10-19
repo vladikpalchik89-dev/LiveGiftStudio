@@ -1043,12 +1043,16 @@ if (isGif) {
 
                 animationContainer.addView(videoView, videoParams);
             }
-                    root.addView(animationContainer, animationAreaParams);
-        } catch ( e) {
+                    
+                animationContainer.addView(videoView, videoParams);
+            }
+
+            root.addView(animationContainer, animationAreaParams);
+
+        } catch (Exception e) {
             android.util.Log.e(TAG, "Animation error", e);
         }
     }
-
     TextView text = new TextView(this);
     text.setTextColor(Color.WHITE);
     text.setTextSize(18);
@@ -1082,7 +1086,7 @@ root.addView(text, textParams);
 WindowManager.LayoutParams params =
         new WindowManager.LayoutParams(
                 340,
-                460
+                460,
                 type,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                         | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
