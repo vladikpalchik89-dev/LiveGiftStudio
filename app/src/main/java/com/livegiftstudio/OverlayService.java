@@ -1009,40 +1009,70 @@ LinearLayout.LayoutParams animationAreaParams =
 String mimeType = getContentResolver().getType(uri);
 
 String fileName = uri.getLastPathSegment();
-boolean isGif =
-        "image/gif".equalsIgnoreCase(mimeType)
-        || (fileName != null
-        && fileName.toLowerCase(Locale.ROOT).contains(".gif"));
+
+boolean isImage =
+        mimeType != null
+        && mimeType.toLowerCase(Locale.ROOT).startsWith("image/");
+
+if (fileName != null) {
+    String lowerName = fileName.toLowerCase(Locale.ROOT);
+    if (lowerName.endsWith(".jpg")
+            || lowerName.endsWith(".jpeg")
+            || lowerName.endsWith(".png")
+            || lowerName.endsWith(".webp")
+            || lowerName.endsWith(".bmp")) {
+        isImage = true;
+    }
+}
 
 if (isGif) {
-                GifView gifView = new GifView(this, uri);
+    GifView gifView = new GifView(this, uri);
 
-                FrameLayout.LayoutParams gifParams =
-                        new FrameLayout.LayoutParams(
-                                280,
-                                280,
-                                Gravity.CENTER
-                        );
+    FrameLayout.LayoutParams gifParams =
+            new FrameLayout.LayoutParams(
+                    280,
+                    280,
+                    Gravity.CENTER
+            );
 
-                animationContainer.addView(gifView, gifParams);
+    animationContainer.addView(gifView, gifParams);
 
-            } else {
-                VideoView videoView = new VideoView(this);
-                videoView.setVideoURI(uri);
-                videoView.setOnPreparedListener(player -> {
-                    player.setLooping(true);
-                    player.start();
-                });
+} else if (isImage) {
+    android.widget.ImageView imageView =
+            new android.widget.ImageView(this);
 
-                FrameLayout.LayoutParams videoParams =
-                        new FrameLayout.LayoutParams(
-        280,
-        280,
-        Gravity.TOP | Gravity.CENTER_HORIZONTAL
-);
-    
-                animationContainer.addView(videoView, videoParams);
-            }
+    imageView.setImageURI(uri);
+    imageView.setScaleType(
+            android.widget.ImageView.ScaleType.FIT_CENTER
+    );
+
+    FrameLayout.LayoutParams imageParams =
+            new FrameLayout.LayoutParams(
+                    280,
+                    280,
+                    Gravity.CENTER
+            );
+
+    animationContainer.addView(imageView, imageParams);
+
+} else {
+    VideoView videoView = new VideoView(this);
+    videoView.setVideoURI(uri);
+
+    videoView.setOnPreparedListener(player -> {
+        player.setLooping(true);
+        player.start();
+    });
+
+    FrameLayout.LayoutParams videoParams =
+            new FrameLayout.LayoutParams(
+                    280,
+                    280,
+                    Gravity.CENTER
+            );
+
+    animationContainer.addView(videoView, videoParams);
+}
 
             root.addView(animationContainer, animationAreaParams);
 
