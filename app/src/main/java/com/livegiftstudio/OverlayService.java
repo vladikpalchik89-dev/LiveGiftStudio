@@ -1082,8 +1082,8 @@ root.addView(text, textParams);
     
 WindowManager.LayoutParams params =
         new WindowManager.LayoutParams(
-                340,
-                460,
+                380,
+                560,
                 type,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                         | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
