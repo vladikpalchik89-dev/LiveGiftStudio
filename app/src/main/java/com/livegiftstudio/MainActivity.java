@@ -2009,11 +2009,11 @@ private void showMediaLibrary() {
         .setView(createMediaPreview(mime, storedName))
                         
                         .setPositiveButton("Назначить", (d, w) -> {
-                            if (!mime.startsWith("audio/")) {
-                                message("Для назначения звука выбери аудиофайл.");
-                                return;
-                            }
-
+                            
+if (mime == null || mime.isEmpty()) {
+    message("Не удалось определить тип файла.");
+    return;
+}
                             if (storedName.isEmpty()) {
                                 message("Не найден файл в медиатеке.");
                                 return;
@@ -2032,67 +2032,76 @@ private void showMediaLibrary() {
                                     Uri.fromFile(mediaFile).toString();
 
                             new AlertDialog.Builder(this)
-                                    .setTitle("Куда назначить звук?")
-                                    .setItems(new String[]{
-                                            "Звук подписки",
-                                            "Звук подарка",
-                                            "Звук доната DonationAlerts"
-                                    }, (targetDialog, choice) -> {
-                                        if (choice == 0) {
-                                            prefs.edit()
-                                                    .putString(
-                                                            "follow_sound_uri",
-                                                            fileUri)
-                                                    .apply();
+                                    .setTitle(mime != null && mime.startsWith("audio/")
+        ? "🔊 Куда назначить звук?"
+        : "🎞️ Куда назначить анимацию?")
+.setItems(mime != null && mime.startsWith("audio/")
+        ? new String[]{
+                "🔔 Подписка",
+                "🎁 Подарок",
+                "💰 Донат DonationAlerts"
+        }
+        : new String[]{
+                "🔔 Подписка",
+                "🎁 Подарок",
+                "💰 Донат DonationAlerts"
+        }, (targetDialog, choice) -> {
+    boolean isAudio = mime != null && mime.startsWith("audio/");
 
-                                            message("Звук подписки назначен!");
+    if (choice == 0) {
+        prefs.edit()
+                .putString(
+                        isAudio ? "follow_sound_uri" : "animation_follower_uri",
+                        fileUri)
+                .apply();
 
-                                        } else if (choice == 1) {
-                                            String[] giftNames =
-                                                    new String[giftCatalog.length];
+        message(isAudio
+                ? "Звук подписки назначен!"
+                : "Анимация подписки назначена!");
 
-                                            for (int i = 0;
-                                                 i < giftCatalog.length; i++) {
-                                                giftNames[i] =
-                                                        giftCatalog[i][1];
-                                            }
+    } else if (choice == 1) {
+        String[] giftNames = new String[giftCatalog.length];
 
-                                            new AlertDialog.Builder(this)
-                                                    .setTitle("Выбери подарок")
-                                                    .setItems(giftNames,
-                                                            (gd, giftIndex) -> {
-                                                                String giftKey =
-                                                                        giftCatalog[giftIndex][0];
+        for (int i = 0; i < giftCatalog.length; i++) {
+            giftNames[i] = giftCatalog[i][1];
+        }
 
-                                                                prefs.edit()
-                                                                        .putString(
-                                                                                "gift_sound_" + giftKey,
-                                                                                fileUri)
-                                                                        .apply();
+        new AlertDialog.Builder(this)
+                .setTitle("Выбери подарок")
+                .setItems(giftNames, (gd, giftIndex) -> {
+                    String giftKey = giftCatalog[giftIndex][0];
 
-                                                                message("Звук подарка назначен!");
-                                                            })
-                                                    .setNegativeButton(
-                                                            "Отмена", null)
-                                                    .show();
+                    prefs.edit()
+                            .putString(
+                                    (isAudio ? "gift_sound_" : "animation_gift_")
+                                            + giftKey,
+                                    fileUri)
+                            .apply();
 
-                                        } else {
-                                            prefs.edit()
-                                                    .putString(
-                                                            "donationalerts_sound_uri",
-                                                            fileUri)
-                                                    .apply();
+                    message(isAudio
+                            ? "Звук подарка назначен!"
+                            : "Анимация подарка назначена!");
+                })
+                .setNegativeButton("Отмена", null)
+                .show();
 
-                                            message(
-                                                    "Звук доната сохранён. " +
-                                                    "Для автоматического запуска " +
-                                                    "при донате потребуется подключить " +
-                                                    "обработчик DonationAlerts.");
-                                        }
-                                    })
-                                    .setNegativeButton("Отмена", null)
-                                    .show();
-                        })
+    } else {
+        prefs.edit()
+                .putString(
+                        isAudio
+                                ? "donationalerts_sound_uri"
+                                : "animation_donation_uri",
+                        fileUri)
+                .apply();
+
+        message(isAudio
+                ? "Звук доната сохранён. Для автоматического запуска нужен обработчик DonationAlerts."
+                : "Анимация доната назначена!");
+    }
+})
+.setNegativeButton("Отмена", null)
+.show();
+})
                         .setNeutralButton("Загрузить ещё", (d, w) -> {
                             new AlertDialog.Builder(this)
                                     .setItems(
