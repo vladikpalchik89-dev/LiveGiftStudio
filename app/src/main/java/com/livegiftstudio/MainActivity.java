@@ -212,8 +212,9 @@ setBackgroundColor(
 
 addMenuRow(
         "💖\nПроверить\nподписку", 0xFFFF1493,
+        "💰\nНазначить\nзвук доната", 0xFFFFB900,
         v -> testFollowEvent(),
-        v -> {}
+        v -> showSoundLibrary()
 );
 addMenuRow(
         "🧪\nТест\nдоната 50 ₽", 0xFF00C853,
