@@ -376,19 +376,22 @@ addMenuRow(
             .show();
 }
 
+
 private void chooseAnimationFile(int requestCode) {
     Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
     intent.addCategory(Intent.CATEGORY_OPENABLE);
     intent.setType("*/*");
+
     intent.putExtra(
             Intent.EXTRA_MIME_TYPES,
             new String[]{
-                    "image/gif",
+                    "image/*",
                     "video/mp4",
                     "video/webm",
                     "video/3gpp"
             }
     );
+
     intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
     intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
 
@@ -398,6 +401,8 @@ private void chooseAnimationFile(int requestCode) {
         message("Не удалось открыть выбор файла");
     }
 }
+
+
 private void testFollowEvent() {
     Intent intent = new Intent(this, OverlayService.class);
     intent.putExtra("test_follow", "yes");
