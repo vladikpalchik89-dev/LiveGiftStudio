@@ -2004,8 +2004,10 @@ private void showMediaLibrary() {
                 String storedName = item.optString("file", "");
 
                 new AlertDialog.Builder(this)
-                        .setTitle(name)
-                        .setMessage("Тип: " + mime)
+        .setTitle(name)
+        .setMessage("Тип: " + mime)
+        .setView(createMediaPreview(mime, storedName))
+                        
                         .setPositiveButton("Назначить", (d, w) -> {
                             if (!mime.startsWith("audio/")) {
                                 message("Для назначения звука выбери аудиофайл.");
@@ -2119,7 +2121,75 @@ private void showMediaLibrary() {
             .show();
 }
 
+private android.view.View createMediaPreview(
+        String mime, String storedName) {
 
+    File mediaDir = new File(getFilesDir(), "media_library");
+    File mediaFile = new File(mediaDir, storedName);
+
+    android.widget.FrameLayout container =
+            new android.widget.FrameLayout(this);
+
+    container.setLayoutParams(
+            new android.view.ViewGroup.LayoutParams(
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                    500));
+
+    if (!mediaFile.exists()) {
+        android.widget.TextView error =
+                new android.widget.TextView(this);
+        error.setText("Файл не найден");
+        error.setGravity(android.view.Gravity.CENTER);
+        container.addView(error);
+        return container;
+    }
+
+    Uri uri = Uri.fromFile(mediaFile);
+
+    if (mime.startsWith("image/")) {
+        android.widget.ImageView image =
+                new android.widget.ImageView(this);
+
+        image.setImageURI(uri);
+        image.setScaleType(
+                android.widget.ImageView.ScaleType.FIT_CENTER);
+
+        container.addView(image,
+                new android.widget.FrameLayout.LayoutParams(
+                        -1, -1));
+
+    } else if (mime.startsWith("video/")) {
+        android.widget.VideoView video =
+                new android.widget.VideoView(this);
+
+        container.addView(video,
+                new android.widget.FrameLayout.LayoutParams(
+                        -1, -1));
+
+        video.setVideoURI(uri);
+
+        android.widget.MediaController controls =
+                new android.widget.MediaController(this);
+        controls.setAnchorView(video);
+        video.setMediaController(controls);
+
+    } else {
+        android.widget.TextView info =
+                new android.widget.TextView(this);
+
+        info.setText(mime.startsWith("audio/")
+                ? "🔊 Аудиофайл"
+                : "Предпросмотр недоступен для этого типа файла");
+
+        info.setGravity(android.view.Gravity.CENTER);
+
+        container.addView(info,
+                new android.widget.FrameLayout.LayoutParams(
+                        -1, -1));
+    }
+
+    return container;
+}
     private void startOverlay() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
                 && !Settings.canDrawOverlays(this)) {
