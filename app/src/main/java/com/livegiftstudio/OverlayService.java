@@ -1040,10 +1040,7 @@ if (isGif) {
         280,
         Gravity.TOP | Gravity.CENTER_HORIZONTAL
 );
-
-                animationContainer.addView(videoView, videoParams);
-            }
-                    
+    
                 animationContainer.addView(videoView, videoParams);
             }
 
