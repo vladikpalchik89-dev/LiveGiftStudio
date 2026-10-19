@@ -1087,14 +1087,7 @@ WindowManager.LayoutParams params =
                         | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
                 PixelFormat.TRANSLUCENT
         );
-
-                    type,
-                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                            | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
-                            | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
-                    PixelFormat.TRANSLUCENT
-            );
-
+              
     params.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
     params.y = 160;
 
