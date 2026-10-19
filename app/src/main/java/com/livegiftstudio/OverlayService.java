@@ -1034,10 +1034,10 @@ if (isGif) {
 
                 FrameLayout.LayoutParams videoParams =
                         new FrameLayout.LayoutParams(
-                                300,
-                                300,
-Gravity.TOP | Gravity.CENTER_HORIZONTAL
-                        );
+        280,
+        280,
+        Gravity.TOP | Gravity.CENTER_HORIZONTAL
+);
 
                 root.addView(videoView, videoParams);
             }
@@ -1068,7 +1068,7 @@ Gravity.TOP | Gravity.CENTER_HORIZONTAL
                 Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL
         );
 
-textParams.bottomMargin = 12;
+textParams.bottomMargin = 8;
 
     root.addView(text, textParams);
 
@@ -1076,11 +1076,18 @@ textParams.bottomMargin = 12;
             ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
             : WindowManager.LayoutParams.TYPE_PHONE;
 
-    WindowManager.LayoutParams params =
-            new WindowManager.LayoutParams(
-                    new WindowManager.LayoutParams(
-        340,
-        500,
+    
+WindowManager.LayoutParams params =
+        new WindowManager.LayoutParams(
+                340,
+                500,
+                type,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                        | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+                        | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                PixelFormat.TRANSLUCENT
+        );
+
                     type,
                     WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                             | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
