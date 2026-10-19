@@ -212,8 +212,6 @@ setBackgroundColor(
 
 addMenuRow(
         "💖\nПроверить\nподписку", 0xFFFF1493,
-        "",
-        0xFF00C853,
         v -> testFollowEvent(),
         v -> {}
 );
