@@ -240,7 +240,8 @@ if ("yes".equals(testFollowSound)) {
                             "💰 ДОНАТ 50 RUB\n@ТестовыйЗритель\n💬 Проверка озвучки!",
                             "donation"
                     );
-
+                    
+                  playDonationSound();
                     speakText(
                             "Тестовый донат от Тестового зрителя. "
                                     + "Сумма 50 рублей. Проверка озвучки!"
@@ -834,6 +835,34 @@ private int getGiftCoins(String gift) {
     }
 }
 
+private void playDonationSound() {
+    stopCurrentSound();
+
+    String savedUri = prefs.getString(
+            "donationalerts_sound_uri", null);
+
+    android.util.Log.d(
+            TAG,
+            "DONATION SOUND URI: " + savedUri);
+
+    if (savedUri == null || savedUri.trim().isEmpty()) {
+        android.util.Log.w(
+                TAG,
+                "Звук доната не выбран — запускаю стандартный");
+        playBuiltInSound("heart");
+        return;
+    }
+
+    try {
+        playCustomSound(savedUri, "heart");
+    } catch (Exception e) {
+        android.util.Log.e(
+                TAG,
+                "Ошибка запуска звука доната", e);
+        playBuiltInSound("heart");
+    }
+}
+    
     private void playCustomSound(
             String savedUri, String gift) {
 
