@@ -55,6 +55,7 @@ private int menuRowIndex = 0;
 
     private static final int PICK_SOUND = 501;
     private static final int PICK_FOLLOW_SOUND = 502;
+    private static final int PICK_DONATION_SOUND = 503;
     private static final int PICK_MEDIA_FOLDER = 508;
 private static final int PICK_MEDIA_FILES = 509;
 private static final int PICK_ANIMATION_FOLLOWER = 601;
@@ -214,7 +215,7 @@ addMenuRow(
         "💖\nПроверить\nподписку", 0xFFFF1493,
         "💰\nНазначить\nзвук доната", 0xFFFFB900,
         v -> testFollowEvent(),
-        v -> showSoundLibrary()
+        v -> chooseDonationAlertSound()
 );
 addMenuRow(
         "🧪\nТест\nдоната 50 ₽", 0xFF00C853,
@@ -1440,6 +1441,27 @@ if (requestCode >= 504 && requestCode <= 507) {
             return;
         }
 
+        
+if (requestCode == PICK_DONATION_SOUND) {
+    if (resultCode == RESULT_OK
+            && data != null
+            && data.getData() != null) {
+
+        Uri uri = data.getData();
+
+        try {
+            getContentResolver().takePersistableUriPermission(
+                    uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        } catch (Exception ignored) {}
+
+        prefs.edit()
+                .putString("donationalerts_sound_uri", uri.toString())
+                .apply();
+
+        message("Звук доната DonationAlerts сохранён");
+    }
+    return;
+}
         if (requestCode != PICK_SOUND
                 || resultCode != RESULT_OK
                 || data == null
@@ -1790,6 +1812,19 @@ private void displayVoiceSettings() {
             message("Не удалось открыть выбор звука");
         }
     }
+    private void chooseDonationAlertSound() {
+    Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+    intent.addCategory(Intent.CATEGORY_OPENABLE);
+    intent.setType("audio/*");
+    intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+    intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+
+    try {
+        startActivityForResult(intent, PICK_DONATION_SOUND);
+    } catch (Exception e) {
+        message("Не удалось открыть выбор звука доната");
+    }
+}
 private void chooseMediaFolder() {
     Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
     intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
