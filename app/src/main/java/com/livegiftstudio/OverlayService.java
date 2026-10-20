@@ -49,6 +49,54 @@ import okhttp3.WebSocketListener;
 
 public class OverlayService extends Service {
 
+private void startForegroundNotification() {
+    String channelId = "livegiftstudio_service";
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        NotificationChannel channel =
+                new NotificationChannel(
+                        channelId,
+                        "LiveGiftStudio в фоне",
+                        NotificationManager.IMPORTANCE_LOW
+                );
+
+        channel.setDescription(
+                "Озвучка комментариев TikTok LIVE"
+        );
+
+        NotificationManager manager =
+                getSystemService(NotificationManager.class);
+
+        if (manager != null) {
+            manager.createNotificationChannel(channel);
+        }
+    }
+
+    Notification notification;
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        notification = new Notification.Builder(this, channelId)
+                .setContentTitle("LiveGiftStudio PRO")
+                .setContentText(
+                        "Озвучка TikTok LIVE работает в фоне"
+                )
+                .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+                .setOngoing(true)
+                .build();
+    } else {
+        notification = new Notification.Builder(this)
+                .setContentTitle("LiveGiftStudio PRO")
+                .setContentText(
+                        "Озвучка TikTok LIVE работает в фоне"
+                )
+                .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+                .setOngoing(true)
+                .build();
+    }
+
+    startForeground(1001, notification);
+}
+
     private static final String TAG = "LiveGiftStudio";  
     private static final String CHANNEL_ID = "livegiftstudio_service";
     private static final String ACTION_STOP_CHAT_SPEECH =
@@ -78,14 +126,16 @@ public class OverlayService extends Service {
 private long lastGiftEventTime = 0;
     private Runnable removeTask;
     private boolean destroyed = false;
+@Override
+public void onCreate() {
+    super.onCreate();
 
-    @Override
-    public void onCreate() {
-        super.onCreate();
-        android.util.Log.e(
-        TAG,
-        "OVERLAY SERVICE CREATED"
-);
+    startForegroundNotification();
+
+    android.util.Log.e(
+            TAG,
+            "OVERLAY SERVICE CREATED"
+    );
     startForegroundNotification();
         prefs = getSharedPreferences(
                 "LiveGiftStudio", MODE_PRIVATE);
