@@ -356,27 +356,52 @@ try {
                         return;
                     }
 
+                  
                     // Сообщение в чате
-                    if (type.equals("chat")) {
+                    if (type.equals("chat")
+                            || type.equals("comment")) {
+
                         String username = event.optString(
-                                "username", "Зритель");
+                                "username",
+                                event.optString("nickname", "Зритель"));
 
-                        String comment = event.optString(
-                                "comment", "");
+                        String comment = event.optString("comment", "");
 
-                        if (chatSpeechEnabled && !comment.trim().isEmpty()) {
+                        if (comment.trim().isEmpty()) {
+                            comment = event.optString("message", "");
+                        }
+
+                        if (comment.trim().isEmpty()) {
+                            comment = event.optString("text", "");
+                        }
+
+                        android.util.Log.d(
+                                TAG,
+                                "CHAT: user=" + username
+                                        + ", comment=" + comment
+                                        + ", enabled=" + chatSpeechEnabled
+                                        + ", ttsReady=" + ttsReady
+                        );
+
+                        final String finalComment = comment.trim();
+                        final String finalUsername = username;
+
+                        if (chatSpeechEnabled
+                                && !finalComment.isEmpty()) {
+
                             handler.post(() -> {
                                 if (!destroyed) {
                                     speakTextForUser(
-        null,
-        comment
-);
+                                            finalUsername,
+                                            finalComment
+                                    );
                                 }
                             });
                         }
 
                         return;
                     }
+  
 
                    // ТЕСТОВЫЙ ДОНАТ — без реальной оплаты
 if (type.equals("test_donation")) {
