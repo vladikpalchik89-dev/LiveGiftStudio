@@ -392,6 +392,15 @@ try {
                                         + ", enabled=" + chatSpeechEnabled
                                         + ", ttsReady=" + ttsReady
                         );
+                        
+
+android.util.Log.e(
+        TAG,
+        "CHAT DEBUG: enabled=" + chatSpeechEnabled
+                + ", ttsReady=" + ttsReady
+                + ", destroyed=" + destroyed
+                + ", comment=" + comment
+);
 
                         final String finalComment = comment.trim();
                         final String finalUsername = username;
