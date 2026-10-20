@@ -1378,7 +1378,9 @@ private void removeOverlay() {
 }
 
     // 30 вариантов звучания и настройка громкости.
-
+private void speakText(String text) {
+    speakTextForUser(null, text);
+}
 private void speakTextForUser(
         String username, String text) {
 
