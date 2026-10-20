@@ -533,25 +533,37 @@ lastGiftEventTime = now;
                 }
             }
 
-            @Override
-            public void onFailure(
-                    WebSocket socket,
-                    Throwable error,
-                    Response response) {
+            
 
-                android.util.Log.e(
-                        TAG,
-                        "WebSocket connection failed",
-                        error);
+@Override
+public void onFailure(
+        WebSocket socket,
+        Throwable error,
+        Response response) {
 
-                if (!destroyed && socket == webSocket) {
-                    handler.postDelayed(() -> {
-                        if (!destroyed) {
-                            connectToServer();
-                        }
-                    }, 5000);
-                }
+    int httpCode = -1;
+
+    if (response != null) {
+        httpCode = response.code();
+    }
+
+    android.util.Log.e(
+            TAG,
+            "WebSocket FAILED. HTTP="
+                    + httpCode
+                    + ", error="
+                    + error.getMessage(),
+            error
+    );
+
+    if (!destroyed && socket == webSocket) {
+        handler.postDelayed(() -> {
+            if (!destroyed && socket == webSocket) {
+                connectToServer();
             }
+        }, 5000);
+    }
+}
 
             @Override
             public void onClosed(
