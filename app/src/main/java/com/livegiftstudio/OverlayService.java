@@ -292,7 +292,17 @@ if ("yes".equals(testFollowSound)) {
             @Override
             public void onMessage(
                     WebSocket socket, String text) {
+                
+android.util.Log.d(
+        TAG,
+        "WEBSOCKET EVENT: " + text
+);
 
+android.widget.Toast.makeText(
+        OverlayService.this,
+        "Получено событие: " + text,
+        android.widget.Toast.LENGTH_LONG
+).show();
                 try {
                     JSONObject event = new JSONObject(text);
 
