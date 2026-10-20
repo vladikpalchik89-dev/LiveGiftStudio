@@ -240,16 +240,30 @@ function getGiftInfo(data) {
   };
 }
 
-wss.on("connection", (socket) => {
-  console.log("WebSocket client connected");
+
+
+wss.on("connection", (socket, req) => {
+  console.log(
+    "WebSocket client connected:",
+    req.socket.remoteAddress
+  );
 
   socket.send(JSON.stringify({
     type: "connected",
     message: "LiveGiftStudio connected"
   }));
 
-  socket.on("close", () => console.log("WebSocket client disconnected"));
-  socket.on("error", (error) => console.error("WebSocket error:", error.message));
+  socket.on("close", (code, reason) => {
+    console.log(
+      "WebSocket client disconnected:",
+      "code =", code,
+      "reason =", reason.toString()
+    );
+  });
+
+  socket.on("error", (error) => {
+    console.error("WebSocket error:", error.message);
+  });
 });
 
 
