@@ -313,11 +313,6 @@ android.util.Log.d(
         "WEBSOCKET EVENT: " + text
 );
 
-android.widget.Toast.makeText(
-        OverlayService.this,
-        "Получено событие: " + text,
-        android.widget.Toast.LENGTH_LONG
-).show();
                 try {
                     JSONObject event = new JSONObject(text);
 
