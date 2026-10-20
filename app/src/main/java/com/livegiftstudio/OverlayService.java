@@ -170,46 +170,7 @@ public void onCreate() {
     public IBinder onBind(Intent intent) {
         return null;
     }
-    
-private void startForegroundNotification() {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        NotificationChannel channel = new NotificationChannel(
-                CHANNEL_ID,
-                "LiveGiftStudio — работа в фоне",
-                NotificationManager.IMPORTANCE_LOW
-        );
-
-        channel.setDescription(
-                "Подключение к TikTok LIVE и озвучка сообщений"
-        );
-
-        NotificationManager manager =
-                (NotificationManager) getSystemService(
-                        NOTIFICATION_SERVICE
-                );
-
-        if (manager != null) {
-            manager.createNotificationChannel(channel);
-        }
-    }
-
-    Notification.Builder builder;
-
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        builder = new Notification.Builder(this, CHANNEL_ID);
-    } else {
-        builder = new Notification.Builder(this);
-    }
-
-    builder.setContentTitle("LiveGiftStudio PRO")
-            .setContentText("Озвучка TikTok LIVE работает в фоне")
-            .setSmallIcon(android.R.drawable.ic_media_play)
-            .setOngoing(true);
-
-    startForeground(NOTIFICATION_ID, builder.build());
-}
-
- 
+     
 @Override
 public int onStartCommand(
         Intent intent, int flags, int startId) {
