@@ -281,13 +281,24 @@ if ("yes".equals(testFollowSound)) {
         webSocket = client.newWebSocket(
                 request, new WebSocketListener() {
 
-            @Override
-            public void onOpen(
-                    WebSocket socket, Response response) {
+            
+@Override
+public void onOpen(
+        WebSocket socket,
+        Response response) {
 
-                android.util.Log.d(
-                        TAG, "WebSocket connected");
-            }
+    android.util.Log.d(
+            TAG,
+            "WebSocket connected"
+    );
+
+    android.util.Log.e(
+            TAG,
+            "WEBSOCKET OPEN: соединение установлено"
+    );
+}
+
+            
 
             @Override
             public void onMessage(
