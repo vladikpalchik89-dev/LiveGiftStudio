@@ -82,6 +82,10 @@ private long lastGiftEventTime = 0;
     @Override
     public void onCreate() {
         super.onCreate();
+        android.util.Log.e(
+        TAG,
+        "OVERLAY SERVICE CREATED"
+);
     startForegroundNotification();
         prefs = getSharedPreferences(
                 "LiveGiftStudio", MODE_PRIVATE);
@@ -1435,7 +1439,10 @@ private void speakTextForUser(
     @Override
     public void onDestroy() {
         destroyed = true;
-
+android.util.Log.e(
+        TAG,
+        "OVERLAY SERVICE DESTROYED"
+);
         if (textToSpeech != null) {
             textToSpeech.stop();
             textToSpeech.shutdown();
