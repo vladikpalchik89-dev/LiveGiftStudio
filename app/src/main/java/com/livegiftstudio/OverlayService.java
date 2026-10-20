@@ -126,6 +126,8 @@ private void startForegroundNotification() {
 private long lastGiftEventTime = 0;
     private Runnable removeTask;
     private boolean destroyed = false;
+
+
 @Override
 public void onCreate() {
     super.onCreate();
@@ -136,12 +138,12 @@ public void onCreate() {
             TAG,
             "OVERLAY SERVICE CREATED"
     );
-    startForegroundNotification();
-        prefs = getSharedPreferences(
-                "LiveGiftStudio", MODE_PRIVATE);
 
-        windowManager = (WindowManager)
-                getSystemService(WINDOW_SERVICE);
+    prefs = getSharedPreferences(
+            "LiveGiftStudio", MODE_PRIVATE);
+
+    windowManager = (WindowManager)
+            getSystemService(WINDOW_SERVICE);
 
         textToSpeech = new TextToSpeech(
                 this,
