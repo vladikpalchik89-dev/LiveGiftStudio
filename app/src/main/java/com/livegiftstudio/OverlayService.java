@@ -1378,19 +1378,24 @@ private void removeOverlay() {
 }
 
     // 30 вариантов звучания и настройка громкости.
-private void speakText(String text) {
-    speakTextForUser(null, text);
-}
 
-// Для каждого сообщения выбираем случайный стиль.
 private void speakTextForUser(
         String username, String text) {
 
+    android.util.Log.e(TAG,
+            "SPEAK CALLED: user=" + username
+                    + ", text=" + text
+                    + ", ttsReady=" + ttsReady
+                    + ", ttsNull=" + (textToSpeech == null)
+                    + ", destroyed=" + destroyed);
+
     if (textToSpeech == null || !ttsReady
             || text == null || text.trim().isEmpty()) {
+
+        android.util.Log.e(TAG,
+                "SPEAK SKIPPED: TTS not ready or text empty");
         return;
     }
-
     float[] pitches = {
         0.65f, 0.70f, 0.75f, 0.80f, 0.85f,
         0.90f, 0.95f, 1.00f, 1.05f, 1.10f,
