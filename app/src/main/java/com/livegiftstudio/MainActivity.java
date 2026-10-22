@@ -2783,8 +2783,8 @@ private void switchServerAccount(String username) {
                     "Content-Type", "application/json; charset=UTF-8"
             );
 
-            String key = prefs.getString("account_switch_key", "");
-
+            String key = ACCOUNT_SWITCH_KEY;
+connection.setRequestProperty("x-switch-key", key);
 if (key.isEmpty()) {
     runOnUiThread(() -> {
         EditText keyInput = new EditText(MainActivity.this);
@@ -2814,9 +2814,6 @@ if (key.isEmpty()) {
     });
     return;
 }
-
-            connection.setRequestProperty("x-switch-key", key);
-
             JSONObject json = new JSONObject();
             json.put("username", username);
 
