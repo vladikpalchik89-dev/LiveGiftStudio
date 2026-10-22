@@ -2765,6 +2765,7 @@ private void editTikTokAccount(int index) {
             .show();
 }
    private static final String ACCOUNT_SWITCH_KEY =4upcKlUY0OvZBQvndYby9pQE7cHVaB
+
 private void switchServerAccount(String username) {
     new Thread(() -> {
         HttpURLConnection connection = null;
@@ -2779,20 +2780,24 @@ private void switchServerAccount(String username) {
             connection.setConnectTimeout(15000);
             connection.setReadTimeout(15000);
             connection.setDoOutput(true);
+
             connection.setRequestProperty(
-                    "Content-Type", "application/json; charset=UTF-8"
+                    "Content-Type",
+                    "application/json; charset=UTF-8"
             );
 
-            String key = ACCOUNT_SWITCH_KEY;
-connection.setRequestProperty("x-switch-key", key);
-}
+            connection.setRequestProperty(
+                    "x-switch-key",
+                    ACCOUNT_SWITCH_KEY
+            );
+
             JSONObject json = new JSONObject();
             json.put("username", username);
 
             try (OutputStream output = connection.getOutputStream()) {
-                output.write(json.toString().getBytes(
-                        StandardCharsets.UTF_8
-                ));
+                output.write(
+                        json.toString().getBytes(StandardCharsets.UTF_8)
+                );
             }
 
             int status = connection.getResponseCode();
@@ -2801,7 +2806,7 @@ connection.setRequestProperty("x-switch-key", key);
                 if (status >= 200 && status < 300) {
                     message("Сервер переключён на @" + username);
                 } else {
-                    message("Сервер не переключился. Код: " + status);
+                    message("Ошибка переключения сервера. Код: " + status);
                 }
             });
 
@@ -2816,6 +2821,7 @@ connection.setRequestProperty("x-switch-key", key);
         }
     }).start();
 }
+
     private void showTikTokConnection() {
         EditText input = new EditText(this);
         input.setHint("Например: @username");
