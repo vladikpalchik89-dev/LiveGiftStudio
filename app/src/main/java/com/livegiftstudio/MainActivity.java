@@ -2764,9 +2764,8 @@ private void editTikTokAccount(int index) {
             })
             .show();
 }
-   private static final String ACCOUNT_SWITCH_KEY =4upcKlUY0OvZBQvndYby9pQE7cHVaB;
-
-private void switchServerAccount(String username) {
+   private static final String ACCOUNT_SWITCHKKEY ="4upcKlUY0OvZBQvndYby9pQE7cHVaB";
+ACCOUNTe void switchServerAccount(String username) {
     new Thread(() -> {
         HttpURLConnection connection = null;
 
