@@ -2764,7 +2764,7 @@ private void editTikTokAccount(int index) {
             })
             .show();
 }
-   private static final String ACCOUNT_SWITCH_KEY =LGS_Switch_7Kp92mQx_2026_Rt5V 
+   private static final String ACCOUNT_SWITCH_KEY =4upcKlUY0OvZBQvndYby9pQE7cHVaB
 private void switchServerAccount(String username) {
     new Thread(() -> {
         HttpURLConnection connection = null;
@@ -2785,34 +2785,6 @@ private void switchServerAccount(String username) {
 
             String key = ACCOUNT_SWITCH_KEY;
 connection.setRequestProperty("x-switch-key", key);
-if (key.isEmpty()) {
-    runOnUiThread(() -> {
-        EditText keyInput = new EditText(MainActivity.this);
-        keyInput.setSingleLine(true);
-        keyInput.setHint("Введи ключ из Render");
-
-        new AlertDialog.Builder(MainActivity.this)
-                .setTitle("🔐 Ключ переключения")
-                .setMessage("Введи значение ACCOUNT_SWITCH_KEY из настроек Render.")
-                .setView(keyInput)
-                .setNegativeButton("Отмена", null)
-                .setPositiveButton("Сохранить", (dialog, which) -> {
-                    String enteredKey = keyInput.getText().toString().trim();
-
-                    if (enteredKey.isEmpty()) {
-                        message("Ключ не введён");
-                        return;
-                    }
-
-                    prefs.edit()
-                            .putString("account_switch_key", enteredKey)
-                            .apply();
-
-                    switchServerAccount(username);
-                })
-                .show();
-    });
-    return;
 }
             JSONObject json = new JSONObject();
             json.put("username", username);
