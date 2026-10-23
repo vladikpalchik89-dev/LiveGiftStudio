@@ -710,6 +710,54 @@ public void onFailure(
         handler.postDelayed(reconnectTask, delayMs);
     }
 
+    private android.graphics.Bitmap decodeSampledBitmap(
+            Uri uri, int reqWidth, int reqHeight) {
+        try {
+            android.graphics.BitmapFactory.Options options =
+                    new android.graphics.BitmapFactory.Options();
+
+            options.inJustDecodeBounds = true;
+
+            try (java.io.InputStream input =
+                         getContentResolver().openInputStream(uri)) {
+                if (input == null) return null;
+                android.graphics.BitmapFactory.decodeStream(
+                        input, null, options);
+            }
+
+            options.inSampleSize = calculateInSampleSize(
+                    options.outWidth, options.outHeight,
+                    reqWidth, reqHeight);
+            options.inJustDecodeBounds = false;
+
+            try (java.io.InputStream input =
+                         getContentResolver().openInputStream(uri)) {
+                if (input == null) return null;
+                return android.graphics.BitmapFactory.decodeStream(
+                        input, null, options);
+            }
+        } catch (Exception e) {
+            android.util.Log.e(TAG, "Не удалось прочитать картинку", e);
+            return null;
+        }
+    }
+
+    private int calculateInSampleSize(
+            int width, int height, int reqWidth, int reqHeight) {
+        int sampleSize = 1;
+
+        if (width <= 0 || height <= 0) {
+            return sampleSize;
+        }
+
+        while (width / (sampleSize * 2) >= reqWidth
+                && height / (sampleSize * 2) >= reqHeight) {
+            sampleSize *= 2;
+        }
+
+        return sampleSize;
+    }
+
 private int getGiftImageResource(String gift) {
     String key = getGiftKey(gift);
 
@@ -1219,7 +1267,15 @@ if (isGif) {
     android.widget.ImageView imageView =
             new android.widget.ImageView(this);
 
-    imageView.setImageURI(uri);
+    // Полноразмерное фото 12 Мп — это ~48 МБ в памяти, на слабом
+    // телефоне приложение падало с OutOfMemoryError.
+    android.graphics.Bitmap bitmap =
+            decodeSampledBitmap(uri, 560, 560);
+
+    if (bitmap != null) {
+        imageView.setImageBitmap(bitmap);
+    }
+
     imageView.setScaleType(
             android.widget.ImageView.ScaleType.FIT_CENTER
     );

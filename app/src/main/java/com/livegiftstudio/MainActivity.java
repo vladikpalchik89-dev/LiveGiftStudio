@@ -1340,19 +1340,27 @@ if (requestCode == PICK_MEDIA_FOLDER) {
         return;
     }
 
-    Uri folderUri = data.getData();
+    final Uri folderUri = data.getData();
 
     try {
         getContentResolver().takePersistableUriPermission(
                 folderUri,
                 Intent.FLAG_GRANT_READ_URI_PERMISSION
         );
-
-        importMediaFolder(folderUri);
-
     } catch (Exception e) {
         message("Не удалось открыть папку");
+        return;
     }
+
+    // Копирование папки — долгая операция, в UI-потоке она вешала
+    // приложение на несколько секунд (ANR).
+    message("Импорт начат, это может занять время");
+    executor.execute(() -> {
+        int imported = importMediaFolder(folderUri);
+
+        runOnUiThread(() ->
+                message("Импортировано файлов: " + imported));
+    });
 
     return;
 }
@@ -1363,20 +1371,40 @@ if (requestCode == PICK_MEDIA_FILES) {
         return;
     }
 
+    final ArrayList<Uri> uris = new ArrayList<>();
+
     if (data.getClipData() != null) {
         android.content.ClipData clips = data.getClipData();
 
         for (int i = 0; i < clips.getItemCount(); i++) {
-            Uri fileUri = clips.getItemAt(i).getUri();
-            importMediaFile(fileUri);
+            uris.add(clips.getItemAt(i).getUri());
         }
 
     } else if (data.getData() != null) {
-        importMediaFile(data.getData());
+        uris.add(data.getData());
     }
+
+    if (uris.isEmpty()) {
+        return;
+    }
+
+    executor.execute(() -> {
+        int imported = 0;
+
+        for (Uri fileUri : uris) {
+            if (importMediaFile(fileUri)) {
+                imported++;
+            }
+        }
+
+        final int total = imported;
+        runOnUiThread(() ->
+                message("Импортировано файлов: " + total));
+    });
 
     return;
 }
+
         if (requestCode >= PICK_ANIMATION_FOLLOWER
         && requestCode <= PICK_ANIMATION_GIFT) {
 
@@ -1944,8 +1972,8 @@ private void chooseMediaFiles() {
     }
 }
     
-private void importMediaFile(Uri uri) {
-    if (uri == null) return;
+private boolean importMediaFile(Uri uri) {
+    if (uri == null) return false;
 
     try {
         getContentResolver().takePersistableUriPermission(
@@ -1969,15 +1997,17 @@ private void importMediaFile(Uri uri) {
         }
     } catch (Exception ignored) {}
 
-    copyMediaToApp(uri, name, mime);
+    return copyMediaToApp(uri, name, mime);
 }
 
-private void importMediaFolder(Uri treeUri) {
-    importMediaFolderContents(treeUri,
+private int importMediaFolder(Uri treeUri) {
+    return importMediaFolderContents(treeUri,
             android.provider.DocumentsContract.getTreeDocumentId(treeUri));
 }
 
-private void importMediaFolderContents(Uri treeUri, String parentId) {
+private int importMediaFolderContents(Uri treeUri, String parentId) {
+    int imported = 0;
+
     android.net.Uri childrenUri =
             android.provider.DocumentsContract.buildChildDocumentsUriUsingTree(
                     treeUri, parentId);
@@ -1992,7 +2022,7 @@ private void importMediaFolderContents(Uri treeUri, String parentId) {
                     },
                     null, null, null)) {
 
-        if (cursor == null) return;
+        if (cursor == null) return imported;
 
         while (cursor.moveToNext()) {
             String id = cursor.getString(0);
@@ -2001,26 +2031,30 @@ private void importMediaFolderContents(Uri treeUri, String parentId) {
 
             if (android.provider.DocumentsContract.Document.MIME_TYPE_DIR
                     .equals(mime)) {
-                importMediaFolderContents(treeUri, id);
+                imported += importMediaFolderContents(treeUri, id);
             } else {
                 Uri fileUri =
                         android.provider.DocumentsContract.buildDocumentUriUsingTree(
                                 treeUri, id);
-                copyMediaToApp(fileUri, name, mime);
+                if (copyMediaToApp(fileUri, name, mime)) {
+                    imported++;
+                }
             }
         }
     } catch (Exception e) {
         message("Ошибка чтения папки: " + e.getMessage());
     }
+
+    return imported;
 }
 
-private void copyMediaToApp(Uri uri, String name, String mime) {
+private boolean copyMediaToApp(Uri uri, String name, String mime) {
     java.io.File directory =
             new java.io.File(getFilesDir(), "media_library");
 
     if (!directory.exists() && !directory.mkdirs()) {
         message("Не удалось создать хранилище");
-        return;
+        return false;
     }
 
     String safeName = name == null ? "media_file" :
@@ -2039,7 +2073,7 @@ private void copyMediaToApp(Uri uri, String name, String mime) {
 
         if (input == null) {
             message("Не удалось прочитать файл: " + safeName);
-            return;
+            return false;
         }
 
         byte[] buffer = new byte[8192];
@@ -2068,11 +2102,12 @@ private void copyMediaToApp(Uri uri, String name, String mime) {
                 .putString("media_library_items", library.toString())
                 .apply();
 
-        message("Сохранено: " + safeName);
+        return true;
 
     } catch (Exception e) {
         if (destination.exists()) destination.delete();
         message("Ошибка сохранения: " + safeName);
+        return false;
     }
 }
 
@@ -2285,7 +2320,13 @@ private android.view.View createMediaPreview(
         android.widget.ImageView image =
                 new android.widget.ImageView(this);
 
-        image.setImageURI(uri);
+        android.graphics.Bitmap bitmap =
+                decodeSampledBitmap(uri, 1080, 1080);
+
+        if (bitmap != null) {
+            image.setImageBitmap(bitmap);
+        }
+
         image.setScaleType(
                 android.widget.ImageView.ScaleType.FIT_CENTER);
 
@@ -2725,7 +2766,62 @@ private void testDonation() {
 
     
     private void message(String text) {
-        Toast.makeText(this, text, Toast.LENGTH_LONG).show();
+        // Импорт медиа идёт в фоновом потоке, а Toast можно показывать
+        // только из потока с Looper.
+        if (android.os.Looper.myLooper()
+                == android.os.Looper.getMainLooper()) {
+            Toast.makeText(this, text, Toast.LENGTH_LONG).show();
+        } else {
+            runOnUiThread(() ->
+                    Toast.makeText(this, text, Toast.LENGTH_LONG).show());
+        }
+    }
+
+    private android.graphics.Bitmap decodeSampledBitmap(
+            Uri uri, int reqWidth, int reqHeight) {
+        try {
+            android.graphics.BitmapFactory.Options options =
+                    new android.graphics.BitmapFactory.Options();
+
+            options.inJustDecodeBounds = true;
+
+            try (java.io.InputStream input =
+                         getContentResolver().openInputStream(uri)) {
+                if (input == null) return null;
+                android.graphics.BitmapFactory.decodeStream(
+                        input, null, options);
+            }
+
+            options.inSampleSize = calculateInSampleSize(
+                    options.outWidth, options.outHeight,
+                    reqWidth, reqHeight);
+            options.inJustDecodeBounds = false;
+
+            try (java.io.InputStream input =
+                         getContentResolver().openInputStream(uri)) {
+                if (input == null) return null;
+                return android.graphics.BitmapFactory.decodeStream(
+                        input, null, options);
+            }
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private int calculateInSampleSize(
+            int width, int height, int reqWidth, int reqHeight) {
+        int sampleSize = 1;
+
+        if (width <= 0 || height <= 0) {
+            return sampleSize;
+        }
+
+        while (width / (sampleSize * 2) >= reqWidth
+                && height / (sampleSize * 2) >= reqHeight) {
+            sampleSize *= 2;
+        }
+
+        return sampleSize;
     }
 
     
