@@ -155,6 +155,28 @@ try {
 
         loadStats();
         buildInterface();
+        requestNotificationPermission();
+    }
+
+    // Android 13+ не показывает уведомление foreground-сервиса без этого
+    // разрешения, и тогда сервис не остановить из шторки.
+    private void requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT < 33) {
+            return;
+        }
+
+        if (checkSelfPermission(
+                android.Manifest.permission.POST_NOTIFICATIONS)
+                == android.content.pm.PackageManager
+                        .PERMISSION_GRANTED) {
+            return;
+        }
+
+        requestPermissions(
+                new String[]{
+                        android.Manifest.permission.POST_NOTIFICATIONS
+                },
+                900);
     }
  
 private void buildInterface() {
@@ -2952,12 +2974,6 @@ protected void onStop() {
         } catch (Exception ignored) {}
     }
 
-        if (voicePreview != null) {
-        try {
-            voicePreview.stop();
-        } catch (Exception ignored) {}
-    }
-
     Intent stopSpeechIntent =
             new Intent(MainActivity.this, OverlayService.class);
 
@@ -2965,7 +2981,15 @@ protected void onStop() {
             "com.livegiftstudio.STOP_CHAT_SPEECH"
     );
 
-    startService(stopSpeechIntent);
+    // Если сервис уже не запущен, startService из фона бросит
+    // BackgroundServiceStartNotAllowedException и приложение упадёт.
+    try {
+        startService(stopSpeechIntent);
+    } catch (Exception e) {
+        android.util.Log.d(
+                "LiveGiftStudio",
+                "Сервис не запущен, останавливать озвучку нечего");
+    }
 
     super.onStop();
 }

@@ -3,6 +3,7 @@ package com.livegiftstudio;
 import android.app.Service;
 import android.app.Notification;
 import android.app.NotificationChannel;
+import android.app.PendingIntent;
 import android.app.NotificationManager;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -40,6 +41,7 @@ import org.json.JSONObject;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.TimeUnit;
 
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -72,29 +74,42 @@ private void startForegroundNotification() {
         }
     }
 
-    Notification notification;
+    Intent openIntent = new Intent(this, MainActivity.class);
+    openIntent.setFlags(
+            Intent.FLAG_ACTIVITY_NEW_TASK
+                    | Intent.FLAG_ACTIVITY_CLEAR_TOP);
 
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        notification = new Notification.Builder(this, channelId)
-                .setContentTitle("LiveGiftStudio PRO")
-                .setContentText(
-                        "Озвучка TikTok LIVE работает в фоне"
-                )
-                .setSmallIcon(android.R.drawable.ic_btn_speak_now)
-                .setOngoing(true)
-                .build();
-    } else {
-        notification = new Notification.Builder(this)
-                .setContentTitle("LiveGiftStudio PRO")
-                .setContentText(
-                        "Озвучка TikTok LIVE работает в фоне"
-                )
-                .setSmallIcon(android.R.drawable.ic_btn_speak_now)
-                .setOngoing(true)
-                .build();
-    }
+    PendingIntent contentIntent = PendingIntent.getActivity(
+            this, 0, openIntent, PendingIntent.FLAG_IMMUTABLE);
 
-    startForeground(1001, notification);
+    // Без этой кнопки сервис нельзя было остановить иначе как
+    // убив приложение целиком.
+    Intent stopIntent = new Intent(this, OverlayService.class)
+            .setAction(ACTION_STOP);
+
+    PendingIntent stopPendingIntent = PendingIntent.getService(
+            this, 1, stopIntent, PendingIntent.FLAG_IMMUTABLE);
+
+    Notification.Builder builder =
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                    ? new Notification.Builder(this, channelId)
+                    : new Notification.Builder(this);
+
+    Notification notification = builder
+            .setContentTitle("LiveGiftStudio PRO")
+            .setContentText(
+                    "Озвучка TikTok LIVE работает в фоне"
+            )
+            .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+            .setOngoing(true)
+            .setContentIntent(contentIntent)
+            .addAction(
+                    android.R.drawable.ic_menu_close_clear_cancel,
+                    "Остановить",
+                    stopPendingIntent)
+            .build();
+
+    startForeground(NOTIFICATION_ID, notification);
 }
 
     private static final String TAG = "LiveGiftStudio";  
@@ -103,6 +118,8 @@ private void startForegroundNotification() {
         "com.livegiftstudio.STOP_CHAT_SPEECH";
     private static final String ACTION_START_CHAT_SPEECH =
         "com.livegiftstudio.START_CHAT_SPEECH";
+    private static final String ACTION_STOP =
+        "com.livegiftstudio.STOP_SERVICE";
     private static final int NOTIFICATION_ID = 1001;
     private static final String SOCKET_URL =
             "wss://livegiftstudio.onrender.com/events";
@@ -125,7 +142,9 @@ private void startForegroundNotification() {
     private String lastGiftEventKey = "";
 private long lastGiftEventTime = 0;
     private Runnable removeTask;
-    private boolean destroyed = false;
+    private Runnable reconnectTask;
+    private int reconnectAttempts = 0;
+    private volatile boolean destroyed = false;
 
 
 @Override
@@ -178,6 +197,16 @@ public int onStartCommand(
         Intent intent, int flags, int startId) {
 
     if (intent != null
+            && ACTION_STOP.equals(intent.getAction())) {
+
+        android.util.Log.d(
+                TAG, "Остановка сервиса из уведомления");
+
+        stopSelf();
+        return START_NOT_STICKY;
+    }
+
+    if (intent != null
             && ACTION_STOP_CHAT_SPEECH.equals(intent.getAction())) {
 
         chatSpeechEnabled = false;
@@ -211,7 +240,7 @@ if (previewUri != null && !previewUri.isEmpty()) {
         }
     });
 
-    return START_NOT_STICKY;
+    return START_STICKY;
 }
 String testFollow =
         intent.getStringExtra("test_follow");
@@ -227,7 +256,7 @@ if ("yes".equals(testFollowSound)) {
         }
     });
 
-    return START_NOT_STICKY;
+    return START_STICKY;
 }
     handler.post(() -> {
         if (!destroyed) {
@@ -244,7 +273,7 @@ if ("yes".equals(testFollowSound)) {
         }
     });
 
-    return START_NOT_STICKY;
+    return START_STICKY;
 }
 
         String testDonation =
@@ -287,9 +316,19 @@ if ("yes".equals(testFollowSound)) {
             return;
         }
 
-        client = new OkHttpClient.Builder()
-                .retryOnConnectionFailure(true)
-                .build();
+        // Один клиент на всё время жизни сервиса: раньше на каждый
+        // реконнект создавался новый пул потоков, а старый не закрывался.
+        if (client == null) {
+            client = new OkHttpClient.Builder()
+                    .retryOnConnectionFailure(true)
+                    .pingInterval(20, TimeUnit.SECONDS)
+                    .build();
+        }
+
+        if (webSocket != null) {
+            webSocket.cancel();
+            webSocket = null;
+        }
 
         Request request = new Request.Builder()
                 .url(SOCKET_URL)
@@ -308,6 +347,8 @@ public void onOpen(
             TAG,
             "WebSocket connected"
     );
+
+    reconnectAttempts = 0;
 
     android.util.Log.e(
             TAG,
@@ -584,16 +625,12 @@ public void onFailure(
             "WebSocket FAILED. HTTP="
                     + httpCode
                     + ", error="
-                    + error.getMessage(),
+                    + String.valueOf(error),
             error
     );
 
-    if (!destroyed && socket == webSocket) {
-        handler.postDelayed(() -> {
-            if (!destroyed && socket == webSocket) {
-                connectToServer();
-            }
-        }, 5000);
+    if (socket == webSocket) {
+        scheduleReconnect();
     }
 }
 
@@ -608,16 +645,40 @@ public void onFailure(
                         "WebSocket CLOSED code="
                                 + code + " reason=" + reason);
 
-                if (!destroyed && socket == webSocket) {
-                    handler.postDelayed(() -> {
-                        if (!destroyed) {
-                            connectToServer();
-                        }
-                    }, 5000);
+                if (socket == webSocket) {
+                    scheduleReconnect();
                 }
             }
         });
     }
+    /**
+     * Один общий реконнект с растущей паузой. Раньше onFailure и onClosed
+     * могли запланировать два переподключения сразу и поднять два сокета.
+     */
+    private void scheduleReconnect() {
+        if (destroyed || reconnectTask != null) {
+            return;
+        }
+
+        int[] delays = {5, 10, 20, 30};
+        int index = Math.min(reconnectAttempts, delays.length - 1);
+        long delayMs = delays[index] * 1000L;
+
+        reconnectAttempts++;
+
+        android.util.Log.d(
+                TAG,
+                "WebSocket reconnect in " + (delayMs / 1000) + "s"
+        );
+
+        reconnectTask = () -> {
+            reconnectTask = null;
+            connectToServer();
+        };
+
+        handler.postDelayed(reconnectTask, delayMs);
+    }
+
 private int getGiftImageResource(String gift) {
     String key = getGiftKey(gift);
 
@@ -1150,6 +1211,16 @@ if (isGif) {
         player.start();
     });
 
+    // Без своего обработчика VideoView показывает AlertDialog из контекста
+    // сервиса и падает с WindowManager.BadTokenException.
+    videoView.setOnErrorListener((player, what, extra) -> {
+        android.util.Log.e(
+                TAG,
+                "Видео-анимация не открылась: what=" + what
+                        + ", extra=" + extra);
+        return true;
+    });
+
     FrameLayout.LayoutParams videoParams =
             new FrameLayout.LayoutParams(
                     280,
@@ -1292,6 +1363,13 @@ private void showAnimationPreview(String uriString) {
                 player.setLooping(true);
                 player.start();
             });
+            video.setOnErrorListener((player, what, extra) -> {
+                android.util.Log.e(
+                        TAG,
+                        "Предпросмотр не открылся: what=" + what
+                                + ", extra=" + extra);
+                return true;
+            });
 
             FrameLayout.LayoutParams mediaParams =
                     new FrameLayout.LayoutParams(
@@ -1340,6 +1418,23 @@ private void showAnimationPreview(String uriString) {
 }
 
     
+    private void stopVideoViews(View view) {
+        if (view instanceof VideoView) {
+            try {
+                ((VideoView) view).stopPlayback();
+            } catch (Exception ignored) {
+            }
+        }
+
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+
+            for (int i = 0; i < group.getChildCount(); i++) {
+                stopVideoViews(group.getChildAt(i));
+            }
+        }
+    }
+
 private void removeOverlay() {
     if (removeTask != null) {
         handler.removeCallbacks(removeTask);
@@ -1348,21 +1443,9 @@ private void removeOverlay() {
 
     if (overlayView != null) {
         try {
-            if (overlayView instanceof VideoView) {
-                ((VideoView) overlayView).stopPlayback();
-            }
-
-            if (overlayView instanceof ViewGroup) {
-                ViewGroup group = (ViewGroup) overlayView;
-
-                for (int i = 0; i < group.getChildCount(); i++) {
-                    View child = group.getChildAt(i);
-
-                    if (child instanceof VideoView) {
-                        ((VideoView) child).stopPlayback();
-                    }
-                }
-            }
+            // Видео может лежать не в корне, а внутри animationContainer,
+            // поэтому обходим всё дерево, иначе оно продолжает играть.
+            stopVideoViews(overlayView);
 
             overlayView.clearAnimation();
 
@@ -1451,6 +1534,17 @@ private void speakTextForUser(
     );
 }
 
+    // Android 15 останавливает foreground-сервисы, которые работают
+    // слишком долго. Гасим себя аккуратно, иначе система убьёт процесс.
+    @Override
+    public void onTimeout(int startId, int fgsType) {
+        android.util.Log.w(
+                TAG,
+                "Foreground service timeout, stopping service");
+
+        stopSelf();
+    }
+
     @Override
     public void onDestroy() {
         destroyed = true;
@@ -1469,6 +1563,15 @@ android.util.Log.e(
             handler.removeCallbacks(removeTask);
             removeTask = null;
         }
+
+        if (reconnectTask != null) {
+            handler.removeCallbacks(reconnectTask);
+            reconnectTask = null;
+        }
+
+        // Снимаем и все остальные отложенные задачи: иначе они держат
+        // ссылку на уже уничтоженный сервис.
+        handler.removeCallbacksAndMessages(null);
 
         removeOverlay();
         stopCurrentSound();
