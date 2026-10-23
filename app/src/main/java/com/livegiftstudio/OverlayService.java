@@ -21,6 +21,7 @@ import android.graphics.drawable.GradientDrawable;
 import android.media.MediaPlayer;
 import android.widget.MediaController;
 import android.speech.tts.TextToSpeech;
+import android.speech.tts.UtteranceProgressListener;
 import android.speech.tts.Voice;
 import android.net.Uri;
 import android.os.Build;
@@ -42,6 +43,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -138,6 +140,9 @@ private void startForegroundNotification() {
     private TextToSpeech textToSpeech;
 
     private boolean ttsReady = false;
+    // Сколько фраз стоит в очереди синтезатора. Без ограничения
+    // активный чат уводил озвучку на минуты вперёд.
+    private final AtomicInteger pendingSpeech = new AtomicInteger();
     private volatile boolean chatSpeechEnabled = true;
     private String lastGiftEventKey = "";
 private long lastGiftEventTime = 0;
@@ -184,6 +189,23 @@ public void onCreate() {
                 }
         );
 
+        textToSpeech.setOnUtteranceProgressListener(
+                new UtteranceProgressListener() {
+            @Override
+            public void onStart(String utteranceId) {
+            }
+
+            @Override
+            public void onDone(String utteranceId) {
+                speechFinished();
+            }
+
+            @Override
+            public void onError(String utteranceId) {
+                speechFinished();
+            }
+        });
+
         connectToServer();
     }
 
@@ -211,9 +233,7 @@ public int onStartCommand(
 
         chatSpeechEnabled = false;
 
-        if (textToSpeech != null) {
-            textToSpeech.stop();
-        }
+        stopSpeech();
 
         android.util.Log.d(TAG, "Озвучка чата выключена");
         return START_STICKY;
@@ -375,7 +395,7 @@ android.util.Log.d(
                     if (type.equals("stream_end")) {
     handler.post(() -> {
         if (!destroyed && textToSpeech != null) {
-            textToSpeech.stop();
+            stopSpeech();
             android.util.Log.d(
                 TAG,
                 "Эфир завершён: очередь озвучки очищена"
@@ -539,6 +559,10 @@ if (type.equals("test_donation")) {
                                         "donation"
                                 );
 
+                                // Раньше звук доната играл только в тесте,
+                                // а на реальных донатах молчал.
+                                playDonationSound();
+
                                 String speech =
                                         "Донат от " + donor
                                         + ". Сумма " + amount
@@ -566,23 +590,30 @@ if (type.equals("test_donation")) {
                     String username = event.optString(
                             "username", "Зритель");
                     
-String giftEventKey = username + "|" + gift;
-long now = System.currentTimeMillis();
-
-if (giftEventKey.equals(lastGiftEventKey)
-        && now - lastGiftEventTime < 2000) {
-    android.util.Log.d(
-            TAG, "Повтор подарка пропущен: " + giftEventKey);
-    return;
-}
-
-lastGiftEventKey = giftEventKey;
-lastGiftEventTime = now;
                     int count = event.optInt("repeatCount", 1);
 
                     if (count < 1) {
                         count = 1;
                     }
+
+                    // Дубль от коннектора — тот же подарок с тем же
+                    // количеством. Продолжение комбо (другой repeatCount)
+                    // пропускать нельзя.
+                    String giftEventKey =
+                            username + "|" + gift + "|" + count;
+                    long now = System.currentTimeMillis();
+
+                    if (giftEventKey.equals(lastGiftEventKey)
+                            && now - lastGiftEventTime < 2000) {
+                        android.util.Log.d(
+                                TAG,
+                                "Повтор подарка пропущен: "
+                                        + giftEventKey);
+                        return;
+                    }
+
+                    lastGiftEventKey = giftEventKey;
+                    lastGiftEventTime = now;
 
                     final String message =
                             "🎁 " + gift + " × " + count
@@ -1273,6 +1304,7 @@ WindowManager.LayoutParams params =
                 560,
                 type,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                        | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
                         | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
                         | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
                 PixelFormat.TRANSLUCENT
@@ -1391,6 +1423,7 @@ private void showAnimationPreview(String uriString) {
             new WindowManager.LayoutParams(
                     320, 380, type,
                     WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                            | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
                             | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
                             | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
                     PixelFormat.TRANSLUCENT
@@ -1473,6 +1506,20 @@ private void removeOverlay() {
     }
 }
 
+    private void stopSpeech() {
+        if (textToSpeech != null) {
+            textToSpeech.stop();
+        }
+
+        pendingSpeech.set(0);
+    }
+
+    private void speechFinished() {
+        if (pendingSpeech.get() > 0) {
+            pendingSpeech.decrementAndGet();
+        }
+    }
+
     // 30 вариантов звучания и настройка громкости.
 private void speakText(String text) {
     speakTextForUser(null, text);
@@ -1492,6 +1539,13 @@ private void speakTextForUser(
 
         android.util.Log.e(TAG,
                 "SPEAK SKIPPED: TTS not ready or text empty");
+        return;
+    }
+
+    if (pendingSpeech.get() >= 3) {
+        android.util.Log.d(
+                TAG,
+                "SPEAK SKIPPED: очередь озвучки заполнена");
         return;
     }
     float[] pitches = {
@@ -1526,12 +1580,18 @@ private void speakTextForUser(
             TextToSpeech.Engine.KEY_PARAM_VOLUME,
             volume / 100.0f);
 
-    textToSpeech.speak(
+    pendingSpeech.incrementAndGet();
+
+    int speakResult = textToSpeech.speak(
             text,
             TextToSpeech.QUEUE_ADD,
             params,
             "LiveGiftStudio_" + System.currentTimeMillis()
     );
+
+    if (speakResult != TextToSpeech.SUCCESS) {
+        speechFinished();
+    }
 }
 
     // Android 15 останавливает foreground-сервисы, которые работают
@@ -1553,7 +1613,7 @@ android.util.Log.e(
         "OVERLAY SERVICE DESTROYED"
 );
         if (textToSpeech != null) {
-            textToSpeech.stop();
+            stopSpeech();
             textToSpeech.shutdown();
             textToSpeech = null;
             ttsReady = false;

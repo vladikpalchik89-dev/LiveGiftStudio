@@ -77,6 +77,7 @@ private String libraryCategory;
 
 // Индекс записи, которая сейчас играет
 private int playingLibrarySound = -1;
+private String playingLibraryCategory;
 
 // Список звуков будет храниться в SharedPreferences
 private static final String LIBRARY_MEMES = "library_memes";
@@ -89,6 +90,7 @@ private static final String LIBRARY_EFFECTS = "library_effects";
     private int gifts;
     private int donations;
     private int donationIncome;
+    private int giftIncome;
     private int orders;
 
     
@@ -228,7 +230,7 @@ setBackgroundColor(
 
     addMenuRow(
         "🔔\nВыбрать\nзвук подписки", 0xFFFFB900,
-        "🎬\nТест\nанимации", 0xFF9B20FF,
+        "🎬\nТест\nоверлея", 0xFF9B20FF,
         v -> chooseFollowSound(),
         v -> startOverlay()
 );
@@ -463,6 +465,15 @@ private void testSavedAnimation() {
 
 
 private void testAnimation(String type) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+            && !Settings.canDrawOverlays(this)) {
+        message("Разреши показ поверх других приложений");
+        startActivity(new Intent(
+                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:" + getPackageName())));
+        return;
+    }
+
     String key;
 
     if ("follower".equals(type)) {
@@ -545,7 +556,7 @@ private void showAnimationGiftCatalog() {
                                                 PICK_ANIMATION_GIFT
                                         );
                                     } else if (action == 1) {
-                                        testAnimation(selectedGiftKey);
+                                        testAnimation("gift");
                                     } else {
                                         prefs.edit()
                                                 .remove(key)
@@ -666,12 +677,22 @@ private void chooseAppFontSize() {
 }
 
 private void editButtonLabel() {
+    // Порядок строго совпадает с порядком addMenuRow в buildInterface:
+    // индекс = custom_label_N у кнопки.
     String[] buttons = {
             "Подарки и мои звуки",
-            "Настроить голос",
-            "Звук подписки",
-            "Тест анимации",
-            "Подключение TikTok",
+            "Настроить голос и озвучку",
+            "Выбрать звук подписки",
+            "Тест оверлея",
+            "Проверить подписку",
+            "Назначить звук доната",
+            "Тест доната 50 ₽",
+            "Открыть донаты",
+            "Библиотека звуков",
+            "Мои аудиофайлы",
+            "Моя медиатека",
+            "Загрузить медиафайлы",
+            "Подключение TikTok LIVE",
             "Открыть донаты",
             "ИИ-фото",
             "Оценка аккаунта",
@@ -682,7 +703,11 @@ private void editButtonLabel() {
             "Записать подарок",
             "Записать донат",
             "Сбросить статистику",
-            "LiveGiftStudio PRO"
+            "LiveGiftStudio PRO",
+            "Настроить анимации",
+            "Проверить анимацию",
+            "Настройки оформления",
+            "Сбросить оформление"
     };
 
     new AlertDialog.Builder(this)
@@ -721,7 +746,8 @@ private void resetAppearance() {
     editor.remove("button_radius");
     editor.remove("app_font_size");
 
-    for (int i = 0; i < 18; i++) {
+    // Кнопок в меню 28 (14 строк по 2), а не 18.
+    for (int i = 0; i < 28; i++) {
         editor.remove("custom_label_" + i);
     }
 
@@ -907,6 +933,10 @@ private void showLibraryCategory(String category) {
 
         if (sound != null) {
             names.add("🎵 " + sound.optString("name", "Звук"));
+        } else {
+            // Не пропускаем битую запись, иначе индексы в списке
+            // разъедутся с индексами в JSON.
+            names.add("⚠️ Повреждённая запись");
         }
     }
 
@@ -1037,8 +1067,11 @@ private void playLibrarySound(String category, int index) {
         return;
     }
 
-    // Если этот же файл уже стоит на паузе — продолжить
-    if (previewPlayer != null && playingLibrarySound == index) {
+    // Если этот же файл уже стоит на паузе — продолжить.
+    // Категорию сравниваем тоже: индекс 0 есть в каждой категории.
+    if (previewPlayer != null
+            && playingLibrarySound == index
+            && category.equals(playingLibraryCategory)) {
         try {
             if (!previewPlayer.isPlaying()) {
                 previewPlayer.start();
@@ -1053,6 +1086,7 @@ private void playLibrarySound(String category, int index) {
     try {
         previewPlayer = new MediaPlayer();
         playingLibrarySound = index;
+        playingLibraryCategory = category;
 
         previewPlayer.setDataSource(
                 this, Uri.parse(uriText)
@@ -2314,7 +2348,7 @@ private android.view.View createMediaPreview(
         try {
             
 Intent intent = new Intent(this, OverlayService.class);
-intent.putExtra("overlay_text", "🎁 ТЕСТ АНИМАЦИИ!");
+intent.putExtra("overlay_text", "🎁 ТЕСТ ОВЕРЛЕЯ!");
 
 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
     startForegroundService(intent);
@@ -2596,7 +2630,11 @@ private void testDonation() {
 
                         if (type.equals("gift")) {
                             gifts++;
-                            prefs.edit().putInt("gifts", gifts).apply();
+                            giftIncome += amount;
+                            prefs.edit()
+                                    .putInt("gifts", gifts)
+                                    .putInt("giftIncome", giftIncome)
+                                    .apply();
                         } else {
                             donations++;
                             donationIncome += amount;
@@ -2619,6 +2657,7 @@ private void testDonation() {
         gifts = prefs.getInt("gifts", 0);
         donations = prefs.getInt("donations", 0);
         donationIncome = prefs.getInt("donationIncome", 0);
+        giftIncome = prefs.getInt("giftIncome", 0);
         orders = prefs.getInt("orders", 0);
     }
 
@@ -2632,6 +2671,7 @@ private void testDonation() {
                         + "🎁 Подарки: " + gifts + "\n"
                         + "💰 Донаты: " + donations + "\n"
                         + "💵 Сумма донатов: " + donationIncome + " ₽\n"
+                        + "🎁 Сумма подарков: " + giftIncome + " ₽\n"
                         + "📋 Заказы: " + orders);
     }
 
@@ -2645,6 +2685,8 @@ private void testDonation() {
                                 + "💰 Донаты: " + donations + "\n"
                                 + "💵 Сумма донатов: "
                                 + donationIncome + " ₽\n"
+                                + "🎁 Сумма подарков: "
+                                + giftIncome + " ₽\n"
                                 + "📋 Заказы: " + orders)
                 .setPositiveButton("Закрыть", null)
                 .show();
@@ -2659,12 +2701,14 @@ private void testDonation() {
                     gifts = 0;
                     donations = 0;
                     donationIncome = 0;
+                    giftIncome = 0;
                     orders = 0;
 
                     prefs.edit()
                             .putInt("gifts", 0)
                             .putInt("donations", 0)
                             .putInt("donationIncome", 0)
+                            .putInt("giftIncome", 0)
                             .putInt("orders", 0)
                             .putString("orders_history", "[]")
                             .apply();
@@ -2729,15 +2773,6 @@ private void showTikTokAccounts() {
                                 (d, action) -> {
 
                                     if (action == 0) {
-                                        prefs.edit()
-                                                .putString(
-                                                        "active_tiktok_account",
-                                                        accounts[which])
-                                                .putString(
-                                                        "tiktok_username",
-                                                        accounts[which])
-                                                .apply();
-
                                         message("Переключаю сервер на @"
                                                 + accounts[which]);
 
@@ -2788,7 +2823,7 @@ private void editTikTokAccount(int index) {
 }
    private static final String ACCOUNT_SWITCH_KEY = "ry4vmnu1PZ6ys4kL2EFm6";
 private void switchServerAccount(String username) {
-    new Thread(() -> {
+    executor.execute(() -> {
         HttpURLConnection connection = null;
 
         try {
@@ -2825,6 +2860,13 @@ private void switchServerAccount(String username) {
 
             runOnUiThread(() -> {
                 if (status >= 200 && status < 300) {
+                    // Аккаунт считаем активным только если сервер
+                    // действительно принял переключение.
+                    prefs.edit()
+                            .putString("active_tiktok_account", username)
+                            .putString("tiktok_username", username)
+                            .apply();
+
                     message("Сервер переключён на @" + username);
                 } else {
                     message("Ошибка переключения сервера. Код: " + status);
@@ -2840,7 +2882,7 @@ private void switchServerAccount(String username) {
                 connection.disconnect();
             }
         }
-    }).start();
+    });
 }
 
     private void showTikTokConnection() {
@@ -2960,7 +3002,14 @@ protected void onStart() {
             "com.livegiftstudio.START_CHAT_SPEECH"
     );
 
-    startService(startSpeechIntent);
+    // Тот же риск, что и в onStop: сервис может быть уже остановлен.
+    try {
+        startService(startSpeechIntent);
+    } catch (Exception e) {
+        android.util.Log.d(
+                "LiveGiftStudio",
+                "Сервис не запущен, включать озвучку нечего");
+    }
 }
 @Override
 protected void onStop() {
@@ -3010,6 +3059,27 @@ protected void onStop() {
         executor.shutdown();
         super.onDestroy();
     }
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+
+        outState.putString("selected_gift_key", selectedGiftKey);
+        outState.putString("selected_gift_name", selectedGiftName);
+        outState.putString("library_category", libraryCategory);
+    }
+
+    @Override
+    protected void onRestoreInstanceState(Bundle savedInstanceState) {
+        super.onRestoreInstanceState(savedInstanceState);
+
+        selectedGiftKey = savedInstanceState.getString(
+                "selected_gift_key");
+        selectedGiftName = savedInstanceState.getString(
+                "selected_gift_name");
+        libraryCategory = savedInstanceState.getString(
+                "library_category");
+    }
+
 private int darken(int color) {
     return Color.rgb(
             (int) (Color.red(color) * 0.55f),
