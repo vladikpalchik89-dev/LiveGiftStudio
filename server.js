@@ -92,9 +92,13 @@ app.post("/switch-account", (req, res) => {
 
   console.log("Active TikTok account changed to:", username);
 
-  // Подключаем выбранный аккаунт, если интеграция включена.
+    // Сразу запускаем подключение нового аккаунта.
   if (process.env.TIKTOK_ENABLED === "true") {
+    console.log("Starting TikTok connection for:", username);
+
     startTikTok();
+  } else {
+    console.log("TikTok integration is disabled (TIKTOK_ENABLED is not true)");
   }
 
   res.json({
