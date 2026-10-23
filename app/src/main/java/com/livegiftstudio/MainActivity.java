@@ -50,8 +50,7 @@ private int menuRowIndex = 0;
     private static final String SERVER_URL =
             "https://script.google.com/macros/s/AKfycbz9_7ApvKuZDZj8EGWNYvRaMxRi3DYQgsGigCrGLW3u9cthlqr7Q0FXBr8mwxxSms9S_A/exec";
 
-    private static final String APP_KEY =
-            "LGS_PRO_7mQ9vK2xR8pN4wT6zA1cF5hB";
+    private static final String APP_KEY = BuildConfig.ORDERS_KEY;
 
     private static final int PICK_SOUND = 501;
     private static final int PICK_FOLLOW_SOUND = 502;
@@ -2469,6 +2468,11 @@ private void testDonation() {
     private void sendOrderToTelegram(
             String service, int price, String client, String details) {
 
+        if (APP_KEY.isEmpty()) {
+            message("Отправка заказа на сервер не настроена в этой сборке");
+            return;
+        }
+
         executor.execute(() -> {
             HttpURLConnection connection = null;
 
@@ -2821,8 +2825,13 @@ private void editTikTokAccount(int index) {
             })
             .show();
 }
-   private static final String ACCOUNT_SWITCH_KEY = "ry4vmnu1PZ6ys4kL2EFm6";
+   private static final String ACCOUNT_SWITCH_KEY = BuildConfig.SWITCH_KEY;
 private void switchServerAccount(String username) {
+    if (ACCOUNT_SWITCH_KEY.isEmpty()) {
+        message("Переключение аккаунта не настроено в этой сборке");
+        return;
+    }
+
     executor.execute(() -> {
         HttpURLConnection connection = null;
 

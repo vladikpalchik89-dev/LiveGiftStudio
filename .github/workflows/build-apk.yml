@@ -37,6 +37,9 @@ jobs:
           cache-read-only: false
 
       - name: Build debug APK
+        env:
+          LGS_SWITCH_KEY: ${{ secrets.LGS_SWITCH_KEY }}
+          LGS_ORDERS_KEY: ${{ secrets.LGS_ORDERS_KEY }}
         run: gradle --no-daemon --stacktrace assembleDebug
 
       - name: Upload APK

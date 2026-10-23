@@ -29,6 +29,21 @@ DonationAlerts┘
 2. Дождись зелёной галочки.
 3. Скачай APK внизу страницы запуска: **Artifacts → LiveGiftStudio-debug-N**.
 
+### Секреты сборки
+
+Ключи в репозитории не хранятся — они передаются в сборку переменными окружения:
+
+| Переменная | Для чего |
+|---|---|
+| `LGS_SWITCH_KEY` | ключ для `POST /switch-account` |
+| `LGS_ORDERS_KEY` | ключ для Google Apps Script, куда уходят заказы |
+
+В GitHub: **Settings → Secrets and variables → Actions → New repository secret**.
+Локально: `LGS_SWITCH_KEY=... LGS_ORDERS_KEY=... gradle assembleDebug`.
+
+Если ключи не заданы, APK всё равно соберётся, но переключение аккаунта и отправка
+заказов на сервер сообщат «не настроено в этой сборке».
+
 ## Сервер
 
 ```bash
