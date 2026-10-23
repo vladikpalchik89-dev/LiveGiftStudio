@@ -3099,50 +3099,18 @@ if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
 @Override
 protected void onStart() {
     super.onStart();
-
-    Intent startSpeechIntent =
-            new Intent(MainActivity.this, OverlayService.class);
-
-    startSpeechIntent.setAction(
-            "com.livegiftstudio.START_CHAT_SPEECH"
-    );
-
-    // Тот же риск, что и в onStop: сервис может быть уже остановлен.
-    try {
-        startService(startSpeechIntent);
-    } catch (Exception e) {
-        android.util.Log.d(
-                "LiveGiftStudio",
-                "Сервис не запущен, включать озвучку нечего");
-    }
 }
 @Override
 protected void onStop() {
-    // При уходе с экрана или сворачивании приложения
-    // предварительное прослушивание прекращается
+    // При уходе с экрана прекращаем только предпрослушивание в настройках.
+    // Озвучку чата выключать нельзя: пользователь как раз сворачивает
+    // приложение, чтобы открыть TikTok и вести эфир.
     stopPreview();
 
     if (voicePreview != null) {
         try {
             voicePreview.stop();
         } catch (Exception ignored) {}
-    }
-
-    Intent stopSpeechIntent =
-            new Intent(MainActivity.this, OverlayService.class);
-
-    stopSpeechIntent.setAction(
-            "com.livegiftstudio.STOP_CHAT_SPEECH"
-    );
-
-    // Если сервис уже не запущен, startService из фона бросит
-    // BackgroundServiceStartNotAllowedException и приложение упадёт.
-    try {
-        startService(stopSpeechIntent);
-    } catch (Exception e) {
-        android.util.Log.d(
-                "LiveGiftStudio",
-                "Сервис не запущен, останавливать озвучку нечего");
     }
 
     super.onStop();
