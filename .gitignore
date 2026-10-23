@@ -1,0 +1,21 @@
+# Android / Gradle
+*.iml
+.gradle/
+/local.properties
+/.idea/
+.DS_Store
+build/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Прочее
+*.apk
+*.aab
+*.keystore
+*.jks
+.env

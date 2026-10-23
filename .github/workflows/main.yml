@@ -1,7 +1,0 @@
-name: LiveGiftStudio Build
-on: [push]
-jobs:
-  check:
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo "LiveGiftStudio is working"
