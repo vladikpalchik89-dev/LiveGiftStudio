@@ -519,20 +519,20 @@ if (
   return;
 }
 
+
 if (/requested user isn't online|user is not online/i.test(errorText)) {
-  console.log(
-    "TikTok user is offline. Retrying in 5 minutes."
-  );
+  console.log("TikTok user is offline. Retrying in 10 seconds.");
 
   if (!reconnectTimer) {
     reconnectTimer = setTimeout(() => {
       reconnectTimer = null;
       startTikTok();
-    }, 5 * 60 * 1000);
+    }, 10 * 1000);
   }
 
   return;
 }
+
 
 scheduleReconnect("connection failed");
 
