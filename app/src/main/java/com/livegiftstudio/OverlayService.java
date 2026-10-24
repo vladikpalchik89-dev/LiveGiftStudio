@@ -122,6 +122,8 @@ private void startForegroundNotification() {
         "com.livegiftstudio.START_CHAT_SPEECH";
     private static final String ACTION_STOP =
         "com.livegiftstudio.STOP_SERVICE";
+    public static final String ACTION_PREVIEW_TEXT =
+        "com.livegiftstudio.PREVIEW_TEXT";
     private static final int NOTIFICATION_ID = 1001;
     private static final String SOCKET_URL =
             "wss://livegiftstudio.onrender.com/events";
@@ -217,6 +219,26 @@ public void onCreate() {
 @Override
 public int onStartCommand(
         Intent intent, int flags, int startId) {
+
+    if (intent != null
+            && ACTION_PREVIEW_TEXT.equals(intent.getAction())) {
+
+        String text = intent.getStringExtra("text");
+
+        if (text == null || text.trim().isEmpty()) {
+            text = "🎁 @зритель подарил Розу × 3";
+        }
+
+        final String previewText = text;
+
+        handler.post(() -> {
+            if (!destroyed) {
+                showGift(previewText, "rose");
+            }
+        });
+
+        return START_STICKY;
+    }
 
     if (intent != null
             && ACTION_STOP.equals(intent.getAction())) {
@@ -764,12 +786,26 @@ public void onFailure(
     }
 
     private android.graphics.Typeface getOverlayTypeface() {
-        String family = prefs.getString(
-                "overlay_font", "sans-serif");
+        String spec = prefs.getString(
+                "overlay_font", "sans-serif|1");
+
+        String family = spec;
+        int style = android.graphics.Typeface.BOLD;
+
+        int separator = spec.indexOf('|');
+
+        if (separator > 0) {
+            family = spec.substring(0, separator);
+
+            try {
+                style = Integer.parseInt(
+                        spec.substring(separator + 1));
+            } catch (Exception ignored) {
+            }
+        }
 
         try {
-            return android.graphics.Typeface.create(
-                    family, android.graphics.Typeface.BOLD);
+            return android.graphics.Typeface.create(family, style);
         } catch (Exception e) {
             return android.graphics.Typeface.DEFAULT_BOLD;
         }
@@ -947,6 +983,16 @@ private int getGiftCoins(String gift) {
         if (name.contains("swan") || name.contains("лебедь")) return "swan";
         if (name.contains("concert") || name.contains("концерт")) return "concert";
         if (name.contains("paper crane") || name.contains("paper_crane")) return "paper_crane";
+
+        // Любой подарок, которого нет в списке выше, получает свой ключ:
+        // у него будет отдельный звук и отдельная анимация.
+        String generic = name.trim()
+                .replaceAll("[^a-z0-9_ ]", "")
+                .replaceAll("\\s+", "_");
+
+        if (!generic.isEmpty()) {
+            return generic;
+        }
 
         return "default";
     }
@@ -1374,7 +1420,7 @@ if (isGif) {
     }
     TextView text = new TextView(this);
     text.setTextColor(Color.WHITE);
-    text.setTextSize(22);
+    text.setTextSize(prefs.getInt("overlay_text_size", 22));
     text.setTypeface(getOverlayTypeface());
     text.setGravity(Gravity.CENTER);
     text.setShadowLayer(8f, 0f, 3f, Color.BLACK);

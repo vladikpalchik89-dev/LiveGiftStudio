@@ -118,20 +118,101 @@ private final String[][] giftCatalog = {
     {"you_are_amazing", "🌟 Ты потрясающий"},
     {"flying_airplanes", "✈️ Летающие самолётики"},
     {"intense_reaction", "😲 Сильная реакция"},
-    {"slowmo", "🐢 Замедление"}
+    {"slowmo", "🐢 Замедление"},
+    {"gg", "🎮 GG"},
+    {"hand_hearts", "🫶 Ручные сердечки"},
+    {"ice_cream", "🍨 Мороженое"},
+    {"heart_me", "💗 Heart Me"},
+    {"little_crown", "👑 Коронка"},
+    {"money_gun", "💸 Денежный пистолет"},
+    {"sports_car", "🏎️ Спорткар"},
+    {"plane", "✈️ Самолёт"},
+    {"yacht", "🛥️ Яхта"},
+    {"castle", "🏰 Замок"},
+    {"unicorn", "🦄 Единорог"},
+    {"lion", "🦁 Лев"},
+    {"galaxy", "🌌 Галактика"},
+    {"dragon_flame", "🐉 Дракон"},
+    {"phoenix", "🔥 Феникс"},
+    {"rocket", "🚀 Ракета"},
+    {"planet", "🪐 Планета"},
+    {"star", "⭐ Звезда"},
+    {"lightning", "⚡ Молния"},
+    {"football", "⚽ Футбол"},
+    {"basketball", "🏀 Баскетбол"},
+    {"cake", "🍰 Торт"},
+    {"birthday", "🎂 День рождения"},
+    {"balloon", "🎈 Шарик"},
+    {"bouquet", "💐 Букет"},
+    {"microphone", "🎙️ Микрофон"},
+    {"guitar", "🎸 Гитара"},
+    {"drum", "🥁 Барабан"},
+    {"motorcycle", "🏍️ Мотоцикл"},
+    {"train", "🚂 Поезд"},
+    {"airplane", "🛩️ Самолётик"},
+    {"house", "🏠 Дом"},
+    {"ring", "💍 Кольцо"},
+    {"watch", "⌚ Часы"},
+    {"money", "💰 Деньги"},
+    {"gold", "🪙 Золото"},
+    {"fire", "🔥 Огонь"},
+    {"rainbow", "🌈 Радуга"},
+    {"flower", "🌸 Цветок"},
+    {"cat", "🐱 Кот"},
+    {"dog", "🐶 Собака"},
+    {"rabbit", "🐰 Кролик"},
+    {"panda", "🐼 Панда"},
+    {"champagne", "🍾 Шампанское"},
+    {"trophy", "🏆 Кубок"},
+    {"medal", "🏅 Медаль"},
+    {"love", "❤️ Любовь"},
+    {"music", "🎵 Музыка"},
+    {"cap", "🧢 Кепка"},
+    {"sunglasses", "🕶️ Очки"},
+    {"swan", "🦢 Лебедь"},
+    {"concert", "🎤 Концерт"},
+    {"paper_crane", "🕊️ Журавлик"},
+    {"heart", "💖 Сердце"},
+    {"coffee", "☕ Кофе"},
+    {"diamond", "💎 Алмаз"},
+    {"crown", "👑 Корона"},
+    {"gift", "🎁 Подарок"},
+    {"letter", "💌 Письмо"},
+    {"chocolate", "🍫 Шоколад"},
+    {"candy", "🍬 Конфета"},
+    {"lollipop", "🍭 Леденец"},
+    {"popcorn", "🍿 Попкорн"},
+    {"burger", "🍔 Бургер"},
+    {"pizza", "🍕 Пицца"},
+    {"sushi", "🍣 Суши"},
+    {"beer", "🍺 Пиво"},
+    {"cocktail", "🍸 Коктейль"},
+    {"watermelon", "🍉 Арбуз"},
+    {"strawberry", "🍓 Клубника"},
+    {"cherry", "🍒 Черешня"},
+    {"grape", "🍇 Виноград"},
+    {"banana", "🍌 Банан"},
+    {"apple", "🍎 Яблоко"},
+    {"peach", "🍑 Персик"}
 };
 
     // Встроенный набор звуков для подарков (файлы в res/raw).
     private static final String[] RECOMMENDED_SFX = {
             "sfx_coin", "sfx_tada", "sfx_sparkle", "sfx_applause",
             "sfx_boing", "sfx_pop", "sfx_whoosh", "sfx_drum",
-            "sfx_boom", "sfx_buzzer"
+            "sfx_boom", "sfx_buzzer", "sfx_trombone", "sfx_duck",
+            "sfx_laser", "sfx_8bit", "sfx_cash", "sfx_drumroll",
+            "sfx_cheer", "sfx_magic", "sfx_robot", "sfx_slide",
+            "sfx_cat", "sfx_laugh"
     };
 
     private static final String[] RECOMMENDED_SFX_NAMES = {
             "💰 Монетка", "🎺 Фанфары", "✨ Искорки", "👏 Аплодисменты",
             "🌀 Пружинка", "🫧 Поп", "💨 Вжух", "🥁 Барабан",
-            "💥 Бум", "❌ Ошибка"
+            "💥 Бум", "❌ Ошибка", "🎷 Грустный тромбон", "🦆 Утка",
+            "🔫 Лазер", "🎮 8-бит", "🧾 Касса", "🥁 Дробь",
+            "🙌 Овации", "🪄 Магия", "🤖 Робот", "🎶 Свисток",
+            "🐱 Кот", "😂 Смех"
     };
 
     @Override
@@ -215,24 +296,52 @@ setBackgroundColor(
     scroll.addView(container);
     setContentView(scroll);
 
+    // Шапка приложения
+    LinearLayout hero = new LinearLayout(this);
+    hero.setOrientation(LinearLayout.VERTICAL);
+    hero.setGravity(Gravity.CENTER);
+    hero.setPadding(dp(18), dp(20), dp(18), dp(18));
+
+    GradientDrawable heroBackground = new GradientDrawable(
+            GradientDrawable.Orientation.TL_BR,
+            new int[]{0xFF2A0B45, 0xFF1A0F3A, 0xFF071026});
+    heroBackground.setCornerRadius(dp(26));
+    heroBackground.setStroke(dp(2), 0xFFFF1493);
+    hero.setBackground(heroBackground);
+    hero.setElevation(dp(8));
+
+    LinearLayout.LayoutParams heroParams =
+            new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT);
+    heroParams.setMargins(0, dp(4), 0, dp(6));
+    container.addView(hero, heroParams);
+
     TextView title = new TextView(this);
-    title.setText("🎬 LiveGiftStudio PRO");
-    title.setTextSize(29);
+    title.setText("LiveGiftStudio");
+    title.setTextSize(31);
     title.setTypeface(null, android.graphics.Typeface.BOLD);
     title.setTextColor(Color.WHITE);
     title.setGravity(Gravity.CENTER);
-    title.setShadowLayer(dp(12), 0, 0, Color.CYAN);
-    title.setPadding(0, dp(12), 0, dp(4));
-    container.addView(title);
+    title.setShadowLayer(dp(14), 0, 0, 0xFFFF1493);
+    hero.addView(title);
 
     TextView subtitle = new TextView(this);
-    subtitle.setText("Инструменты для TikTok LIVE");
-    subtitle.setTextSize(17);
-    subtitle.setTypeface(null, android.graphics.Typeface.BOLD);
-    subtitle.setTextColor(Color.rgb(230, 235, 255));
+    subtitle.setText("PRO · инструменты для TikTok LIVE");
+    subtitle.setTextSize(13);
+    subtitle.setTextColor(Color.rgb(190, 200, 240));
     subtitle.setGravity(Gravity.CENTER);
-    subtitle.setPadding(0, dp(4), 0, dp(20));
-    container.addView(subtitle);
+    subtitle.setPadding(0, dp(4), 0, dp(10));
+    hero.addView(subtitle);
+
+    TextView heroChips = new TextView(this);
+    heroChips.setText("🎁 подарки   🔊 звуки   ✨ анимации");
+    heroChips.setTextSize(12);
+    heroChips.setTextColor(0xFF8FE3FF);
+    heroChips.setGravity(Gravity.CENTER);
+    hero.addView(heroChips);
+
+    addSectionHeader("🎁 ПОДАРКИ И ЗВУКИ");
 
     addMenuRow(
         "🎁\nПодарки\nи мои звуки", 0xFFFF1493,
@@ -240,6 +349,8 @@ setBackgroundColor(
         v -> showGiftCatalog(),
         v -> showVoiceSettings()
     );
+
+    addSectionHeader("🔔 ПОДПИСКИ И ДОНАТЫ");
 
     addMenuRow(
         "🔔\nВыбрать\nзвук подписки", 0xFFFFB900,
@@ -260,6 +371,8 @@ addMenuRow(
         v -> testDonation(),
         v -> openLink(DONATE_URL)
 );
+addSectionHeader("📚 ЗВУКИ И МЕДИА");
+
 addMenuRow(
         "🔊\nБиблиотека\nзвуков", 0xFF00C8FF,
         "🎵\nМои\nаудиофайлы", 0xFF00C853,
@@ -290,6 +403,8 @@ addMenuRow(
         }
     );
 
+    addSectionHeader("🎥 ЭФИР");
+
     addMenuRow(
         "🎵\nПодключение\nTikTok LIVE", 0xFF087BFF,
         "💰\nОткрыть\nдонаты", 0xFF00D6B7,       
@@ -299,6 +414,8 @@ v -> {
 },
         v -> openLink(DONATE_URL)
     );
+
+    addSectionHeader("🛠 УСЛУГИ");
 
     addMenuRow(
         "🤖\nИИ-фото —\n50 ₽", 0xFFFF1493,
@@ -313,6 +430,8 @@ v -> {
         v -> createOrder("Реклама", 100),
         v -> createOrder("Другая услуга", 0)
     );
+
+    addSectionHeader("📊 УЧЁТ");
 
     addMenuRow(
         "🛍️\nИстория\nзаказов", 0xFF087BFF,
@@ -334,6 +453,8 @@ v -> {
         v -> resetStats(),
         v -> showStats()
     );
+    addSectionHeader("⚙️ НАСТРОЙКИ");
+
     addMenuRow(
         "🎞️\nНастроить\nанимации",
         0xFF9B20FF,
@@ -595,7 +716,8 @@ private void showAppearanceSettings() {
             "🔘 Форма кнопок",
             "🔠 Размер текста",
             "✏️ Изменить надпись кнопки",
-            "🔤 Шрифт текста в оверлее"
+            "🔤 Шрифт текста в оверлее",
+            "🔠 Размер текста в оверлее"
     };
 
     new AlertDialog.Builder(this)
@@ -619,6 +741,9 @@ private void showAppearanceSettings() {
                         break;
                     case 5:
                         showFontSettings();
+                        break;
+                    case 6:
+                        chooseOverlayTextSize();
                         break;
                 }
             })
@@ -778,6 +903,17 @@ private int dp(float value) {
             .getDisplayMetrics().density + 0.5f);
 }
 
+
+private void addSectionHeader(String text) {
+    TextView header = new TextView(this);
+    header.setText(text);
+    header.setTextSize(12);
+    header.setTypeface(null, android.graphics.Typeface.BOLD);
+    header.setTextColor(0xFF7C8BB8);
+    header.setLetterSpacing(0.12f);
+    header.setPadding(dp(6), dp(16), dp(6), dp(8));
+    container.addView(header);
+}
 
 private void addMenuRow(
         String leftText, int leftColor,
@@ -1573,58 +1709,140 @@ private void deleteLibrarySound(String category, int index) {
     }
 
     private void showFontSettings() {
-        String[] names = {
-                "Roboto", "Roboto Condensed", "Roboto Black",
-                "Roboto Light", "Roboto Medium", "Serif",
+        String[] labels = {
+                "Roboto", "Roboto Light", "Roboto Black",
+                "Roboto Condensed", "Roboto Italic",
+                "Roboto Bold Italic", "Serif", "Serif Italic",
                 "Monospace", "Casual", "Cursive", "Small Caps"
         };
 
         String[] families = {
-                "sans-serif", "sans-serif-condensed", "sans-serif-black",
-                "sans-serif-light", "sans-serif-medium", "serif",
-                "monospace", "casual", "cursive", "sans-serif-smallcaps"
+                "sans-serif", "sans-serif-light", "sans-serif-black",
+                "sans-serif-condensed", "sans-serif", "sans-serif",
+                "serif", "serif", "monospace", "casual", "cursive",
+                "sans-serif-smallcaps"
         };
 
-        String current = prefs.getString("overlay_font", "sans-serif");
+        int[] styles = {
+                android.graphics.Typeface.BOLD,
+                android.graphics.Typeface.NORMAL,
+                android.graphics.Typeface.NORMAL,
+                android.graphics.Typeface.BOLD,
+                android.graphics.Typeface.ITALIC,
+                android.graphics.Typeface.BOLD_ITALIC,
+                android.graphics.Typeface.BOLD,
+                android.graphics.Typeface.ITALIC,
+                android.graphics.Typeface.BOLD,
+                android.graphics.Typeface.NORMAL,
+                android.graphics.Typeface.NORMAL,
+                android.graphics.Typeface.BOLD
+        };
+
+        String current = prefs.getString(
+                "overlay_font", "sans-serif|1");
 
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
         layout.setPadding(dp(12), dp(8), dp(12), dp(8));
 
-        for (int i = 0; i < names.length; i++) {
-            boolean selected = families[i].equals(current);
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(layout);
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("🔤 Шрифт в оверлее")
+                .setView(scroll)
+                .setPositiveButton("👁 Пример", (d, w) ->
+                        previewOverlayText())
+                .setNegativeButton("Закрыть", null)
+                .create();
+
+        for (int i = 0; i < labels.length; i++) {
+            final String spec = families[i] + "|" + styles[i];
+            final String label = labels[i];
+
+            boolean selected = spec.equals(current);
 
             TextView row = new TextView(this);
-            row.setText((selected ? "✅ " : "")
-                    + names[i]
+            row.setText((selected ? "✅ " : "") + label
                     + "\nСъешь ещё этих мягких булок 123");
-            row.setTextSize(17);
+            row.setTextSize(16);
             row.setTextColor(selected ? 0xFF7CFFB2 : Color.WHITE);
             row.setTypeface(android.graphics.Typeface.create(
-                    families[i], android.graphics.Typeface.BOLD));
+                    families[i], styles[i]));
             row.setPadding(dp(10), dp(12), dp(10), dp(12));
 
-            final String family = families[i];
-            final String name = names[i];
+            GradientDrawable background = new GradientDrawable();
+            background.setColor(selected ? 0xFF10261C : 0x00000000);
+            background.setCornerRadius(dp(10));
+            row.setBackground(background);
 
             row.setOnClickListener(v -> {
                 prefs.edit()
-                        .putString("overlay_font", family)
+                        .putString("overlay_font", spec)
                         .apply();
-                message("Шрифт: " + name);
+
+                dialog.dismiss();
+                showFontSettings();
+                message("Шрифт: " + label);
             });
 
             layout.addView(row);
         }
 
-        ScrollView scroll = new ScrollView(this);
-        scroll.addView(layout);
+        dialog.show();
+    }
+
+    private void chooseOverlayTextSize() {
+        String[] names = {
+                "Мелкий (18)", "Обычный (22)",
+                "Крупный (28)", "Огромный (34)"
+        };
+
+        int[] sizes = {18, 22, 28, 34};
+        int current = prefs.getInt("overlay_text_size", 22);
+
+        int checked = 1;
+
+        for (int i = 0; i < sizes.length; i++) {
+            if (sizes[i] == current) {
+                checked = i;
+            }
+        }
 
         new AlertDialog.Builder(this)
-                .setTitle("🔤 Шрифт текста в оверлее")
-                .setView(scroll)
-                .setNegativeButton("Закрыть", null)
+                .setTitle("Размер текста в оверлее")
+                .setSingleChoiceItems(names, checked, (d, which) -> {
+                    prefs.edit()
+                            .putInt("overlay_text_size", sizes[which])
+                            .apply();
+
+                    d.dismiss();
+                    message("Размер текста: " + sizes[which]);
+                })
+                .setNegativeButton("Отмена", null)
                 .show();
+    }
+
+    private void previewOverlayText() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                && !Settings.canDrawOverlays(this)) {
+            message("Разреши показ поверх других приложений");
+            startActivity(new Intent(
+                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:" + getPackageName())));
+            return;
+        }
+
+        Intent intent = new Intent(this, OverlayService.class);
+        intent.setAction(OverlayService.ACTION_PREVIEW_TEXT);
+        intent.putExtra("text",
+                "🎁 @зритель подарил Розу × 3\n🪙 100 монет");
+
+        try {
+            startService(intent);
+        } catch (Exception e) {
+            message("Сервис не запущен");
+        }
     }
 
     private void chooseSound() {
