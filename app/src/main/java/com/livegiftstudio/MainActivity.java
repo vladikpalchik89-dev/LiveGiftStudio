@@ -71,6 +71,7 @@ private String selectedAnimationType = "follower";
     private LinearLayout container;
     private TextView statsText;
     private MediaPlayer previewPlayer;
+    private MediaPlayer sfxPreview;
 // Категория, в которую сейчас добавляем звук
 private String libraryCategory;
 
@@ -119,6 +120,19 @@ private final String[][] giftCatalog = {
     {"intense_reaction", "😲 Сильная реакция"},
     {"slowmo", "🐢 Замедление"}
 };
+
+    // Встроенный набор звуков для подарков (файлы в res/raw).
+    private static final String[] RECOMMENDED_SFX = {
+            "sfx_coin", "sfx_tada", "sfx_sparkle", "sfx_applause",
+            "sfx_boing", "sfx_pop", "sfx_whoosh", "sfx_drum",
+            "sfx_boom", "sfx_buzzer"
+    };
+
+    private static final String[] RECOMMENDED_SFX_NAMES = {
+            "💰 Монетка", "🎺 Фанфары", "✨ Искорки", "👏 Аплодисменты",
+            "🌀 Пружинка", "🫧 Поп", "💨 Вжух", "🥁 Барабан",
+            "💥 Бум", "❌ Ошибка"
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -580,7 +594,8 @@ private void showAppearanceSettings() {
             "🎨 Цвет кнопок",
             "🔘 Форма кнопок",
             "🔠 Размер текста",
-            "✏️ Изменить надпись кнопки"
+            "✏️ Изменить надпись кнопки",
+            "🔤 Шрифт текста в оверлее"
     };
 
     new AlertDialog.Builder(this)
@@ -601,6 +616,9 @@ private void showAppearanceSettings() {
                         break;
                     case 4:
                         editButtonLabel();
+                        break;
+                    case 5:
+                        showFontSettings();
                         break;
                 }
             })
@@ -1159,95 +1177,35 @@ private void deleteLibrarySound(String category, int index) {
     private void showGiftCatalog() {
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
-        layout.setPadding(16, 8, 16, 8);
+        layout.setPadding(dp(14), dp(10), dp(14), dp(4));
+
+        TextView hint = new TextView(this);
+        hint.setText("Нажми на подарок — выберешь ему звук");
+        hint.setTextColor(Color.rgb(170, 185, 220));
+        hint.setTextSize(13);
+        layout.addView(hint);
 
         EditText search = new EditText(this);
-        search.setHint("Найти подарок...");
+        search.setHint("🔍 Найти подарок...");
+        search.setSingleLine(true);
         layout.addView(search);
 
-        ListView list = new ListView(this);
-        layout.addView(list,
-                new LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT, 550));
+        ScrollView scroll = new ScrollView(this);
+        LinearLayout grid = new LinearLayout(this);
+        grid.setOrientation(LinearLayout.VERTICAL);
+        scroll.addView(grid);
 
-        ArrayList<String> names = new ArrayList<>();
-        ArrayList<String> keys = new ArrayList<>();
-
-        for (String[] gift : giftCatalog) {
-            keys.add(gift[0]);
-            names.add(gift[1]);
-        }
-
-        ArrayList<String> visibleNames = new ArrayList<>(names);
-        ArrayList<String> visibleKeys = new ArrayList<>(keys);
-
-        
-ArrayAdapter<String> adapter = new ArrayAdapter<String>(
-        this,
-        android.R.layout.simple_list_item_1,
-        visibleNames) {
-
-    @Override
-    public View getView(
-            int position,
-            View convertView,
-            android.view.ViewGroup parent) {
-
-        LinearLayout row = new LinearLayout(MainActivity.this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(8), dp(6), dp(8), dp(6));
-
-        ImageView image = new ImageView(MainActivity.this);
-
-        String key = visibleKeys.get(position);
-
-        int imageId = getResources().getIdentifier(
-                "gift_" + key,
-                "drawable",
-                getPackageName()
-        );
-
-        if (imageId == 0) {
-            imageId = getResources().getIdentifier(
-                    "gift_default",
-                    "drawable",
-                    getPackageName()
-            );
-        }
-
-        if (imageId != 0) {
-            image.setImageResource(imageId);
-        }
-
-        image.setScaleType(ImageView.ScaleType.FIT_CENTER);
-
-        row.addView(image, new LinearLayout.LayoutParams(
-                dp(48), dp(48)));
-
-        TextView label = new TextView(MainActivity.this);
-        label.setText(visibleNames.get(position));
-        label.setTextColor(Color.BLACK);
-        label.setTextSize(16);
-        label.setPadding(dp(12), 0, 0, 0);
-
-        row.addView(label, new LinearLayout.LayoutParams(
-                0,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                1f));
-
-        return row;
-    }
-};
-
-list.setAdapter(adapter);
-
+        layout.addView(scroll, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(430)));
 
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("🎁 Каталог подарков")
+                .setTitle("🎁 Подарки и звуки")
                 .setView(layout)
                 .setNegativeButton("Закрыть", null)
                 .create();
+
+        renderGiftGrid(grid, "", dialog);
 
         search.addTextChangedListener(new TextWatcher() {
             @Override
@@ -1257,59 +1215,415 @@ list.setAdapter(adapter);
             @Override
             public void onTextChanged(
                     CharSequence s, int start, int before, int count) {
-
-                String query = s.toString()
-                        .toLowerCase().trim();
-
-                visibleNames.clear();
-                visibleKeys.clear();
-
-                for (int i = 0; i < names.size(); i++) {
-                    if (names.get(i).toLowerCase().contains(query)
-                            || keys.get(i).toLowerCase().contains(query)) {
-                        visibleNames.add(names.get(i));
-                        visibleKeys.add(keys.get(i));
-                    }
-                }
-
-                adapter.notifyDataSetChanged();
+                renderGiftGrid(grid, s.toString(), dialog);
             }
 
             @Override
             public void afterTextChanged(Editable s) {}
         });
 
-        list.setOnItemClickListener((parent, view, position, id) -> {
-            selectedGiftKey = visibleKeys.get(position);
-            selectedGiftName = visibleNames.get(position);
+        dialog.show();
+    }
+
+    private void renderGiftGrid(
+            LinearLayout grid, String query, AlertDialog dialog) {
+        grid.removeAllViews();
+
+        String q = query.toLowerCase(Locale.ROOT).trim();
+        LinearLayout row = null;
+        int shown = 0;
+
+        for (String[] gift : giftCatalog) {
+            String key = gift[0];
+            String name = gift[1];
+
+            if (!q.isEmpty()
+                    && !name.toLowerCase(Locale.ROOT).contains(q)
+                    && !key.toLowerCase(Locale.ROOT).contains(q)) {
+                continue;
+            }
+
+            if (shown % 2 == 0) {
+                row = new LinearLayout(this);
+                row.setOrientation(LinearLayout.HORIZONTAL);
+                grid.addView(row, new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT));
+            }
+
+            LinearLayout.LayoutParams cardParams =
+                    new LinearLayout.LayoutParams(
+                            0,
+                            LinearLayout.LayoutParams.WRAP_CONTENT,
+                            1f);
+            cardParams.setMargins(dp(4), dp(4), dp(4), dp(4));
+
+            row.addView(createGiftCard(key, name, dialog), cardParams);
+
+            shown++;
+        }
+
+        if (shown == 0) {
+            TextView empty = new TextView(this);
+            empty.setText("Ничего не найдено");
+            empty.setTextColor(Color.WHITE);
+            empty.setGravity(Gravity.CENTER);
+            empty.setPadding(0, dp(28), 0, dp(28));
+            grid.addView(empty);
+        }
+    }
+
+    private View createGiftCard(
+            String key, String name, AlertDialog dialog) {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setGravity(Gravity.CENTER);
+        card.setPadding(dp(8), dp(12), dp(8), dp(12));
+
+        GradientDrawable background = new GradientDrawable();
+        background.setColor(0xFF141B33);
+        background.setCornerRadius(dp(16));
+        background.setStroke(dp(1), 0xFF2A3766);
+        card.setBackground(background);
+
+        int imageId = getResources().getIdentifier(
+                "gift_" + key, "drawable", getPackageName());
+
+        if (imageId == 0) {
+            imageId = getResources().getIdentifier(
+                    "gift_default", "drawable", getPackageName());
+        }
+
+        if (imageId != 0) {
+            ImageView icon = new ImageView(this);
+            icon.setImageResource(imageId);
+            icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            card.addView(icon, new LinearLayout.LayoutParams(
+                    dp(52), dp(52)));
+        }
+
+        TextView title = new TextView(this);
+        title.setText(name);
+        title.setTextColor(Color.WHITE);
+        title.setTextSize(14);
+        title.setGravity(Gravity.CENTER);
+        title.setMaxLines(2);
+        card.addView(title);
+
+        TextView sound = new TextView(this);
+        sound.setText(soundSpecLabel(
+                prefs.getString("gift_sound_" + key, null)));
+        sound.setTextSize(11);
+        sound.setTextColor(0xFF8FE3FF);
+        sound.setGravity(Gravity.CENTER);
+        sound.setPadding(0, dp(6), 0, 0);
+        card.addView(sound);
+
+        // Клик закрывает каталог: после выбора звука он откроется
+        // заново, уже с новой подписью на карточке.
+        card.setOnClickListener(v -> {
             dialog.dismiss();
-            showGiftSoundOptions();
+            showGiftSoundPicker(key, name);
         });
+
+        return card;
+    }
+
+    private String soundSpecLabel(String spec) {
+        if (spec == null || spec.trim().isEmpty()) {
+            return "🔊 стандартный";
+        }
+
+        if ("none".equals(spec)) {
+            return "🔇 без звука";
+        }
+
+        if (spec.startsWith("raw:")) {
+            String id = spec.substring(4);
+
+            for (int i = 0; i < RECOMMENDED_SFX.length; i++) {
+                if (RECOMMENDED_SFX[i].equals(id)) {
+                    return RECOMMENDED_SFX_NAMES[i];
+                }
+            }
+
+            return "🔥 звук";
+        }
+
+        return "🎵 свой файл";
+    }
+
+    private void showGiftSoundPicker(String giftKey, String giftName) {
+        String current = prefs.getString(
+                "gift_sound_" + giftKey, null);
+
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(dp(12), dp(8), dp(12), dp(4));
+
+        ScrollView scroll = new ScrollView(this);
+        LinearLayout list = new LinearLayout(this);
+        list.setOrientation(LinearLayout.VERTICAL);
+        scroll.addView(list);
+
+        layout.addView(scroll, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(430)));
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("Звук для «" + giftName + "»")
+                .setView(layout)
+                .setNeutralButton("📄 Свой файл", (d, w) -> {
+                    selectedGiftKey = giftKey;
+                    selectedGiftName = giftName;
+                    chooseSound();
+                })
+                .setNegativeButton("Закрыть", null)
+                .create();
+
+        addSoundRow(list, "🔊 Стандартный звук", null,
+                current, giftKey, dialog);
+
+        addSoundRow(list, "🔇 Без звука", "none",
+                current, giftKey, dialog);
+
+        addSoundHeader(list, "🔥 Рекомендуемые");
+
+        for (int i = 0; i < RECOMMENDED_SFX.length; i++) {
+            addSoundRow(list, RECOMMENDED_SFX_NAMES[i],
+                    "raw:" + RECOMMENDED_SFX[i],
+                    current, giftKey, dialog);
+        }
+
+        String[] categories = {"memes", "funny", "melodies", "effects"};
+        String[] categoryNames = {
+                "😂 Мемы", "🤣 Смешные фразы",
+                "🎵 Мелодии", "💥 Эффекты"
+        };
+
+        boolean libraryHeaderAdded = false;
+
+        for (int c = 0; c < categories.length; c++) {
+            JSONArray sounds = getLibrarySounds(categories[c]);
+
+            for (int i = 0; i < sounds.length(); i++) {
+                JSONObject sound = sounds.optJSONObject(i);
+
+                if (sound == null) {
+                    continue;
+                }
+
+                String uri = sound.optString("uri", "");
+
+                if (uri.isEmpty()) {
+                    continue;
+                }
+
+                if (!libraryHeaderAdded) {
+                    addSoundHeader(list, "📚 Мои звуки");
+                    libraryHeaderAdded = true;
+                }
+
+                addSoundRow(list,
+                        categoryNames[c] + " · "
+                                + sound.optString("name", "Звук"),
+                        uri, current, giftKey, dialog);
+            }
+        }
 
         dialog.show();
     }
 
-    private void showGiftSoundOptions() {
-        String uri = prefs.getString(
-                "gift_sound_" + selectedGiftKey, null);
+    private void addSoundHeader(LinearLayout list, String text) {
+        TextView header = new TextView(this);
+        header.setText(text);
+        header.setTextColor(0xFFFF1493);
+        header.setTextSize(13);
+        header.setTypeface(null, android.graphics.Typeface.BOLD);
+        header.setPadding(dp(6), dp(16), dp(6), dp(6));
+        list.addView(header);
+    }
 
-        String status = uri == null
-                ? "Свой звук не выбран"
-                : "Для подарка назначен свой звук";
+    private void addSoundRow(
+            LinearLayout list,
+            String label,
+            String spec,
+            String current,
+            String giftKey,
+            AlertDialog dialog) {
+
+        boolean selected = spec == null
+                ? (current == null || current.trim().isEmpty())
+                : spec.equals(current);
+
+        TextView row = new TextView(this);
+        row.setText((selected ? "✅ " : "▫️ ") + label);
+        row.setTextColor(selected ? 0xFF7CFFB2 : Color.WHITE);
+        row.setTextSize(16);
+        row.setPadding(dp(10), dp(12), dp(10), dp(12));
+
+        GradientDrawable background = new GradientDrawable();
+        background.setColor(selected ? 0xFF10261C : 0x00000000);
+        background.setCornerRadius(dp(10));
+        row.setBackground(background);
+
+        row.setOnClickListener(v -> {
+            if (spec == null) {
+                prefs.edit()
+                        .remove("gift_sound_" + giftKey)
+                        .apply();
+            } else {
+                prefs.edit()
+                        .putString("gift_sound_" + giftKey, spec)
+                        .apply();
+            }
+
+            previewSoundSpec(spec);
+
+            dialog.dismiss();
+            showGiftCatalog();
+        });
+
+        list.addView(row);
+    }
+
+    private void previewSoundSpec(String spec) {
+        stopSfxPreview();
+
+        if ("none".equals(spec)) {
+            return;
+        }
+
+        String resourceName = spec == null
+                ? "gift_default"
+                : (spec.startsWith("raw:")
+                        ? spec.substring(4)
+                        : null);
+
+        try {
+            if (resourceName != null) {
+                int resourceId = getResources().getIdentifier(
+                        resourceName, "raw", getPackageName());
+
+                if (resourceId == 0) {
+                    return;
+                }
+
+                MediaPlayer player = MediaPlayer.create(this, resourceId);
+
+                if (player == null) {
+                    return;
+                }
+
+                sfxPreview = player;
+                player.setOnCompletionListener(this::releaseSfx);
+                player.start();
+                return;
+            }
+
+            MediaPlayer player = new MediaPlayer();
+            sfxPreview = player;
+
+            player.setOnPreparedListener(mp -> {
+                if (sfxPreview == mp) {
+                    mp.start();
+                }
+            });
+
+            player.setOnCompletionListener(this::releaseSfx);
+
+            player.setOnErrorListener((mp, what, extra) -> {
+                releaseSfx(mp);
+                return true;
+            });
+
+            player.setDataSource(this, Uri.parse(spec));
+            player.prepareAsync();
+
+        } catch (Exception e) {
+            message("Не удалось воспроизвести звук");
+        }
+    }
+
+    private void releaseSfx(MediaPlayer mp) {
+        if (sfxPreview == mp) {
+            sfxPreview = null;
+        }
+
+        try {
+            mp.release();
+        } catch (Exception ignored) {}
+    }
+
+    private void stopSfxPreview() {
+        if (sfxPreview == null) {
+            return;
+        }
+
+        MediaPlayer player = sfxPreview;
+        sfxPreview = null;
+
+        try {
+            player.stop();
+        } catch (Exception ignored) {}
+
+        try {
+            player.release();
+        } catch (Exception ignored) {}
+    }
+
+    private void showFontSettings() {
+        String[] names = {
+                "Roboto", "Roboto Condensed", "Roboto Black",
+                "Roboto Light", "Roboto Medium", "Serif",
+                "Monospace", "Casual", "Cursive", "Small Caps"
+        };
+
+        String[] families = {
+                "sans-serif", "sans-serif-condensed", "sans-serif-black",
+                "sans-serif-light", "sans-serif-medium", "serif",
+                "monospace", "casual", "cursive", "sans-serif-smallcaps"
+        };
+
+        String current = prefs.getString("overlay_font", "sans-serif");
+
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(dp(12), dp(8), dp(12), dp(8));
+
+        for (int i = 0; i < names.length; i++) {
+            boolean selected = families[i].equals(current);
+
+            TextView row = new TextView(this);
+            row.setText((selected ? "✅ " : "")
+                    + names[i]
+                    + "\nСъешь ещё этих мягких булок 123");
+            row.setTextSize(17);
+            row.setTextColor(selected ? 0xFF7CFFB2 : Color.WHITE);
+            row.setTypeface(android.graphics.Typeface.create(
+                    families[i], android.graphics.Typeface.BOLD));
+            row.setPadding(dp(10), dp(12), dp(10), dp(12));
+
+            final String family = families[i];
+            final String name = names[i];
+
+            row.setOnClickListener(v -> {
+                prefs.edit()
+                        .putString("overlay_font", family)
+                        .apply();
+                message("Шрифт: " + name);
+            });
+
+            layout.addView(row);
+        }
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(layout);
 
         new AlertDialog.Builder(this)
-                .setTitle(selectedGiftName)
-                .setMessage(status)
-                .setPositiveButton("🎵 Выбрать звук",
-                        (d, w) -> chooseSound())
-                .setNeutralButton("▶ Проверить звук",
-                        (d, w) -> previewSavedSound())
-                .setNegativeButton("Сбросить звук",
-                        (d, w) -> {
-                            prefs.edit().remove(
-                                    "gift_sound_" + selectedGiftKey).apply();
-                            message("Настройка звука удалена");
-                        })
+                .setTitle("🔤 Шрифт текста в оверлее")
+                .setView(scroll)
+                .setNegativeButton("Закрыть", null)
                 .show();
     }
 
@@ -3119,6 +3433,7 @@ protected void onStop() {
     @Override
     protected void onDestroy() {
         stopPreview();
+        stopSfxPreview();
 
         if (voicePreview != null) {
             try {

@@ -758,6 +758,23 @@ public void onFailure(
         return sampleSize;
     }
 
+    private int dp(float value) {
+        return Math.round(value
+                * getResources().getDisplayMetrics().density);
+    }
+
+    private android.graphics.Typeface getOverlayTypeface() {
+        String family = prefs.getString(
+                "overlay_font", "sans-serif");
+
+        try {
+            return android.graphics.Typeface.create(
+                    family, android.graphics.Typeface.BOLD);
+        } catch (Exception e) {
+            return android.graphics.Typeface.DEFAULT_BOLD;
+        }
+    }
+
 private int getGiftImageResource(String gift) {
     String key = getGiftKey(gift);
 
@@ -1016,70 +1033,101 @@ private int getGiftCoins(String gift) {
         stopCurrentSound();
 
         String key = getGiftKey(gift);
-        String savedUri = prefs.getString(
-                "gift_sound_" + key, null);
+        playAssignedSound("gift_sound_" + key, gift);
+    }
 
-        if (savedUri != null && !savedUri.trim().isEmpty()) {
-            playCustomSound(savedUri, gift);
-        } else {
-            playBuiltInSound(gift);
+    /**
+     * Значение настройки звука:
+     * null             — стандартный звук подарка;
+     * "none"           — без звука;
+     * "raw:sfx_coin"   — встроенный звук из набора;
+     * остальное        — URI файла с телефона.
+     */
+    private void playAssignedSound(
+            String prefKey, String fallbackGift) {
+
+        String spec = prefs.getString(prefKey, null);
+
+        if (spec == null || spec.trim().isEmpty()) {
+            playBuiltInSound(fallbackGift);
+            return;
+        }
+
+        if ("none".equals(spec)) {
+            return;
+        }
+
+        if (spec.startsWith("raw:")) {
+            playRawSound(spec.substring(4), fallbackGift);
+            return;
+        }
+
+        playCustomSound(spec, fallbackGift);
+    }
+
+    private void playRawSound(String name, String fallbackGift) {
+        int resourceId = getResources().getIdentifier(
+                name, "raw", getPackageName());
+
+        if (resourceId == 0) {
+            playBuiltInSound(fallbackGift);
+            return;
+        }
+
+        try {
+            MediaPlayer player = MediaPlayer.create(this, resourceId);
+
+            if (player == null) {
+                playBuiltInSound(fallbackGift);
+                return;
+            }
+
+            currentPlayer = player;
+
+            player.setOnCompletionListener(mp -> {
+                if (currentPlayer == mp) {
+                    currentPlayer = null;
+                }
+                mp.release();
+            });
+
+            player.setOnErrorListener((mp, what, extra) -> {
+                if (currentPlayer == mp) {
+                    currentPlayer = null;
+                }
+                mp.release();
+                return true;
+            });
+
+            player.start();
+
+        } catch (Exception e) {
+            android.util.Log.e(TAG, "Raw sound error", e);
+            playBuiltInSound(fallbackGift);
         }
     }
 
     private void playFollowSound() {
-    stopCurrentSound();
+        stopCurrentSound();
 
-    String savedUri = prefs.getString(
-            "follow_sound_uri", null);
-
-    android.util.Log.d(
-            TAG,
-            "FOLLOW SOUND URI: " + savedUri);
-
-    if (savedUri == null || savedUri.trim().isEmpty()) {
-        android.util.Log.w(
+        android.util.Log.d(
                 TAG,
-                "Звук подписки не выбран — запускаю стандартный");
-        playBuiltInSound("heart");
-        return;
-    }
+                "FOLLOW SOUND: "
+                        + prefs.getString("follow_sound_uri", null));
 
-    try {
-        playCustomSound(savedUri, "heart");
-    } catch (Exception e) {
-        android.util.Log.e(
-                TAG,
-                "Ошибка запуска звука подписки", e);
-        playBuiltInSound("heart");
+        playAssignedSound("follow_sound_uri", "heart");
     }
-}
 
 private void playDonationSound() {
     stopCurrentSound();
 
-    String savedUri = prefs.getString(
-            "donationalerts_sound_uri", null);
-
     android.util.Log.d(
             TAG,
-            "DONATION SOUND URI: " + savedUri);
+            "DONATION SOUND: "
+                    + prefs.getString(
+                            "donationalerts_sound_uri", null));
 
-    if (savedUri == null || savedUri.trim().isEmpty()) {
-        android.util.Log.w(
-                TAG,
-                "Звук доната не выбран — запускаю стандартный");
-        playBuiltInSound("heart");
-        return;
-    }
-
-    try {
-        playCustomSound(savedUri, "heart");
-    } catch (Exception e) {
-        android.util.Log.e(
-                TAG,
-                "Ошибка запуска звука доната", e);
-        playBuiltInSound("heart");
-    }
+    playAssignedSound("donationalerts_sound_uri", "heart");
 }
     
     private void playCustomSound(
@@ -1213,15 +1261,15 @@ private void showGift(String message, String gift) {
 LinearLayout root = new LinearLayout(this);
 root.setOrientation(LinearLayout.VERTICAL);
 root.setGravity(Gravity.CENTER_HORIZONTAL);
-root.setPadding(8, 8, 8, 8);
+root.setPadding(dp(6), dp(6), dp(6), dp(6));
 root.setBackgroundColor(Color.TRANSPARENT);
     if (!savedUri.isEmpty()) {
         try {
          FrameLayout animationContainer = new FrameLayout(this);
 LinearLayout.LayoutParams animationAreaParams =
         new LinearLayout.LayoutParams(
-                300,
-                300
+                dp(250),
+                dp(250)
         );   
             
 Uri uri = Uri.parse(savedUri);
@@ -1256,8 +1304,8 @@ if (isGif) {
 
     FrameLayout.LayoutParams gifParams =
             new FrameLayout.LayoutParams(
-                    280,
-                    280,
+                    dp(240),
+                    dp(240),
                     Gravity.CENTER
             );
 
@@ -1282,8 +1330,8 @@ if (isGif) {
 
     FrameLayout.LayoutParams imageParams =
             new FrameLayout.LayoutParams(
-                    280,
-                    280,
+                    dp(240),
+                    dp(240),
                     Gravity.CENTER
             );
 
@@ -1310,8 +1358,8 @@ if (isGif) {
 
     FrameLayout.LayoutParams videoParams =
             new FrameLayout.LayoutParams(
-                    280,
-                    280,
+                    dp(240),
+                    dp(240),
                     Gravity.CENTER
             );
 
@@ -1326,9 +1374,19 @@ if (isGif) {
     }
     TextView text = new TextView(this);
     text.setTextColor(Color.WHITE);
-    text.setTextSize(18);
+    text.setTextSize(22);
+    text.setTypeface(getOverlayTypeface());
     text.setGravity(Gravity.CENTER);
-    text.setPadding(20, 16, 20, 16);
+    text.setShadowLayer(8f, 0f, 3f, Color.BLACK);
+    text.setPadding(dp(16), dp(12), dp(16), dp(12));
+
+    // Полупрозрачная плашка: текст читается на любом фоне эфира.
+    android.graphics.drawable.GradientDrawable panel =
+            new android.graphics.drawable.GradientDrawable();
+    panel.setColor(Color.argb(200, 8, 10, 26));
+    panel.setCornerRadius(dp(20));
+    panel.setStroke(dp(2), Color.argb(160, 255, 20, 147));
+    text.setBackground(panel);
 
     int coins = getGiftCoins(gift);
     String displayMessage = message;
@@ -1356,8 +1414,8 @@ root.addView(text, textParams);
     
 WindowManager.LayoutParams params =
         new WindowManager.LayoutParams(
-                380,
-                560,
+                dp(320),
+                WindowManager.LayoutParams.WRAP_CONTENT,
                 type,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                         | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
@@ -1367,7 +1425,7 @@ WindowManager.LayoutParams params =
         );
               
     params.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
-    params.y = 160;
+    params.y = dp(120);
 
     try {
         overlayView = root;
@@ -1486,7 +1544,7 @@ private void showAnimationPreview(String uriString) {
             );
 
     params.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
-    params.y = 160;
+    params.y = dp(120);
 
     overlayView = root;
     overlay = label;
