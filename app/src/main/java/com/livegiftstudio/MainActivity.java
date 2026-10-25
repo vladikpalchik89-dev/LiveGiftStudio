@@ -64,6 +64,8 @@ private static final int PICK_ANIMATION_FOLLOWER = 601;
 private static final int PICK_ANIMATION_DONATION = 602;
 private static final int PICK_ANIMATION_GIFT = 603;
 private String selectedAnimationType = "follower";
+    private String lastImportedFileName;
+    private int autoAssignedCount;
     private TextToSpeech voicePreview;
     private boolean voicePreviewReady = false;
 
@@ -393,9 +395,9 @@ addMenuRow(
 
 addMenuRow(
         "🔄\nОбновить\nиз LGS", 0xFF00C853,
-        "🎲\nРаздать звуки\nподаркам", 0xFFFFB900,
+        "🎯\nРазложить\nпо названиям", 0xFFFFB900,
         v -> autoImportFromPhoneFolder(),
-        v -> autoAssignSoundsToGifts()
+        v -> distributeSoundsByNames()
 );
     
     addMenuRow(
@@ -2242,11 +2244,14 @@ if (requestCode == PICK_SOUNDS_FOLDER) {
 
     message("Импорт звуков начат");
     executor.execute(() -> {
+        autoAssignedCount = 0;
         int imported = importSoundsFolder(folderUri);
+        final int assigned = autoAssignedCount;
 
-        runOnUiThread(() -> message(imported == 0
+        runOnUiThread(() -> message(imported + assigned == 0
                 ? "Аудиофайлы не найдены"
-                : "Звуков добавлено: " + imported));
+                : "Звуков добавлено: " + imported
+                        + ", к подаркам: " + assigned));
     });
 
     return;
@@ -2977,16 +2982,20 @@ private void autoImportFromPhoneFolder() {
     }
 
     executor.execute(() -> {
+        autoAssignedCount = 0;
+
         int sounds = importFolderSoundsFromMediaStore();
         int gifs = importFolderGifsFromMediaStore();
 
         final int soundCount = sounds;
         final int gifCount = gifs;
+        final int assigned = autoAssignedCount;
 
-        if (soundCount + gifCount > 0) {
+        if (soundCount + gifCount + assigned > 0) {
             runOnUiThread(() -> message(
-                    "Из папки LGS добавлено: звуков " + soundCount
-                            + ", гифок " + gifCount));
+                    "Из папки LGS: звуков " + soundCount
+                            + ", гифок " + gifCount
+                            + ", сразу к подаркам " + assigned));
         }
     });
 }
@@ -3008,6 +3017,50 @@ public void onRequestPermissionsResult(
 
         autoImportFromPhoneFolder();
     }
+}
+
+private String normalizeName(String raw) {
+    if (raw == null) return "";
+
+    return raw.toLowerCase(Locale.ROOT)
+            .replace('ё', 'е')
+            .replaceAll("\\.[a-z0-9]{2,4}$", "")
+            .replaceAll("[^a-zа-я0-9]+", " ")
+            .trim();
+}
+
+private boolean containsPhrase(String haystack, String needle) {
+    if (needle == null || needle.isEmpty()) return false;
+
+    return (" " + haystack + " ").contains(" " + needle + " ");
+}
+
+// Ищет подарок по названию файла или папки: «Роза.mp3», «rose.wav»,
+// «подарок лев.mp3» — всё это найдёт нужный подарок.
+private String matchGiftKey(String rawName) {
+    String name = normalizeName(rawName);
+
+    if (name.isEmpty()) return null;
+
+    for (String[] gift : giftCatalog) {
+        String key = gift[0].replace('_', ' ').toLowerCase(Locale.ROOT);
+
+        if (containsPhrase(name, key)) {
+            return gift[0];
+        }
+
+        String label = gift[1]
+                .replaceAll("[^\\p{L}\\p{N}]+", " ")
+                .toLowerCase(Locale.ROOT)
+                .replace('ё', 'е')
+                .trim();
+
+        if (containsPhrase(name, label)) {
+            return gift[0];
+        }
+    }
+
+    return null;
 }
 
 private int importFolderSoundsFromMediaStore() {
@@ -3060,6 +3113,21 @@ private int importFolderSoundsFromMediaStore() {
             Uri uri = ContentUris.withAppendedId(collection, id);
 
             if (existing.contains(uri.toString())) continue;
+
+            // Если файл назван как подарок — сразу привязываем звук.
+            String giftKey = matchGiftKey(name);
+
+            if (giftKey != null
+                    && !prefs.contains("gift_sound_" + giftKey)) {
+
+                prefs.edit()
+                        .putString("gift_sound_" + giftKey, uri.toString())
+                        .apply();
+
+                autoAssignedCount++;
+                existing.add(uri.toString());
+                continue;
+            }
 
             JSONObject item = new JSONObject();
 
@@ -3151,10 +3219,12 @@ private int importFolderGifsFromMediaStore() {
             Uri uri = ContentUris.withAppendedId(
                     collection, cursor.getLong(0));
 
-            if (importMediaFile(uri)) {
-                existing.add(name);
-                added++;
-            }
+            if (!importMediaFile(uri)) continue;
+
+            existing.add(name);
+            added++;
+
+            assignAnimationByName(name);
         }
     } catch (Exception ignored) {
     }
@@ -3162,7 +3232,57 @@ private int importFolderGifsFromMediaStore() {
     return added;
 }
 
-private void autoAssignSoundsToGifts() {
+// Гифка с именем подарка сразу становится анимацией этого подарка.
+// «подписка.gif» и «донат.gif» — анимациями события.
+private void assignAnimationByName(String fileName) {
+    if (lastImportedFileName == null) return;
+
+    String path = "file://" + new File(
+            new File(getFilesDir(), "media_library"),
+            lastImportedFileName).getAbsolutePath();
+
+    String normalized = normalizeName(fileName);
+
+    if (containsPhrase(normalized, "подписка")
+            || containsPhrase(normalized, "подписчик")
+            || containsPhrase(normalized, "follower")
+            || containsPhrase(normalized, "follow")) {
+
+        prefs.edit()
+                .putString("animation_follower_uri", path)
+                .apply();
+
+        autoAssignedCount++;
+        return;
+    }
+
+    if (containsPhrase(normalized, "донат")
+            || containsPhrase(normalized, "donation")
+            || containsPhrase(normalized, "donate")) {
+
+        prefs.edit()
+                .putString("animation_donation_uri", path)
+                .apply();
+
+        autoAssignedCount++;
+        return;
+    }
+
+    String giftKey = matchGiftKey(fileName);
+
+    if (giftKey == null) return;
+
+    if (prefs.contains("animation_gift_" + giftKey)) return;
+
+    prefs.edit()
+            .putString("animation_gift_" + giftKey, path)
+            .apply();
+
+    autoAssignedCount++;
+}
+
+private void distributeSoundsByNames() {
+    ArrayList<String> labels = new ArrayList<>();
     ArrayList<String> specs = new ArrayList<>();
 
     String[] categories = {"memes", "funny", "melodies", "effects"};
@@ -3177,32 +3297,50 @@ private void autoAssignSoundsToGifts() {
 
             String uri = sound.optString("uri", "");
 
-            if (!uri.isEmpty()) {
-                specs.add(uri);
-            }
+            if (uri.isEmpty()) continue;
+
+            labels.add(sound.optString("name", ""));
+            specs.add(uri);
         }
     }
 
-    if (specs.isEmpty()) {
+    if (labels.isEmpty()) {
         message("Сначала импортируй звуки");
         return;
     }
 
-    SharedPreferences.Editor editor = prefs.edit();
     int assigned = 0;
+    int skipped = 0;
 
-    for (String[] gift : giftCatalog) {
-        String prefKey = "gift_sound_" + gift[0];
+    SharedPreferences.Editor editor = prefs.edit();
 
-        if (prefs.contains(prefKey)) continue;
+    for (int i = 0; i < labels.size(); i++) {
+        String giftKey = matchGiftKey(labels.get(i));
 
-        editor.putString(prefKey, specs.get(assigned % specs.size()));
+        if (giftKey == null) {
+            skipped++;
+            continue;
+        }
+
+        if (prefs.contains("gift_sound_" + giftKey)) {
+            skipped++;
+            continue;
+        }
+
+        editor.putString("gift_sound_" + giftKey, specs.get(i));
         assigned++;
     }
 
     editor.apply();
 
-    message("Звуки розданы подаркам: " + assigned);
+    if (assigned == 0) {
+        message("По названиям не нашёл подарков. "
+                + "Назови файлы как подарки: «Роза.mp3», «Лев.mp3».");
+    } else {
+        message("Привязано к подаркам: " + assigned
+                + (skipped > 0 ? ", пропущено: " + skipped : ""));
+    }
+
     showGiftCatalog();
 }
 
@@ -3242,6 +3380,7 @@ private int importSoundsFolder(Uri treeUri) {
     int added = collectAudioFiles(
             treeUri,
             android.provider.DocumentsContract.getTreeDocumentId(treeUri),
+            "",
             target);
 
     if (added > 0) {
@@ -3254,7 +3393,7 @@ private int importSoundsFolder(Uri treeUri) {
 }
 
 private int collectAudioFiles(
-        Uri treeUri, String parentId, JSONArray target) {
+        Uri treeUri, String parentId, String parentName, JSONArray target) {
 
     int added = 0;
 
@@ -3284,7 +3423,11 @@ private int collectAudioFiles(
 
             if (android.provider.DocumentsContract.Document.MIME_TYPE_DIR
                     .equals(mime)) {
-                added += collectAudioFiles(treeUri, id, target);
+                added += collectAudioFiles(
+                        treeUri,
+                        id,
+                        name == null ? parentName : name,
+                        target);
                 continue;
             }
 
@@ -3292,14 +3435,31 @@ private int collectAudioFiles(
                 continue;
             }
 
+            String uri = android.provider.DocumentsContract
+                    .buildDocumentUriUsingTree(treeUri, id)
+                    .toString();
+
+            // Название папки тоже учитываем: LGS/Роза/1.mp3 — это Роза.
+            String giftKey = matchGiftKey(
+                    (parentName == null ? "" : parentName) + " "
+                            + (name == null ? "" : name));
+
+            if (giftKey != null
+                    && !prefs.contains("gift_sound_" + giftKey)) {
+
+                prefs.edit()
+                        .putString("gift_sound_" + giftKey, uri)
+                        .apply();
+
+                autoAssignedCount++;
+                continue;
+            }
+
             JSONObject item = new JSONObject();
 
             try {
                 item.put("name", name == null ? "Звук" : name);
-                item.put("uri",
-                        android.provider.DocumentsContract
-                                .buildDocumentUriUsingTree(treeUri, id)
-                                .toString());
+                item.put("uri", uri);
                 target.put(item);
                 added++;
             } catch (Exception ignored) {
@@ -3455,6 +3615,8 @@ private boolean copyMediaToApp(Uri uri, String name, String mime) {
         prefs.edit()
                 .putString("media_library_items", library.toString())
                 .apply();
+
+        lastImportedFileName = storedName;
 
         return true;
 
