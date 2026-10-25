@@ -28,6 +28,7 @@ let tiktokConnected = false;
 let tiktokError = "";
 let connectStartedAt = 0;
 let rateLimitedUntil = 0;
+let consecutiveFailures = 0;
 let reconnectTimer = null;
 let connecting = false;
 let stopped = false;
@@ -903,6 +904,7 @@ connection.on(WebcastEvent.GIFT || "gift", (data) => {
         tiktokConnected = true;
         tiktokError = "";
         connectStartedAt = Date.now();
+        consecutiveFailures = 0;
 
         console.log(
           "TikTok LIVE connected:",
@@ -956,13 +958,26 @@ if (
 
 
 if (/requested user isn't online|user is not online/i.test(errorText)) {
-  console.log("TikTok user is offline. Retrying in 10 seconds.");
+  // Каждая попытка тратит запрос к EulerStream, поэтому при
+  // выключенном эфире пауза растёт: 30с, 1м, 2м, 4м, 8м, 10м.
+  consecutiveFailures = Math.min(consecutiveFailures + 1, 10);
+
+  const offlineDelay = Math.min(
+    30 * 1000 * Math.pow(2, consecutiveFailures - 1),
+    10 * 60 * 1000
+  );
+
+  console.log(
+    "TikTok user is offline. Next attempt in",
+    Math.round(offlineDelay / 1000),
+    "seconds."
+  );
 
   if (!reconnectTimer) {
     reconnectTimer = setTimeout(() => {
       reconnectTimer = null;
       startTikTok();
-    }, 10 * 1000);
+    }, offlineDelay);
   }
 
   return;
