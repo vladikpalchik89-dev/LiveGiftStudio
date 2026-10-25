@@ -2983,6 +2983,38 @@ if (requestCode == PICK_DONATION_SOUND) {
                 "lgs_voice_test");
     }
 
+    // Люди копируют токен по-разному: целиком ссылку, с #, с &token_type.
+    // Приводим всё к чистому токену.
+    private String sanitizeDaToken(String raw) {
+        if (raw == null) return "";
+
+        String token = raw.trim();
+
+        int hash = token.indexOf('#');
+        if (hash >= 0) {
+            token = token.substring(hash + 1);
+        }
+
+        int marker = token.indexOf("access_token=");
+        if (marker >= 0) {
+            token = token.substring(marker + "access_token=".length());
+        }
+
+        if (token.startsWith("Bearer ")) {
+            token = token.substring(7);
+        }
+
+        int amp = token.indexOf('&');
+        if (amp >= 0) {
+            token = token.substring(0, amp);
+        }
+
+        return token.replace("\"", "")
+                .replace("'", "")
+                .replace(" ", "")
+                .trim();
+    }
+
     private void showDaTokenDialog() {
         String saved = prefs.getString("da_token", "");
 
@@ -2993,7 +3025,12 @@ if (requestCode == PICK_DONATION_SOUND) {
         TextView status = new TextView(this);
         status.setText(saved.trim().isEmpty()
                 ? "Токен не задан"
-                : "Токен сохранён ✅");
+                : "Токен сохранён ✅ (" + saved.length()
+                        + " символов, …"
+                        + (saved.length() > 4
+                                ? saved.substring(saved.length() - 4)
+                                : saved)
+                        + ")");
         status.setTextColor(saved.trim().isEmpty()
                 ? 0xFFFF8A80 : 0xFF7CFFB2);
         status.setTextSize(15);
@@ -3008,9 +3045,37 @@ if (requestCode == PICK_DONATION_SOUND) {
         input.setMaxLines(4);
         layout.addView(input);
 
+        Button paste = new Button(this);
+        paste.setText("📋 Вставить из буфера");
+        paste.setOnClickListener(v -> {
+            try {
+                android.content.ClipboardManager clipboard =
+                        (android.content.ClipboardManager)
+                                getSystemService(CLIPBOARD_SERVICE);
+
+                CharSequence clip = clipboard.getText();
+
+                if (clip == null) {
+                    message("Буфер пуст");
+                    return;
+                }
+
+                String token = sanitizeDaToken(clip.toString());
+
+                input.setText(token);
+
+                message("Вставлено символов: " + token.length());
+            } catch (Exception error) {
+                message("Не удалось прочитать буфер");
+            }
+        });
+        layout.addView(paste);
+
         TextView hint = new TextView(this);
         hint.setText("Токен хранится только на телефоне. "
-                + "Сервер для донатов больше не нужен.");
+                + "Сервер для донатов больше не нужен.\n"
+                + "Токен — длинная строка из букв и цифр, "
+                + "обычно 40+ символов.");
         hint.setTextColor(0xFF9AA7C7);
         hint.setTextSize(12);
         hint.setPadding(0, dp(6), 0, 0);
@@ -3020,7 +3085,8 @@ if (requestCode == PICK_DONATION_SOUND) {
                 .setTitle("🔑 Токен DonationAlerts")
                 .setView(layout)
                 .setPositiveButton("Сохранить", (dialog, which) -> {
-                    String token = input.getText().toString().trim();
+                    String token = sanitizeDaToken(
+                            input.getText().toString());
 
                     prefs.edit().putString("da_token", token).apply();
 
@@ -3032,7 +3098,8 @@ if (requestCode == PICK_DONATION_SOUND) {
                     }
                 })
                 .setNeutralButton("Проверить", (dialog, which) ->
-                        checkDaToken(input.getText().toString().trim()))
+                        checkDaToken(sanitizeDaToken(
+                                input.getText().toString())))
                 .setNegativeButton("Закрыть", null)
                 .show();
     }
@@ -3044,6 +3111,12 @@ if (requestCode == PICK_DONATION_SOUND) {
         }
 
         final String value = token.trim();
+
+        if (value.length() < 40) {
+            message("Это не похоже на токен: " + value.length()
+                    + " символов. Токен длинный, обычно начинается "
+                    + "с «eyJ» или это строка 40+ символов.");
+        }
 
         executor.execute(() -> {
             String result;
@@ -3097,8 +3170,35 @@ if (requestCode == PICK_DONATION_SOUND) {
                     result = "✅ Токен работает. Донатов в истории: "
                             + count;
                 } else if (code == 401) {
+                    String detail = "";
+
+                    try {
+                        java.io.InputStream stream =
+                                connection.getErrorStream();
+
+                        if (stream != null) {
+                            java.io.BufferedReader reader =
+                                    new java.io.BufferedReader(
+                                            new java.io.InputStreamReader(
+                                                    stream,
+                                                    java.nio.charset.StandardCharsets.UTF_8));
+
+                            StringBuilder body = new StringBuilder();
+                            String line;
+
+                            while ((line = reader.readLine()) != null) {
+                                body.append(line);
+                            }
+
+                            detail = body.toString().trim();
+                        }
+                    } catch (Exception ignored) {
+                    }
+
                     result = "❌ Токен не подошёл (401). "
-                            + "Получи новый по инструкции.";
+                            + (detail.isEmpty() ? "" : detail + " ")
+                            + "Проверь, что скопирован access_token "
+                            + "(40+ символов), а не ключ API.";
                 } else {
                     result = "❌ Ответ сервера: HTTP " + code;
                 }

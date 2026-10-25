@@ -1738,7 +1738,8 @@ private void startDonationPolling() {
 }
 
 private void pollDonationsOnce() {
-    String token = prefs.getString("da_token", "").trim();
+    String token = cleanDaToken(
+            prefs.getString("da_token", ""));
 
     if (token.isEmpty()) return;
 
@@ -1841,6 +1842,32 @@ private void pollDonationsOnce() {
     } catch (Exception error) {
         lastDonationPollError = String.valueOf(error.getMessage());
     }
+}
+
+private String cleanDaToken(String raw) {
+    if (raw == null) return "";
+
+    String token = raw.trim();
+
+    int hash = token.indexOf('#');
+
+    if (hash >= 0) {
+        token = token.substring(hash + 1);
+    }
+
+    int marker = token.indexOf("access_token=");
+
+    if (marker >= 0) {
+        token = token.substring(marker + "access_token=".length());
+    }
+
+    int amp = token.indexOf('&');
+
+    if (amp >= 0) {
+        token = token.substring(0, amp);
+    }
+
+    return token.replace(" ", "").trim();
 }
 
 private String formatAmount(Object value) {
