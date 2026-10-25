@@ -57,6 +57,7 @@ private int menuRowIndex = 0;
     private static final int PICK_DONATION_SOUND = 503;
     private static final int PICK_MEDIA_FOLDER = 508;
 private static final int PICK_MEDIA_FILES = 509;
+    private static final int PICK_SOUNDS_FOLDER = 530;
 private static final int PICK_ANIMATION_FOLLOWER = 601;
 private static final int PICK_ANIMATION_DONATION = 602;
 private static final int PICK_ANIMATION_GIFT = 603;
@@ -379,6 +380,13 @@ addMenuRow(
         v -> showSoundLibrary(),
         v -> showSoundLibrary()
 );
+
+addMenuRow(
+        "📥\nИмпорт\nпапки звуков", 0xFF00D6B7,
+        "🎞️\nИмпорт\nпапки GIF", 0xFFFFB900,
+        v -> chooseSoundsFolder(),
+        v -> chooseMediaFolder()
+);
     
     addMenuRow(
         "📚\nМоя\nмедиатека", 0xFF00C853,
@@ -536,6 +544,194 @@ addMenuRow(
 
 
 private void chooseAnimationFile(int requestCode) {
+    new AlertDialog.Builder(this)
+            .setTitle("Откуда взять анимацию?")
+            .setItems(new String[]{
+                    "📚 Из медиатеки",
+                    "📁 Выбрать файл на телефоне"
+            }, (dialog, which) -> {
+                if (which == 0) {
+                    showMediaLibraryPicker(requestCode);
+                } else {
+                    openAnimationFilePicker(requestCode);
+                }
+            })
+            .setNegativeButton("Отмена", null)
+            .show();
+}
+
+private void showMediaLibraryPicker(int requestCode) {
+    final ArrayList<String> labels = new ArrayList<>();
+    final ArrayList<String> specs = new ArrayList<>();
+
+    JSONArray items;
+
+    try {
+        items = new JSONArray(
+                prefs.getString("media_library_items", "[]"));
+    } catch (Exception e) {
+        items = new JSONArray();
+    }
+
+    File directory = new File(getFilesDir(), "media_library");
+
+    for (int i = 0; i < items.length(); i++) {
+        JSONObject item = items.optJSONObject(i);
+
+        if (item == null) continue;
+
+        String stored = item.optString("file", "");
+        String mime = item.optString("mime", "");
+
+        if (stored.isEmpty()) continue;
+
+        if (!mime.startsWith("image/") && !mime.startsWith("video/")) {
+            continue;
+        }
+
+        labels.add(item.optString("name", "Файл"));
+        specs.add(Uri.fromFile(
+                new File(directory, stored)).toString());
+    }
+
+    if (labels.isEmpty()) {
+        new AlertDialog.Builder(this)
+                .setTitle("📚 Медиатека пуста")
+                .setMessage("Импортируй папку с GIF: "
+                        + "меню → «Импорт папки GIF».")
+                .setPositiveButton("📥 Импорт папки",
+                        (d, w) -> chooseMediaFolder())
+                .setNegativeButton("Закрыть", null)
+                .show();
+        return;
+    }
+
+    LinearLayout layout = new LinearLayout(this);
+    layout.setOrientation(LinearLayout.VERTICAL);
+    layout.setPadding(dp(12), dp(8), dp(12), dp(8));
+
+    EditText search = new EditText(this);
+    search.setHint("Поиск GIF: кот, смех, танец…");
+    search.setSingleLine(true);
+    layout.addView(search);
+
+    final ArrayList<String> filteredLabels = new ArrayList<>();
+    final ArrayList<String> filteredSpecs = new ArrayList<>();
+
+    filteredLabels.addAll(labels);
+    filteredSpecs.addAll(specs);
+
+    final ArrayAdapter<String> adapter = new ArrayAdapter<>(
+            this,
+            android.R.layout.simple_list_item_1,
+            filteredLabels);
+
+    ListView list = new ListView(this);
+    list.setAdapter(adapter);
+    layout.addView(list, new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, dp(380)));
+
+    final AlertDialog dialog = new AlertDialog.Builder(this)
+            .setTitle("🎞️ Анимация из медиатеки")
+            .setView(layout)
+            .setNegativeButton("Закрыть", null)
+            .create();
+
+    search.addTextChangedListener(new TextWatcher() {
+        @Override
+        public void beforeTextChanged(
+                CharSequence text, int start, int count, int after) {
+        }
+
+        @Override
+        public void onTextChanged(
+                CharSequence text, int start, int before, int count) {
+        }
+
+        @Override
+        public void afterTextChanged(Editable editable) {
+            String query = editable.toString()
+                    .trim()
+                    .toLowerCase(Locale.ROOT);
+
+            filteredLabels.clear();
+            filteredSpecs.clear();
+
+            for (int i = 0; i < labels.size(); i++) {
+                if (query.isEmpty()
+                        || labels.get(i)
+                                .toLowerCase(Locale.ROOT)
+                                .contains(query)) {
+                    filteredLabels.add(labels.get(i));
+                    filteredSpecs.add(specs.get(i));
+                }
+            }
+
+            adapter.notifyDataSetChanged();
+        }
+    });
+
+    list.setOnItemClickListener((parent, view, position, id) -> {
+        if (position < 0 || position >= filteredSpecs.size()) {
+            return;
+        }
+
+        dialog.dismiss();
+        applyAnimationFromLibrary(
+                requestCode, filteredSpecs.get(position));
+    });
+
+    dialog.show();
+}
+
+private void applyAnimationFromLibrary(int requestCode, String uriString) {
+    String key;
+    String type;
+
+    if (requestCode == PICK_ANIMATION_FOLLOWER) {
+        key = "animation_follower_uri";
+        type = "follower";
+    } else if (requestCode == PICK_ANIMATION_DONATION) {
+        key = "animation_donation_uri";
+        type = "donation";
+    } else {
+        if (selectedGiftKey == null) {
+            message("Сначала выбери подарок");
+            return;
+        }
+
+        key = "animation_gift_" + selectedGiftKey;
+        type = "gift";
+    }
+
+    prefs.edit()
+            .putString(key, uriString)
+            .apply();
+
+    message("Анимация сохранена");
+
+    Intent intent = new Intent(this, OverlayService.class);
+    intent.putExtra("preview_animation", type);
+    intent.putExtra("preview_animation_uri", uriString);
+
+    if ("gift".equals(type)) {
+        intent.putExtra(
+                "preview_animation_gift_key",
+                selectedGiftKey
+        );
+    }
+
+    try {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent);
+        } else {
+            startService(intent);
+        }
+    } catch (Exception ignored) {
+    }
+}
+
+private void openAnimationFilePicker(int requestCode) {
     Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
     intent.addCategory(Intent.CATEGORY_OPENABLE);
     intent.setType("*/*");
@@ -1531,13 +1727,48 @@ private void deleteLibrarySound(String category, int index) {
                     current, giftKey, dialog);
         }
 
+        final int libraryCount = countLibrarySounds();
+
+        addSoundHeader(list, libraryCount > 0
+                ? "📚 Мои звуки (" + libraryCount + ")"
+                : "📚 Мои звуки");
+
+        TextView browse = new TextView(this);
+        browse.setText(libraryCount > 0
+                ? "🔎 Выбрать из моих звуков"
+                : "📥 Импортировать папку со звуками");
+        browse.setTextColor(0xFF8FE3FF);
+        browse.setTextSize(16);
+        browse.setPadding(dp(10), dp(12), dp(10), dp(12));
+
+        GradientDrawable browseBackground = new GradientDrawable();
+        browseBackground.setColor(0xFF0B1A2A);
+        browseBackground.setCornerRadius(dp(10));
+        browse.setBackground(browseBackground);
+
+        browse.setOnClickListener(v -> {
+            dialog.dismiss();
+
+            if (libraryCount > 0) {
+                showLibrarySoundSearch(giftKey, giftName);
+            } else {
+                chooseSoundsFolder();
+            }
+        });
+
+        list.addView(browse);
+
+        dialog.show();
+    }
+
+    private void showLibrarySoundSearch(String giftKey, String giftName) {
+        final ArrayList<String> labels = new ArrayList<>();
+        final ArrayList<String> specs = new ArrayList<>();
+
         String[] categories = {"memes", "funny", "melodies", "effects"};
         String[] categoryNames = {
-                "😂 Мемы", "🤣 Смешные фразы",
-                "🎵 Мелодии", "💥 Эффекты"
+                "😂 Мемы", "🤣 Фразы", "🎵 Мелодии", "💥 Эффекты"
         };
-
-        boolean libraryHeaderAdded = false;
 
         for (int c = 0; c < categories.length; c++) {
             JSONArray sounds = getLibrarySounds(categories[c]);
@@ -1545,27 +1776,110 @@ private void deleteLibrarySound(String category, int index) {
             for (int i = 0; i < sounds.length(); i++) {
                 JSONObject sound = sounds.optJSONObject(i);
 
-                if (sound == null) {
-                    continue;
-                }
+                if (sound == null) continue;
 
                 String uri = sound.optString("uri", "");
 
-                if (uri.isEmpty()) {
-                    continue;
-                }
+                if (uri.isEmpty()) continue;
 
-                if (!libraryHeaderAdded) {
-                    addSoundHeader(list, "📚 Мои звуки");
-                    libraryHeaderAdded = true;
-                }
-
-                addSoundRow(list,
-                        categoryNames[c] + " · "
-                                + sound.optString("name", "Звук"),
-                        uri, current, giftKey, dialog);
+                labels.add(categoryNames[c] + " · "
+                        + sound.optString("name", "Звук"));
+                specs.add(uri);
             }
         }
+
+        if (labels.isEmpty()) {
+            new AlertDialog.Builder(this)
+                    .setTitle("📚 Мои звуки")
+                    .setMessage("Пока пусто.\nИмпортируй папку со звуками — "
+                            + "файлы добавятся все сразу.")
+                    .setPositiveButton("📥 Импорт папки",
+                            (d, w) -> chooseSoundsFolder())
+                    .setNegativeButton("Закрыть", null)
+                    .show();
+            return;
+        }
+
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(dp(12), dp(8), dp(12), dp(8));
+
+        EditText search = new EditText(this);
+        search.setHint("Поиск: смех, утка, бас…");
+        search.setSingleLine(true);
+        layout.addView(search);
+
+        final ArrayList<String> filteredLabels = new ArrayList<>();
+        final ArrayList<String> filteredSpecs = new ArrayList<>();
+
+        filteredLabels.addAll(labels);
+        filteredSpecs.addAll(specs);
+
+        final ArrayAdapter<String> adapter = new ArrayAdapter<>(
+                this,
+                android.R.layout.simple_list_item_1,
+                filteredLabels);
+
+        ListView list = new ListView(this);
+        list.setAdapter(adapter);
+        layout.addView(list, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(380)));
+
+        final AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("📚 Звук для «" + giftName + "»")
+                .setView(layout)
+                .setNegativeButton("Закрыть", null)
+                .create();
+
+        search.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(
+                    CharSequence text, int start, int count, int after) {
+            }
+
+            @Override
+            public void onTextChanged(
+                    CharSequence text, int start, int before, int count) {
+            }
+
+            @Override
+            public void afterTextChanged(Editable editable) {
+                String query = editable.toString()
+                        .trim()
+                        .toLowerCase(Locale.ROOT);
+
+                filteredLabels.clear();
+                filteredSpecs.clear();
+
+                for (int i = 0; i < labels.size(); i++) {
+                    if (query.isEmpty()
+                            || labels.get(i)
+                                    .toLowerCase(Locale.ROOT)
+                                    .contains(query)) {
+                        filteredLabels.add(labels.get(i));
+                        filteredSpecs.add(specs.get(i));
+                    }
+                }
+
+                adapter.notifyDataSetChanged();
+            }
+        });
+
+        list.setOnItemClickListener((parent, view, position, id) -> {
+            if (position < 0 || position >= filteredSpecs.size()) {
+                return;
+            }
+
+            String spec = filteredSpecs.get(position);
+
+            prefs.edit()
+                    .putString("gift_sound_" + giftKey, spec)
+                    .apply();
+
+            previewSoundSpec(spec);
+            dialog.dismiss();
+            showGiftCatalog();
+        });
 
         dialog.show();
     }
@@ -1892,6 +2206,37 @@ if (requestCode == PICK_MEDIA_FOLDER) {
 
         runOnUiThread(() ->
                 message("Импортировано файлов: " + imported));
+    });
+
+    return;
+}
+
+// Импорт папки со звуками в библиотеку
+if (requestCode == PICK_SOUNDS_FOLDER) {
+    if (resultCode != RESULT_OK || data == null
+            || data.getData() == null) {
+        return;
+    }
+
+    final Uri folderUri = data.getData();
+
+    try {
+        getContentResolver().takePersistableUriPermission(
+                folderUri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION
+        );
+    } catch (Exception e) {
+        message("Не удалось открыть папку");
+        return;
+    }
+
+    message("Импорт звуков начат");
+    executor.execute(() -> {
+        int imported = importSoundsFolder(folderUri);
+
+        runOnUiThread(() -> message(imported == 0
+                ? "Аудиофайлы не найдены"
+                : "Звуков добавлено: " + imported));
     });
 
     return;
@@ -2487,6 +2832,111 @@ private void chooseMediaFolder() {
     } catch (Exception e) {
         message("Не удалось открыть выбор папки");
     }
+}
+
+private void chooseSoundsFolder() {
+    Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+    intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+    intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+
+    try {
+        startActivityForResult(intent, PICK_SOUNDS_FOLDER);
+    } catch (Exception e) {
+        message("Не удалось открыть выбор папки");
+    }
+}
+
+private int countLibrarySounds() {
+    int total = 0;
+    String[] categories = {"memes", "funny", "melodies", "effects"};
+
+    for (String category : categories) {
+        total += getLibrarySounds(category).length();
+    }
+
+    return total;
+}
+
+private int importSoundsFolder(Uri treeUri) {
+    JSONArray target;
+
+    try {
+        target = new JSONArray(
+                prefs.getString(LIBRARY_MEMES, "[]"));
+    } catch (Exception e) {
+        target = new JSONArray();
+    }
+
+    int added = collectAudioFiles(
+            treeUri,
+            android.provider.DocumentsContract.getTreeDocumentId(treeUri),
+            target);
+
+    if (added > 0) {
+        prefs.edit()
+                .putString(LIBRARY_MEMES, target.toString())
+                .apply();
+    }
+
+    return added;
+}
+
+private int collectAudioFiles(
+        Uri treeUri, String parentId, JSONArray target) {
+
+    int added = 0;
+
+    Uri childrenUri =
+            android.provider.DocumentsContract
+                    .buildChildDocumentsUriUsingTree(treeUri, parentId);
+
+    try (android.database.Cursor cursor =
+                 getContentResolver().query(
+                         childrenUri,
+                         new String[]{
+                                 android.provider.DocumentsContract
+                                         .Document.COLUMN_DOCUMENT_ID,
+                                 android.provider.DocumentsContract
+                                         .Document.COLUMN_DISPLAY_NAME,
+                                 android.provider.DocumentsContract
+                                         .Document.COLUMN_MIME_TYPE
+                         },
+                         null, null, null)) {
+
+        if (cursor == null) return added;
+
+        while (cursor.moveToNext()) {
+            String id = cursor.getString(0);
+            String name = cursor.getString(1);
+            String mime = cursor.getString(2);
+
+            if (android.provider.DocumentsContract.Document.MIME_TYPE_DIR
+                    .equals(mime)) {
+                added += collectAudioFiles(treeUri, id, target);
+                continue;
+            }
+
+            if (mime == null || !mime.startsWith("audio/")) {
+                continue;
+            }
+
+            JSONObject item = new JSONObject();
+
+            try {
+                item.put("name", name == null ? "Звук" : name);
+                item.put("uri",
+                        android.provider.DocumentsContract
+                                .buildDocumentUriUsingTree(treeUri, id)
+                                .toString());
+                target.put(item);
+                added++;
+            } catch (Exception ignored) {
+            }
+        }
+    } catch (Exception ignored) {
+    }
+
+    return added;
 }
 
 private void chooseMediaFiles() {
