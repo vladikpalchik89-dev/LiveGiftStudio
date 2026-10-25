@@ -148,6 +148,15 @@ private void startForegroundNotification() {
     // активный чат уводил озвучку на минуты вперёд.
     private final AtomicInteger pendingSpeech = new AtomicInteger();
     private volatile boolean chatSpeechEnabled = true;
+
+    private final java.util.Set<String> seenDonationIds =
+            new java.util.HashSet<>();
+    private final java.util.concurrent.ExecutorService donationExecutor =
+            java.util.concurrent.Executors.newSingleThreadExecutor();
+    private Runnable donationPollTask;
+    private boolean donationPollStarted = false;
+    private String donationPollToken = "";
+    private volatile String lastDonationPollError = "";
     private String lastGiftEventKey = "";
 private long lastGiftEventTime = 0;
     private Runnable removeTask;
@@ -217,6 +226,7 @@ public void onCreate() {
         });
 
         connectToServer();
+        startDonationPolling();
     }
 
     @Override
@@ -583,55 +593,12 @@ if (type.equals("test_donation")) {
                    
                     // Донат из DonationAlerts
                     if (type.equals("donation")) {
-                        String donor = event.optString(
-                                "username", "Зритель");
-
-                        String amount = event.optString(
-                                "amount", "0");
-
-                        String currency = event.optString(
-                                "currency", "RUB");
-
-                        String donationText = event.optString(
-                                "message", "").trim();
-
-                        String displayMessage =
-                                "💰 ДОНАТ " + amount + " "
-                                        + currency
-                                        + "\n@" + donor;
-
-                        if (!donationText.isEmpty()) {
-                            displayMessage +=
-                                    "\n💬 " + donationText;
-                        }
-
-                        final String finalDisplayMessage =
-                                displayMessage;
-
-                        handler.post(() -> {
-                            if (!destroyed) {
-                                showGift(
-                                        finalDisplayMessage,
-                                        "donation"
-                                );
-
-                                // Раньше звук доната играл только в тесте,
-                                // а на реальных донатах молчал.
-                                playDonationSound();
-
-                                String speech =
-                                        "Донат от " + donor
-                                        + ". Сумма " + amount
-                                        + " " + currency;
-
-                                if (!donationText.isEmpty()) {
-                                    speech += ". Сообщение: "
-                                            + donationText;
-                                }
-
-                                speakText(speech);
-                            }
-                        });
+                        handleDonation(
+                                event.optString("username", "Зритель"),
+                                event.optString("amount", "0"),
+                                event.optString("currency", "RUB"),
+                                event.optString("message", "").trim()
+                        );
 
                         return;
                     } 
@@ -1718,6 +1685,180 @@ private void removeOverlay() {
 private void speakText(String text) {
     speakTextForUser(null, text);
 }
+private void handleDonation(
+        String donor, String amount, String currency, String text) {
+
+    String displayMessage = "💰 ДОНАТ " + amount + " "
+            + currency + "\n@" + donor;
+
+    if (text != null && !text.isEmpty()) {
+        displayMessage += "\n💬 " + text;
+    }
+
+    final String finalMessage = displayMessage;
+    final String finalDonor = donor;
+    final String finalAmount = amount;
+    final String finalCurrency = currency;
+    final String finalText = text == null ? "" : text;
+
+    handler.post(() -> {
+        if (destroyed) return;
+
+        showGift(finalMessage, "donation");
+        playDonationSound();
+
+        String speech = "Донат от " + finalDonor
+                + ". Сумма " + finalAmount + " " + finalCurrency;
+
+        if (!finalText.isEmpty()) {
+            speech += ". Сообщение: " + finalText;
+        }
+
+        speakText(speech);
+    });
+}
+
+// Прямой опрос DonationAlerts из приложения: работает даже без сервера,
+// нужен только токен в настройках.
+private void startDonationPolling() {
+    if (donationPollTask != null || destroyed) return;
+
+    donationPollTask = new Runnable() {
+        @Override
+        public void run() {
+            if (destroyed) return;
+
+            donationExecutor.execute(() -> pollDonationsOnce());
+
+            handler.postDelayed(this, 15000);
+        }
+    };
+
+    handler.post(donationPollTask);
+}
+
+private void pollDonationsOnce() {
+    String token = prefs.getString("da_token", "").trim();
+
+    if (token.isEmpty()) return;
+
+    if (!token.equals(donationPollToken)) {
+        donationPollToken = token;
+        donationPollStarted = false;
+        seenDonationIds.clear();
+    }
+
+    try {
+        java.net.HttpURLConnection connection =
+                (java.net.HttpURLConnection) new java.net.URL(
+                        "https://www.donationalerts.com/api/v1/alerts/donations?page=1")
+                        .openConnection();
+
+        connection.setRequestProperty(
+                "Authorization", "Bearer " + token);
+        connection.setRequestProperty("Accept", "application/json");
+        connection.setConnectTimeout(15000);
+        connection.setReadTimeout(15000);
+
+        int code = connection.getResponseCode();
+
+        if (code != 200) {
+            lastDonationPollError = "HTTP " + code;
+            connection.disconnect();
+            return;
+        }
+
+        StringBuilder body = new StringBuilder();
+
+        try (java.io.BufferedReader reader =
+                     new java.io.BufferedReader(
+                             new java.io.InputStreamReader(
+                                     connection.getInputStream(),
+                                     java.nio.charset.StandardCharsets.UTF_8))) {
+
+            String line;
+
+            while ((line = reader.readLine()) != null) {
+                body.append(line);
+            }
+        }
+
+        connection.disconnect();
+
+        org.json.JSONArray list;
+
+        String raw = body.toString().trim();
+
+        if (raw.startsWith("{")) {
+            list = new org.json.JSONObject(raw)
+                    .optJSONArray("data");
+        } else {
+            list = new org.json.JSONArray(raw);
+        }
+
+        if (list == null) return;
+
+        if (!donationPollStarted) {
+            donationPollStarted = true;
+
+            for (int i = 0; i < list.length(); i++) {
+                org.json.JSONObject donation = list.optJSONObject(i);
+
+                if (donation != null) {
+                    seenDonationIds.add(
+                            donation.optString("id", ""));
+                }
+            }
+
+            lastDonationPollError = "";
+            return;
+        }
+
+        // Список приходит от новых к старым — читаем с конца,
+        // чтобы анимации шли в правильном порядке.
+        for (int i = list.length() - 1; i >= 0; i--) {
+            org.json.JSONObject donation = list.optJSONObject(i);
+
+            if (donation == null) continue;
+
+            String id = donation.optString("id", "");
+
+            if (id.isEmpty() || seenDonationIds.contains(id)) {
+                continue;
+            }
+
+            seenDonationIds.add(id);
+
+            handleDonation(
+                    donation.optString("username", "Зритель"),
+                    formatAmount(donation.opt("amount")),
+                    donation.optString("currency", "RUB"),
+                    donation.optString("message", "").trim()
+            );
+        }
+
+        lastDonationPollError = "";
+    } catch (Exception error) {
+        lastDonationPollError = String.valueOf(error.getMessage());
+    }
+}
+
+private String formatAmount(Object value) {
+    if (value == null) return "0";
+
+    if (value instanceof Number) {
+        double number = ((Number) value).doubleValue();
+
+        if (number == Math.floor(number)) {
+            return String.valueOf((long) number);
+        }
+
+        return String.format(Locale.US, "%.2f", number);
+    }
+
+    return String.valueOf(value);
+}
+
 private void applySavedVoice() {
     if (textToSpeech == null) return;
 
@@ -1872,6 +2013,13 @@ private void speakTextForUser(
     @Override
     public void onDestroy() {
         destroyed = true;
+
+        if (donationPollTask != null) {
+            handler.removeCallbacks(donationPollTask);
+            donationPollTask = null;
+        }
+
+        donationExecutor.shutdownNow();
 android.util.Log.e(
         TAG,
         "OVERLAY SERVICE DESTROYED"

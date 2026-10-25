@@ -377,6 +377,13 @@ addMenuRow(
         v -> testDonation(),
         v -> openLink(DONATE_URL)
 );
+
+addMenuRow(
+        "🔑\nТокен\nDonationAlerts", 0xFF00D6B7,
+        "📋\nКак\nполучить", 0xFF087BFF,
+        v -> showDaTokenDialog(),
+        v -> showDaTokenHelp()
+);
 addSectionHeader("📚 ЗВУКИ И МЕДИА");
 
 addMenuRow(
@@ -2974,6 +2981,161 @@ if (requestCode == PICK_DONATION_SOUND) {
                 TextToSpeech.QUEUE_FLUSH,
                 null,
                 "lgs_voice_test");
+    }
+
+    private void showDaTokenDialog() {
+        String saved = prefs.getString("da_token", "");
+
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(dp(12), dp(8), dp(12), dp(8));
+
+        TextView status = new TextView(this);
+        status.setText(saved.trim().isEmpty()
+                ? "Токен не задан"
+                : "Токен сохранён ✅");
+        status.setTextColor(saved.trim().isEmpty()
+                ? 0xFFFF8A80 : 0xFF7CFFB2);
+        status.setTextSize(15);
+        layout.addView(status);
+
+        EditText input = new EditText(this);
+        input.setHint("Вставь access_token");
+        input.setText(saved);
+        input.setTextSize(13);
+        input.setSingleLine(false);
+        input.setMinLines(2);
+        input.setMaxLines(4);
+        layout.addView(input);
+
+        TextView hint = new TextView(this);
+        hint.setText("Токен хранится только на телефоне. "
+                + "Сервер для донатов больше не нужен.");
+        hint.setTextColor(0xFF9AA7C7);
+        hint.setTextSize(12);
+        hint.setPadding(0, dp(6), 0, 0);
+        layout.addView(hint);
+
+        new AlertDialog.Builder(this)
+                .setTitle("🔑 Токен DonationAlerts")
+                .setView(layout)
+                .setPositiveButton("Сохранить", (dialog, which) -> {
+                    String token = input.getText().toString().trim();
+
+                    prefs.edit().putString("da_token", token).apply();
+
+                    if (token.isEmpty()) {
+                        message("Токен удалён");
+                    } else {
+                        message("Токен сохранён, проверяю…");
+                        checkDaToken(token);
+                    }
+                })
+                .setNeutralButton("Проверить", (dialog, which) ->
+                        checkDaToken(input.getText().toString().trim()))
+                .setNegativeButton("Закрыть", null)
+                .show();
+    }
+
+    private void checkDaToken(String token) {
+        if (token == null || token.trim().isEmpty()) {
+            message("Сначала вставь токен");
+            return;
+        }
+
+        final String value = token.trim();
+
+        executor.execute(() -> {
+            String result;
+
+            try {
+                java.net.HttpURLConnection connection =
+                        (java.net.HttpURLConnection) new URL(
+                                "https://www.donationalerts.com"
+                                        + "/api/v1/alerts/donations?page=1")
+                                .openConnection();
+
+                connection.setRequestProperty(
+                        "Authorization", "Bearer " + value);
+                connection.setRequestProperty(
+                        "Accept", "application/json");
+                connection.setConnectTimeout(15000);
+                connection.setReadTimeout(15000);
+
+                int code = connection.getResponseCode();
+
+                if (code == 200) {
+                    int count = 0;
+
+                    try {
+                        StringBuilder body = new StringBuilder();
+
+                        try (java.io.BufferedReader reader =
+                                     new java.io.BufferedReader(
+                                             new java.io.InputStreamReader(
+                                                     connection.getInputStream(),
+                                                     java.nio.charset.StandardCharsets.UTF_8))) {
+
+                            String line;
+
+                            while ((line = reader.readLine()) != null) {
+                                body.append(line);
+                            }
+                        }
+
+                        String raw = body.toString().trim();
+
+                        org.json.JSONArray list = raw.startsWith("{")
+                                ? new org.json.JSONObject(raw)
+                                        .optJSONArray("data")
+                                : new org.json.JSONArray(raw);
+
+                        count = list == null ? 0 : list.length();
+                    } catch (Exception ignored) {
+                    }
+
+                    result = "✅ Токен работает. Донатов в истории: "
+                            + count;
+                } else if (code == 401) {
+                    result = "❌ Токен не подошёл (401). "
+                            + "Получи новый по инструкции.";
+                } else {
+                    result = "❌ Ответ сервера: HTTP " + code;
+                }
+
+                connection.disconnect();
+            } catch (Exception error) {
+                result = "❌ Нет связи: " + error.getMessage();
+            }
+
+            final String text = result;
+            runOnUiThread(() -> message(text));
+        });
+    }
+
+    private void showDaTokenHelp() {
+        String text = "1. Открой donationalerts.com/application/clients\n\n"
+                + "2. «Создать приложение» → название любое, "
+                + "Redirect URI: https://www.donationalerts.com/\n\n"
+                + "3. Скопируй Client ID.\n\n"
+                + "4. Открой ссылку:\n"
+                + "donationalerts.com/oauth/authorize"
+                + "?client_id=ТВОЙ_ID"
+                + "&redirect_uri=https%3A%2F%2Fwww.donationalerts.com%2F"
+                + "&response_type=token&scope=oauth-user-show\n\n"
+                + "5. Нажми «Разрешить» — в адресной строке появится "
+                + "#access_token=...\n\n"
+                + "6. Скопируй этот токен и вставь в "
+                + "«🔑 Токен DonationAlerts».\n\n"
+                + "После этого донаты приходят прямо на телефон.";
+
+        new AlertDialog.Builder(this)
+                .setTitle("📋 Как получить токен")
+                .setMessage(text)
+                .setPositiveButton("Открыть сайт", (dialog, which) ->
+                        openLink("https://www.donationalerts.com/application/clients"))
+                .setNegativeButton("Закрыть", null)
+                .show();
     }
 
     private void chooseFollowSound() {
