@@ -3045,6 +3045,20 @@ if (requestCode == PICK_DONATION_SOUND) {
         input.setMaxLines(4);
         layout.addView(input);
 
+        Button authorize = new Button(this);
+        authorize.setText("🌐 Открыть ссылку разрешения");
+        authorize.setOnClickListener(v -> {
+            String clientId = prefs.getString(
+                    "da_client_id", "22326").trim();
+
+            openLink("https://www.donationalerts.com/oauth/authorize"
+                    + "?client_id=" + clientId
+                    + "&redirect_uri=https%3A%2F%2Fwww.donationalerts.com%2F"
+                    + "&response_type=token"
+                    + "&scope=oauth-user-show%20oauth-donation-index");
+        });
+        layout.addView(authorize);
+
         Button paste = new Button(this);
         paste.setText("📋 Вставить из буфера");
         paste.setOnClickListener(v -> {
@@ -3195,10 +3209,16 @@ if (requestCode == PICK_DONATION_SOUND) {
                     } catch (Exception ignored) {
                     }
 
-                    result = "❌ Токен не подошёл (401). "
-                            + (detail.isEmpty() ? "" : detail + " ")
-                            + "Проверь, что скопирован access_token "
-                            + "(40+ символов), а не ключ API.";
+                    if (detail.contains("Invalid scope")) {
+                        result = "⚠️ Токен без нужного доступа. "
+                                + "Нажми «🌐 Открыть ссылку разрешения», "
+                                + "разреши доступ и вставь новый токен.";
+                    } else {
+                        result = "❌ Токен не подошёл (401). "
+                                + (detail.isEmpty() ? "" : detail + " ")
+                                + "Проверь, что скопирован access_token, "
+                                + "а не ключ API.";
+                    }
                 } else {
                     result = "❌ Ответ сервера: HTTP " + code;
                 }
@@ -3222,7 +3242,8 @@ if (requestCode == PICK_DONATION_SOUND) {
                 + "donationalerts.com/oauth/authorize"
                 + "?client_id=ТВОЙ_ID"
                 + "&redirect_uri=https%3A%2F%2Fwww.donationalerts.com%2F"
-                + "&response_type=token&scope=oauth-user-show\n\n"
+                + "&response_type=token"
+                + "&scope=oauth-user-show%20oauth-donation-index\n\n"
                 + "5. Нажми «Разрешить» — в адресной строке появится "
                 + "#access_token=...\n\n"
                 + "6. Скопируй этот токен и вставь в "
