@@ -28,6 +28,7 @@ import android.widget.ImageView;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -4745,8 +4746,228 @@ private void showTikTokAccounts() {
                         .show();
             })
             .setNegativeButton("Закрыть", null)
+            .setNeutralButton("🩺 Диагностика", (d, w) ->
+                    showConnectionDiagnostics())
             .show();
-}                
+}
+
+    // ------------------------------------------------------------------
+    // Диагностика соединения: одна кнопка, один экран.
+    // Видно, жив ли сокет, в эфире ли TikTok и доходят ли события.
+    // ------------------------------------------------------------------
+    private void showConnectionDiagnostics() {
+        message("Проверяю соединение…");
+
+        executor.execute(() -> {
+            String report;
+
+            try {
+                report = buildDiagnosticsReport();
+            } catch (Exception error) {
+                report = "Не удалось собрать отчёт: " + error;
+            }
+
+            final String text = report;
+
+            runOnUiThread(() -> showDiagnosticsDialog(text));
+        });
+    }
+
+    private String buildDiagnosticsReport() {
+        StringBuilder out = new StringBuilder();
+        long now = System.currentTimeMillis();
+
+        out.append("ПРИЛОЖЕНИЕ\n");
+
+        boolean serviceAlive = OverlayService.serviceStartedAt > 0;
+
+        out.append("Сервис: ")
+                .append(serviceAlive ? "✅ запущен" : "❌ не запущен")
+                .append('\n');
+
+        if (serviceAlive) {
+            out.append("Работает: ")
+                    .append(ago(now - OverlayService.serviceStartedAt))
+                    .append('\n');
+        }
+
+        out.append("Сокет: ")
+                .append(OverlayService.wsConnected
+                        ? "✅ подключён"
+                        : "❌ нет связи")
+                .append('\n');
+
+        if (!OverlayService.lastSocketError.isEmpty()) {
+            out.append("Ошибка: ")
+                    .append(OverlayService.lastSocketError)
+                    .append('\n');
+        }
+
+        out.append("Последнее событие: ");
+
+        if (OverlayService.lastEventAt == 0) {
+            out.append("не приходило\n");
+        } else {
+            out.append(OverlayService.lastEventType)
+                    .append(" (")
+                    .append(ago(now - OverlayService.lastEventAt))
+                    .append(" назад)\n");
+        }
+
+        out.append("\nСЕРВЕР\n");
+
+        HttpURLConnection connection = null;
+
+        try {
+            connection = (HttpURLConnection) new URL(
+                    "https://livegiftstudio.onrender.com/health")
+                    .openConnection();
+            connection.setConnectTimeout(20000);
+            connection.setReadTimeout(20000);
+
+            int code = connection.getResponseCode();
+
+            if (code != 200) {
+                out.append("Ответ: HTTP ").append(code).append('\n');
+                return out.toString();
+            }
+
+            JSONObject json = new JSONObject(
+                    readStream(connection.getInputStream()));
+
+            JSONObject tiktok = json.optJSONObject("tiktok");
+            JSONObject events = json.optJSONObject("events");
+
+            out.append("Доступен: ✅, работает ")
+                    .append(json.optInt("uptimeSeconds") / 60)
+                    .append(" мин\n");
+
+            if (tiktok != null) {
+                out.append("TikTok @")
+                        .append(tiktok.optString("username"))
+                        .append(": ")
+                        .append(tiktok.optBoolean("connected")
+                                ? "✅ в эфире"
+                                : "❌ не в эфире")
+                        .append('\n');
+            }
+
+            out.append("Клиентов на сервере: ")
+                    .append(json.optInt("websocketClients"))
+                    .append('\n');
+
+            if (events != null) {
+                String lastAt = events.optString("lastAt", "");
+
+                out.append("Событий передано: ")
+                        .append(events.optInt("forwarded"))
+                        .append('\n');
+
+                out.append("Последнее на сервере: ")
+                        .append(lastAt.isEmpty()
+                                ? "не было"
+                                : events.optString("lastType")
+                                        + " в " + lastAt)
+                        .append('\n');
+            }
+        } catch (Exception error) {
+            out.append("❌ Нет связи с сервером\n")
+                    .append(String.valueOf(error))
+                    .append('\n');
+        } finally {
+            if (connection != null) {
+                connection.disconnect();
+            }
+        }
+
+        return out.toString();
+    }
+
+    private String readStream(java.io.InputStream stream) throws Exception {
+        StringBuilder body = new StringBuilder();
+
+        try (java.io.BufferedReader reader =
+                     new java.io.BufferedReader(
+                             new java.io.InputStreamReader(
+                                     stream, StandardCharsets.UTF_8))) {
+            String line;
+
+            while ((line = reader.readLine()) != null) {
+                body.append(line);
+            }
+        }
+
+        return body.toString();
+    }
+
+    private String ago(long millis) {
+        long seconds = Math.max(0, millis / 1000);
+
+        if (seconds < 60) {
+            return seconds + " с";
+        }
+
+        long minutes = seconds / 60;
+
+        if (minutes < 60) {
+            return minutes + " мин";
+        }
+
+        return (minutes / 60) + " ч " + (minutes % 60) + " мин";
+    }
+
+    private void showDiagnosticsDialog(String report) {
+        TextView view = new TextView(this);
+        view.setText(report);
+        view.setTextSize(12);
+        view.setTextColor(0xFF1A2233);
+        view.setTypeface(Typeface.MONOSPACE);
+        view.setTextIsSelectable(true);
+        view.setPadding(dp(16), dp(12), dp(16), dp(12));
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(view);
+
+        new AlertDialog.Builder(this)
+                .setTitle("🩺 Диагностика соединения")
+                .setView(scroll)
+                .setPositiveButton("🔄 Обновить", (d, w) ->
+                        showConnectionDiagnostics())
+                .setNeutralButton("🎁 Тест подарка", (d, w) ->
+                        sendTestGift())
+                .setNegativeButton("Закрыть", null)
+                .show();
+    }
+
+    private void sendTestGift() {
+        executor.execute(() -> {
+            HttpURLConnection connection = null;
+
+            try {
+                connection = (HttpURLConnection) new URL(
+                        "https://livegiftstudio.onrender.com/test-gift")
+                        .openConnection();
+                connection.setRequestProperty(
+                        "x-switch-key", ACCOUNT_SWITCH_KEY);
+                connection.setConnectTimeout(20000);
+                connection.setReadTimeout(20000);
+
+                int code = connection.getResponseCode();
+
+                runOnUiThread(() -> message(code == 200
+                        ? "Тестовый подарок отправлен — жди анимацию"
+                        : "Сервер ответил: " + code));
+            } catch (Exception error) {
+                runOnUiThread(() ->
+                        message("Не удалось отправить тест"));
+            } finally {
+                if (connection != null) {
+                    connection.disconnect();
+                }
+            }
+        });
+    }
+
 private void editTikTokAccount(int index) {
     EditText input = new EditText(this);
     input.setSingleLine(true);

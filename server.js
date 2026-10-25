@@ -67,7 +67,12 @@ app.get("/health", (_req, res) => {
       lastDonationAt,
       lastPollError: donationPollError
     },
-    websocketClients: wss.clients.size
+    websocketClients: wss.clients.size,
+    events: {
+      forwarded: eventCounter,
+      lastType: lastEventType,
+      lastAt: lastEventAt
+    }
   });
 });
 
@@ -86,14 +91,20 @@ app.get("/debug/last-events", requireTestKey, (_req, res) => {
 
 // Общая проверка ключа для тестовых эндпоинтов.
 function requireTestKey(req, res, next) {
-  if (!testKey) {
+  // Ключ тестов и ключ переключения аккаунта равнозначны:
+  // приложение знает только второй.
+  const accepted = [testKey, switchKey].filter(Boolean);
+
+  if (accepted.length === 0) {
     return res.status(503).json({
       status: "error",
       message: "TEST_EVENT_KEY is not configured"
     });
   }
 
-  if (req.query.key !== testKey) {
+  const provided = req.query.key || req.get("x-switch-key") || "";
+
+  if (!accepted.includes(provided)) {
     return res.status(403).json({
       status: "error",
       message: "Invalid test key"
@@ -234,9 +245,13 @@ app.get("/test-chat", requireTestKey, (req, res) => {
 
 
 let eventCounter = 0;
+let lastEventAt = null;
+let lastEventType = null;
 
 function sendEvent(event) {
   const payload = { id: ++eventCounter, ...event };
+  lastEventAt = new Date().toISOString();
+  lastEventType = payload.type || null;
   const message = JSON.stringify(payload);
   let delivered = 0;
 
@@ -320,7 +335,9 @@ function getGiftInfo(data) {
 wss.on("connection", (socket, req) => {
   console.log(
     "WebSocket client connected:",
-    req.socket.remoteAddress
+    req.socket.remoteAddress,
+    "| total clients:",
+    wss.clients.size
   );
 
   socket.isAlive = true;
@@ -622,11 +639,12 @@ async function pollDonations() {
 }
 
 function startDonationPolling() {
-  if (donationPollTimer || stopped) return;
-  if (!process.env.DONATIONALERTS_TOKEN) return;
-
-  pollDonations();
-  donationPollTimer = setInterval(pollDonations, 15000);
+  // Донаты теперь опрашивает само приложение по своему токену.
+  // Серверный опрос с просроченным токеном только засорял логи
+  // ошибками 401 каждые 15 секунд.
+  console.log(
+    "DonationAlerts polling disabled: the Android app polls directly"
+  );
 }
 
 function handleDonationAlertsDisconnect(reason) {

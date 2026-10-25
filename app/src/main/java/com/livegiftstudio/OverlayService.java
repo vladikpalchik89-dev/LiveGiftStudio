@@ -164,10 +164,20 @@ private long lastGiftEventTime = 0;
     private int reconnectAttempts = 0;
     private volatile boolean destroyed = false;
 
+    // Состояние для экрана диагностики: видно, живой ли сокет
+    // и когда пришло последнее событие.
+    public static volatile boolean wsConnected = false;
+    public static volatile long lastEventAt = 0;
+    public static volatile String lastEventType = "";
+    public static volatile String lastSocketError = "";
+    public static volatile long serviceStartedAt = 0;
+
 
 @Override
 public void onCreate() {
     super.onCreate();
+
+    serviceStartedAt = System.currentTimeMillis();
 
     startForegroundNotification();
 
@@ -435,6 +445,8 @@ public void onOpen(
     );
 
     reconnectAttempts = 0;
+    wsConnected = true;
+    lastSocketError = "";
 
     android.util.Log.e(
             TAG,
@@ -458,6 +470,9 @@ android.util.Log.d(
 
                     String type = event.optString(
                             "type", "").toLowerCase(Locale.ROOT);
+
+                    lastEventAt = System.currentTimeMillis();
+                    lastEventType = type;
                     if (type.equals("stream_end")) {
     handler.post(() -> {
         if (!destroyed && textToSpeech != null) {
@@ -683,6 +698,10 @@ public void onFailure(
             error
     );
 
+    wsConnected = false;
+    lastSocketError = "HTTP=" + httpCode + " "
+            + String.valueOf(error);
+
     if (socket == webSocket) {
         scheduleReconnect();
     }
@@ -698,6 +717,9 @@ public void onFailure(
                         TAG,
                         "WebSocket CLOSED code="
                                 + code + " reason=" + reason);
+
+                wsConnected = false;
+                lastSocketError = "closed " + code + " " + reason;
 
                 if (socket == webSocket) {
                     scheduleReconnect();
