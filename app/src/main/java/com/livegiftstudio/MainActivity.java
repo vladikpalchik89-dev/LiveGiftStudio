@@ -3,6 +3,7 @@ package com.livegiftstudio;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.ContentUris;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
@@ -10,6 +11,7 @@ import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.provider.MediaStore;
 import android.provider.Settings;
 import android.speech.tts.TextToSpeech;
 import android.speech.tts.Voice;
@@ -253,6 +255,7 @@ try {
         loadStats();
         buildInterface();
         requestNotificationPermission();
+        autoImportFromPhoneFolder();
     }
 
     // Android 13+ не показывает уведомление foreground-сервиса без этого
@@ -386,6 +389,13 @@ addMenuRow(
         "🎞️\nИмпорт\nпапки GIF", 0xFFFFB900,
         v -> chooseSoundsFolder(),
         v -> chooseMediaFolder()
+);
+
+addMenuRow(
+        "🔄\nОбновить\nиз LGS", 0xFF00C853,
+        "🎲\nРаздать звуки\nподаркам", 0xFFFFB900,
+        v -> autoImportFromPhoneFolder(),
+        v -> autoAssignSoundsToGifts()
 );
     
     addMenuRow(
@@ -2548,207 +2558,316 @@ if (requestCode == PICK_DONATION_SOUND) {
 
     
     private void showVoiceSettings() {
-    String[] styles = new String[30];
+        final float savedPitch = prefs.getFloat("voice_pitch", 1.0f);
+        final float savedRate = prefs.getFloat("voice_rate", 0.95f);
+        final int savedVolume = prefs.getInt("voice_volume", 100);
 
-    for (int i = 0; i < 30; i++) {
-        styles[i] = String.format(
-                Locale.US, "🎙️ Стиль %02d", i + 1);
+        final float[] pitch = {savedPitch};
+        final float[] rate = {savedRate};
+        final int[] volume = {savedVolume};
+
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(dp(16), dp(8), dp(16), dp(8));
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(layout);
+
+        TextView voiceRow = new TextView(this);
+        voiceRow.setText("🗣 Голос: " + currentVoiceLabel());
+        voiceRow.setTextColor(Color.WHITE);
+        voiceRow.setTextSize(17);
+        voiceRow.setPadding(dp(10), dp(14), dp(10), dp(14));
+
+        GradientDrawable voiceBackground = new GradientDrawable();
+        voiceBackground.setColor(0xFF141B33);
+        voiceBackground.setCornerRadius(dp(12));
+        voiceRow.setBackground(voiceBackground);
+
+        voiceRow.setOnClickListener(v -> displayVoiceSettings());
+
+        layout.addView(voiceRow);
+
+        TextView pitchLabel = new TextView(this);
+        pitchLabel.setText("🎚 Тон: " + Math.round(pitch[0] * 100) + "%");
+        pitchLabel.setTextColor(Color.WHITE);
+        pitchLabel.setTextSize(16);
+        pitchLabel.setPadding(0, dp(14), 0, 0);
+        layout.addView(pitchLabel);
+
+        android.widget.SeekBar pitchBar = new android.widget.SeekBar(this);
+        pitchBar.setMax(60);
+        pitchBar.setProgress(Math.round((pitch[0] - 0.7f) * 100));
+        layout.addView(pitchBar);
+
+        pitchBar.setOnSeekBarChangeListener(
+                new android.widget.SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(
+                    android.widget.SeekBar bar, int progress, boolean fromUser) {
+                pitch[0] = 0.7f + progress / 100f;
+                pitchLabel.setText(
+                        "🎚 Тон: " + Math.round(pitch[0] * 100) + "%");
+            }
+
+            @Override
+            public void onStartTrackingTouch(android.widget.SeekBar bar) {
+            }
+
+            @Override
+            public void onStopTrackingTouch(android.widget.SeekBar bar) {
+            }
+        });
+
+        TextView rateLabel = new TextView(this);
+        rateLabel.setText("⚡ Скорость: " + Math.round(rate[0] * 100) + "%");
+        rateLabel.setTextColor(Color.WHITE);
+        rateLabel.setTextSize(16);
+        rateLabel.setPadding(0, dp(10), 0, 0);
+        layout.addView(rateLabel);
+
+        android.widget.SeekBar rateBar = new android.widget.SeekBar(this);
+        rateBar.setMax(60);
+        rateBar.setProgress(Math.round((rate[0] - 0.7f) * 100));
+        layout.addView(rateBar);
+
+        rateBar.setOnSeekBarChangeListener(
+                new android.widget.SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(
+                    android.widget.SeekBar bar, int progress, boolean fromUser) {
+                rate[0] = 0.7f + progress / 100f;
+                rateLabel.setText(
+                        "⚡ Скорость: " + Math.round(rate[0] * 100) + "%");
+            }
+
+            @Override
+            public void onStartTrackingTouch(android.widget.SeekBar bar) {
+            }
+
+            @Override
+            public void onStopTrackingTouch(android.widget.SeekBar bar) {
+            }
+        });
+
+        TextView volumeLabel = new TextView(this);
+        volumeLabel.setText("🔊 Громкость: " + volume[0] + "%");
+        volumeLabel.setTextColor(Color.WHITE);
+        volumeLabel.setTextSize(16);
+        volumeLabel.setPadding(0, dp(10), 0, 0);
+        layout.addView(volumeLabel);
+
+        android.widget.SeekBar volumeBar = new android.widget.SeekBar(this);
+        volumeBar.setMax(100);
+        volumeBar.setProgress(volume[0]);
+        layout.addView(volumeBar);
+
+        volumeBar.setOnSeekBarChangeListener(
+                new android.widget.SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(
+                    android.widget.SeekBar bar, int progress, boolean fromUser) {
+                volume[0] = progress;
+                volumeLabel.setText("🔊 Громкость: " + progress + "%");
+            }
+
+            @Override
+            public void onStartTrackingTouch(android.widget.SeekBar bar) {
+            }
+
+            @Override
+            public void onStopTrackingTouch(android.widget.SeekBar bar) {
+            }
+        });
+
+        android.widget.CheckBox chatBox = new android.widget.CheckBox(this);
+        chatBox.setText("💬 Озвучивать чат");
+        chatBox.setTextColor(Color.WHITE);
+        chatBox.setTextSize(16);
+        chatBox.setChecked(prefs.getBoolean("chat_speech_enabled", true));
+        layout.addView(chatBox);
+
+        android.widget.CheckBox nickBox = new android.widget.CheckBox(this);
+        nickBox.setText("🏷 Называть ник автора");
+        nickBox.setTextColor(Color.WHITE);
+        nickBox.setTextSize(16);
+        nickBox.setChecked(prefs.getBoolean("chat_speech_nick", true));
+        layout.addView(nickBox);
+
+        Button test = new Button(this);
+        test.setText("▶ Проверить голос");
+        test.setOnClickListener(v -> previewVoiceWith(
+                pitch[0], rate[0], volume[0],
+                prefs.getString("selected_voice_name", "")));
+        layout.addView(test);
+
+        Button natural = new Button(this);
+        natural.setText("↩️ Естественный голос");
+        natural.setOnClickListener(v -> {
+            pitch[0] = 1.0f;
+            rate[0] = 0.95f;
+            volume[0] = 100;
+
+            pitchBar.setProgress(30);
+            rateBar.setProgress(25);
+            volumeBar.setProgress(100);
+
+            prefs.edit()
+                    .putFloat("voice_pitch", 1.0f)
+                    .putFloat("voice_rate", 0.95f)
+                    .putInt("voice_volume", 100)
+                    .apply();
+
+            previewVoiceWith(1.0f, 0.95f, 100,
+                    prefs.getString("selected_voice_name", ""));
+
+            message("Вернул естественные тон и скорость");
+        });
+        layout.addView(natural);
+
+        new AlertDialog.Builder(this)
+                .setTitle("🎙️ Озвучка чата")
+                .setView(scroll)
+                .setPositiveButton("Сохранить", (dialog, which) -> {
+                    prefs.edit()
+                            .putFloat("voice_pitch", pitch[0])
+                            .putFloat("voice_rate", rate[0])
+                            .putInt("voice_volume", volume[0])
+                            .putBoolean("chat_speech_enabled", chatBox.isChecked())
+                            .putBoolean("chat_speech_nick", nickBox.isChecked())
+                            .apply();
+
+                    Intent intent = new Intent(
+                            this, OverlayService.class);
+                    intent.setAction(chatBox.isChecked()
+                            ? OverlayService.ACTION_START_CHAT_SPEECH
+                            : OverlayService.ACTION_STOP_CHAT_SPEECH);
+
+                    try {
+                        startService(intent);
+                    } catch (Exception ignored) {
+                    }
+
+                    message("Настройки озвучки сохранены");
+                })
+                .setNegativeButton("Отмена", null)
+                .show();
     }
 
-    final int[] pitches = {
-        65, 70, 75, 80, 85, 90, 95, 100, 105, 110,
-        115, 120, 125, 130, 135, 70, 80, 90, 100, 110,
-        120, 130, 75, 95, 115, 125, 85, 105, 135, 140
-    };
+    private String currentVoiceLabel() {
+        String saved = prefs.getString("selected_voice_name", "");
 
-    final int[] rates = {
-        80, 90, 100, 110, 120, 85, 95, 105, 115, 125,
-        80, 90, 100, 110, 120, 125, 115, 105, 95, 85,
-        80, 90, 100, 110, 120, 125, 115, 105, 90, 130
-    };
-
-    int saved = Math.max(0, Math.min(
-            29, prefs.getInt("voice_preset", 7)));
-
-    int savedVolume = Math.max(0, Math.min(
-            100, prefs.getInt("voice_volume", 100)));
-
-    final int[] choice = {saved};
-    final int[] volume = {savedVolume};
-
-    LinearLayout layout = new LinearLayout(this);
-    layout.setOrientation(LinearLayout.VERTICAL);
-    layout.setPadding(32, 16, 32, 8);
-
-    ListView list = new ListView(this);
-
-    ArrayAdapter<String> adapter = new ArrayAdapter<>(
-            this,
-            android.R.layout.simple_list_item_single_choice,
-            styles);
-
-    list.setAdapter(adapter);
-    list.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
-    list.setItemChecked(saved, true);
-
-    list.setOnItemClickListener((parent, view, position, id) -> {
-        choice[0] = position;
-        list.setItemChecked(position, true);
-    });
-
-    TextView volumeLabel = new TextView(this);
-    volumeLabel.setText("Громкость: " + savedVolume + "%");
-    volumeLabel.setTextColor(Color.WHITE);
-    volumeLabel.setTextSize(16);
-
-    android.widget.SeekBar volumeBar =
-            new android.widget.SeekBar(this);
-
-    volumeBar.setMax(100);
-    volumeBar.setProgress(savedVolume);
-
-    volumeBar.setOnSeekBarChangeListener(
-            new android.widget.SeekBar.OnSeekBarChangeListener() {
-        @Override
-        public void onProgressChanged(
-                android.widget.SeekBar bar,
-                int progress,
-                boolean fromUser) {
-            volume[0] = progress;
-            volumeLabel.setText("Громкость: " + progress + "%");
+        if (saved.isEmpty()) {
+            return "авто (лучший)";
         }
 
-        @Override
-        public void onStartTrackingTouch(
-                android.widget.SeekBar bar) {
-        }
+        return saved.replace("-network", " · сеть")
+                .replace("ru-ru-", "")
+                .replace("ru-RU-", "");
+    }
 
-        @Override
-        public void onStopTrackingTouch(
-                android.widget.SeekBar bar) {
-        }
-    });
+    private void previewVoiceWith(
+            float pitch, float rate, int volume, String voiceName) {
 
-    Button preview = new Button(this);
-    preview.setText("▶ Прослушать выбранный стиль");
-
-    preview.setOnClickListener(v -> {
         if (voicePreview == null || !voicePreviewReady) {
             message("Озвучка ещё не готова. Попробуй позже.");
             return;
         }
 
-        int languageResult =
-                voicePreview.setLanguage(new Locale("ru", "RU"));
+        applyPreviewVoice(voiceName);
 
-        if (languageResult == TextToSpeech.LANG_MISSING_DATA
-                || languageResult == TextToSpeech.LANG_NOT_SUPPORTED) {
-            message("Установи русский голос в настройках Android.");
-            return;
-        }
-
-        voicePreview.stop();
-
-        voicePreview.setPitch(
-                pitches[choice[0]] / 100.0f);
-
-        voicePreview.setSpeechRate(
-                rates[choice[0]] / 100.0f);
+        voicePreview.setPitch(pitch);
+        voicePreview.setSpeechRate(rate);
 
         Bundle params = new Bundle();
         params.putFloat(
                 TextToSpeech.Engine.KEY_PARAM_VOLUME,
-                volume[0] / 100.0f);
+                volume / 100f);
 
         voicePreview.speak(
-                "Привет! Это проверка выбранного стиля голоса.",
+                "Привет! Так будет звучать озвучка чата в эфире.",
                 TextToSpeech.QUEUE_FLUSH,
                 params,
                 "voice_preview");
-    });
+    }
 
-    layout.addView(list,
-            new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    420));
-
-    layout.addView(volumeLabel);
-    layout.addView(volumeBar);
-    layout.addView(preview);
-
-    new AlertDialog.Builder(this)
-            .setTitle("🎙️ 30 стилей голоса")
-            .setView(layout)
-            .setPositiveButton("Сохранить", (dialog, which) -> {
-                prefs.edit()
-                        .putInt("voice_preset", choice[0])
-                        .putInt("voice_volume", volume[0])
-                        .putString("voice_style", "hero")
-                        .apply();
-
-                message("Стиль и громкость сохранены");
-            })
-            .setNegativeButton("Отмена", null)
-            .show();
-}
-                                        
-
-private void displayVoiceSettings() {              
+    private void displayVoiceSettings() {
         if (!voicePreviewReady || voicePreview == null) {
-            message("Русская озвучка ещё не готова. Проверь настройки синтеза речи Android.");
+            message("Русская озвучка ещё не готова. "
+                    + "Проверь синтез речи Android.");
             return;
         }
 
         ArrayList<String> labels = new ArrayList<>();
         ArrayList<String> names = new ArrayList<>();
 
-        labels.add("Голос по умолчанию");
+        labels.add("🤖 Авто — лучший голос");
         names.add("");
 
         try {
-            List<Voice> voices =
-                    new ArrayList<>(voicePreview.getVoices());
+            List<Voice> voices = new ArrayList<>();
 
-            Collections.sort(voices,
-                    Comparator.comparing(v ->
-                            v.getName().toLowerCase(Locale.ROOT)));
-
-            for (Voice voice : voices) {
+            for (Voice voice : voicePreview.getVoices()) {
                 Locale locale = voice.getLocale();
 
                 if (locale != null
-                        && "ru".equalsIgnoreCase(
-                                locale.getLanguage())) {
-                    labels.add(voice.getName());
-                    names.add(voice.getName());
+                        && "ru".equalsIgnoreCase(locale.getLanguage())) {
+                    voices.add(voice);
                 }
             }
-        } catch (Exception ignored) {}
+
+            Collections.sort(voices, (left, right) -> {
+                if (left.getQuality() != right.getQuality()) {
+                    return right.getQuality() - left.getQuality();
+                }
+
+                if (left.isNetworkConnectionRequired()
+                        != right.isNetworkConnectionRequired()) {
+                    return left.isNetworkConnectionRequired() ? -1 : 1;
+                }
+
+                return left.getName().compareTo(right.getName());
+            });
+
+            for (Voice voice : voices) {
+                String name = voice.getName()
+                        .replace("ru-ru-", "")
+                        .replace("ru-RU-", "");
+
+                String mark = voice.isNetworkConnectionRequired()
+                        ? " · сеть"
+                        : "";
+
+                labels.add("🎙 " + name + mark);
+                names.add(voice.getName());
+            }
+        } catch (Exception ignored) {
+        }
 
         if (labels.size() == 1) {
-            message("Установи русский голос в настройках синтеза речи Android");
+            message("Установи русский голос: "
+                    + "Настройки Android → Язык и ввод → "
+                    + "Синтез речи");
             return;
         }
 
-        String selected =
-                prefs.getString("selected_voice_name", "");
-
+        String selected = prefs.getString("selected_voice_name", "");
         int checked = names.indexOf(selected);
+
         if (checked < 0) checked = 0;
 
         final int[] choice = {checked};
 
         new AlertDialog.Builder(this)
-                .setTitle("Выбери голос")
+                .setTitle("🗣 Голоса (" + (labels.size() - 1) + ")")
                 .setSingleChoiceItems(
                         labels.toArray(new String[0]),
                         checked,
-                        (dialog, which) -> choice[0] = which)
-                .setNeutralButton("▶ Проверить", (dialog, which) -> {
-                    String name = names.get(choice[0]);
-                    applyPreviewVoice(name);
-                    testVoice(name);
-                })
+                        (dialog, which) -> {
+                            choice[0] = which;
+                            applyPreviewVoice(names.get(which));
+                            testVoice(names.get(which));
+                        })
                 .setPositiveButton("Сохранить", (dialog, which) -> {
                     String name = names.get(choice[0]);
 
@@ -2757,6 +2876,7 @@ private void displayVoiceSettings() {
                             .apply();
 
                     applyPreviewVoice(name);
+                    showVoiceSettings();
                     message("Голос сохранён");
                 })
                 .setNegativeButton("Отмена", null)
@@ -2832,6 +2952,258 @@ private void chooseMediaFolder() {
     } catch (Exception e) {
         message("Не удалось открыть выбор папки");
     }
+}
+
+private void autoImportFromPhoneFolder() {
+    String audioPermission = Build.VERSION.SDK_INT >= 33
+            ? "android.permission.READ_MEDIA_AUDIO"
+            : android.Manifest.permission.READ_EXTERNAL_STORAGE;
+
+    if (checkSelfPermission(audioPermission)
+            != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+
+        if (Build.VERSION.SDK_INT >= 33) {
+            requestPermissions(new String[]{
+                    "android.permission.READ_MEDIA_AUDIO",
+                    "android.permission.READ_MEDIA_IMAGES"
+            }, 901);
+        } else {
+            requestPermissions(new String[]{
+                    android.Manifest.permission.READ_EXTERNAL_STORAGE
+            }, 901);
+        }
+
+        return;
+    }
+
+    executor.execute(() -> {
+        int sounds = importFolderSoundsFromMediaStore();
+        int gifs = importFolderGifsFromMediaStore();
+
+        final int soundCount = sounds;
+        final int gifCount = gifs;
+
+        if (soundCount + gifCount > 0) {
+            runOnUiThread(() -> message(
+                    "Из папки LGS добавлено: звуков " + soundCount
+                            + ", гифок " + gifCount));
+        }
+    });
+}
+
+@Override
+public void onRequestPermissionsResult(
+        int requestCode,
+        String[] permissions,
+        int[] grantResults) {
+
+    super.onRequestPermissionsResult(
+            requestCode, permissions, grantResults);
+
+    if (requestCode == 901
+            && grantResults.length > 0
+            && grantResults[0]
+                    == android.content.pm.PackageManager
+                            .PERMISSION_GRANTED) {
+
+        autoImportFromPhoneFolder();
+    }
+}
+
+private int importFolderSoundsFromMediaStore() {
+    JSONArray library = getLibrarySounds("memes");
+
+    java.util.HashSet<String> existing = new java.util.HashSet<>();
+
+    for (int i = 0; i < library.length(); i++) {
+        JSONObject item = library.optJSONObject(i);
+
+        if (item != null) {
+            existing.add(item.optString("uri", ""));
+        }
+    }
+
+    Uri collection = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI;
+
+    String[] projection = {
+            MediaStore.Audio.Media._ID,
+            MediaStore.Audio.Media.DISPLAY_NAME
+    };
+
+    String selection;
+    String[] args;
+
+    if (Build.VERSION.SDK_INT >= 29) {
+        selection = MediaStore.Audio.Media.RELATIVE_PATH + " LIKE ?";
+        args = new String[]{"Download/LGS/%"};
+    } else {
+        selection = MediaStore.Audio.Media.DATA + " LIKE ?";
+        args = new String[]{"%/Download/LGS/%"};
+    }
+
+    int added = 0;
+
+    try (android.database.Cursor cursor =
+                 getContentResolver().query(
+                         collection,
+                         projection,
+                         selection,
+                         args,
+                         null)) {
+
+        if (cursor == null) return 0;
+
+        while (cursor.moveToNext()) {
+            long id = cursor.getLong(0);
+            String name = cursor.getString(1);
+
+            Uri uri = ContentUris.withAppendedId(collection, id);
+
+            if (existing.contains(uri.toString())) continue;
+
+            JSONObject item = new JSONObject();
+
+            try {
+                item.put("name", name == null ? "Звук" : name);
+                item.put("uri", uri.toString());
+
+                library.put(item);
+                existing.add(uri.toString());
+                added++;
+            } catch (Exception ignored) {
+            }
+        }
+    } catch (Exception ignored) {
+    }
+
+    if (added > 0) {
+        prefs.edit()
+                .putString(LIBRARY_MEMES, library.toString())
+                .apply();
+    }
+
+    return added;
+}
+
+private int importFolderGifsFromMediaStore() {
+    java.util.HashSet<String> existing = new java.util.HashSet<>();
+
+    try {
+        JSONArray items = new JSONArray(
+                prefs.getString("media_library_items", "[]"));
+
+        for (int i = 0; i < items.length(); i++) {
+            JSONObject item = items.optJSONObject(i);
+
+            if (item != null) {
+                existing.add(item.optString("name", ""));
+            }
+        }
+    } catch (Exception ignored) {
+    }
+
+    Uri collection = MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
+
+    String[] projection = {
+            MediaStore.Images.Media._ID,
+            MediaStore.Images.Media.DISPLAY_NAME,
+            MediaStore.Images.Media.MIME_TYPE
+    };
+
+    String selection;
+    String[] args;
+
+    if (Build.VERSION.SDK_INT >= 29) {
+        selection = MediaStore.Images.Media.RELATIVE_PATH + " LIKE ?";
+        args = new String[]{"Download/LGS/%"};
+    } else {
+        selection = MediaStore.Images.Media.DATA + " LIKE ?";
+        args = new String[]{"%/Download/LGS/%"};
+    }
+
+    int added = 0;
+
+    try (android.database.Cursor cursor =
+                 getContentResolver().query(
+                         collection,
+                         projection,
+                         selection,
+                         args,
+                         null)) {
+
+        if (cursor == null) return 0;
+
+        while (cursor.moveToNext()) {
+            String name = cursor.getString(1);
+            String mime = cursor.getString(2);
+
+            if (name == null) continue;
+
+            String lower = name.toLowerCase(Locale.ROOT);
+
+            if (!lower.endsWith(".gif")
+                    && (mime == null || !mime.equals("image/gif"))) {
+                continue;
+            }
+
+            if (existing.contains(name)) continue;
+
+            Uri uri = ContentUris.withAppendedId(
+                    collection, cursor.getLong(0));
+
+            if (importMediaFile(uri)) {
+                existing.add(name);
+                added++;
+            }
+        }
+    } catch (Exception ignored) {
+    }
+
+    return added;
+}
+
+private void autoAssignSoundsToGifts() {
+    ArrayList<String> specs = new ArrayList<>();
+
+    String[] categories = {"memes", "funny", "melodies", "effects"};
+
+    for (String category : categories) {
+        JSONArray sounds = getLibrarySounds(category);
+
+        for (int i = 0; i < sounds.length(); i++) {
+            JSONObject sound = sounds.optJSONObject(i);
+
+            if (sound == null) continue;
+
+            String uri = sound.optString("uri", "");
+
+            if (!uri.isEmpty()) {
+                specs.add(uri);
+            }
+        }
+    }
+
+    if (specs.isEmpty()) {
+        message("Сначала импортируй звуки");
+        return;
+    }
+
+    SharedPreferences.Editor editor = prefs.edit();
+    int assigned = 0;
+
+    for (String[] gift : giftCatalog) {
+        String prefKey = "gift_sound_" + gift[0];
+
+        if (prefs.contains(prefKey)) continue;
+
+        editor.putString(prefKey, specs.get(assigned % specs.size()));
+        assigned++;
+    }
+
+    editor.apply();
+
+    message("Звуки розданы подаркам: " + assigned);
+    showGiftCatalog();
 }
 
 private void chooseSoundsFolder() {

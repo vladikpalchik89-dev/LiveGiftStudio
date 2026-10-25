@@ -116,10 +116,12 @@ private void startForegroundNotification() {
 
     private static final String TAG = "LiveGiftStudio";  
     private static final String CHANNEL_ID = "livegiftstudio_service";
-    private static final String ACTION_STOP_CHAT_SPEECH =
+    public static final String ACTION_STOP_CHAT_SPEECH =
         "com.livegiftstudio.STOP_CHAT_SPEECH";
-    private static final String ACTION_START_CHAT_SPEECH =
+    public static final String ACTION_START_CHAT_SPEECH =
         "com.livegiftstudio.START_CHAT_SPEECH";
+    public static final String ACTION_TEST_VOICE =
+        "com.livegiftstudio.TEST_VOICE";
     private static final String ACTION_STOP =
         "com.livegiftstudio.STOP_SERVICE";
     public static final String ACTION_PREVIEW_TEXT =
@@ -168,6 +170,9 @@ public void onCreate() {
     prefs = getSharedPreferences(
             "LiveGiftStudio", MODE_PRIVATE);
 
+    chatSpeechEnabled = prefs.getBoolean(
+            "chat_speech_enabled", true);
+
     windowManager = (WindowManager)
             getSystemService(WINDOW_SERVICE);
 
@@ -183,6 +188,9 @@ public void onCreate() {
                         ttsReady =
                                 result != TextToSpeech.LANG_MISSING_DATA
                                 && result != TextToSpeech.LANG_NOT_SUPPORTED;
+
+                        applySavedVoice();
+                        applyVoiceTuning();
 
                         android.util.Log.d(
                                 TAG,
@@ -251,9 +259,32 @@ public int onStartCommand(
     }
 
     if (intent != null
+            && ACTION_TEST_VOICE.equals(intent.getAction())) {
+
+        String phrase = intent.getStringExtra("text");
+
+        if (phrase == null || phrase.trim().isEmpty()) {
+            phrase = "Привет! Так будет звучать озвучка чата.";
+        }
+
+        final String testPhrase = phrase;
+
+        handler.post(() -> {
+            if (!destroyed) {
+                speakText(testPhrase);
+            }
+        });
+
+        return START_STICKY;
+    }
+
+    if (intent != null
             && ACTION_STOP_CHAT_SPEECH.equals(intent.getAction())) {
 
         chatSpeechEnabled = false;
+        prefs.edit()
+                .putBoolean("chat_speech_enabled", false)
+                .apply();
 
         stopSpeech();
 
@@ -265,6 +296,9 @@ public int onStartCommand(
             && ACTION_START_CHAT_SPEECH.equals(intent.getAction())) {
 
         chatSpeechEnabled = true;
+        prefs.edit()
+                .putBoolean("chat_speech_enabled", true)
+                .apply();
 
         android.util.Log.d(TAG, "Озвучка чата включена");
         return START_STICKY;
@@ -1684,6 +1718,72 @@ private void removeOverlay() {
 private void speakText(String text) {
     speakTextForUser(null, text);
 }
+private void applySavedVoice() {
+    if (textToSpeech == null) return;
+
+    try {
+        String saved = prefs.getString(
+                "selected_voice_name", "");
+
+        java.util.Set<Voice> voices = textToSpeech.getVoices();
+
+        if (voices == null || voices.isEmpty()) return;
+
+        if (!saved.isEmpty()) {
+            for (Voice voice : voices) {
+                if (voice.getName().equals(saved)) {
+                    textToSpeech.setVoice(voice);
+                    return;
+                }
+            }
+        }
+
+        // Автовыбор: лучший русский голос. Сетевые голоса Google
+        // звучат заметно живее локальных.
+        Voice best = null;
+
+        for (Voice voice : voices) {
+            Locale locale = voice.getLocale();
+
+            if (locale == null
+                    || !"ru".equalsIgnoreCase(locale.getLanguage())) {
+                continue;
+            }
+
+            if (best == null) {
+                best = voice;
+                continue;
+            }
+
+            boolean better = voice.getQuality() > best.getQuality();
+
+            if (!better && voice.getQuality() == best.getQuality()) {
+                better = voice.isNetworkConnectionRequired()
+                        && !best.isNetworkConnectionRequired();
+            }
+
+            if (better) {
+                best = voice;
+            }
+        }
+
+        if (best != null) {
+            textToSpeech.setVoice(best);
+        }
+    } catch (Exception ignored) {
+    }
+}
+
+private void applyVoiceTuning() {
+    if (textToSpeech == null) return;
+
+    float pitch = prefs.getFloat("voice_pitch", 1.0f);
+    float rate = prefs.getFloat("voice_rate", 0.95f);
+
+    textToSpeech.setPitch(Math.max(0.5f, Math.min(1.6f, pitch)));
+    textToSpeech.setSpeechRate(Math.max(0.5f, Math.min(1.6f, rate)));
+}
+
 private void speakTextForUser(
         String username, String text) {
 
@@ -1708,29 +1808,11 @@ private void speakTextForUser(
                 "SPEAK SKIPPED: очередь озвучки заполнена");
         return;
     }
-    float[] pitches = {
-        0.65f, 0.70f, 0.75f, 0.80f, 0.85f,
-        0.90f, 0.95f, 1.00f, 1.05f, 1.10f,
-        1.15f, 1.20f, 1.25f, 1.30f, 1.35f,
-        0.70f, 0.80f, 0.90f, 1.00f, 1.10f,
-        1.20f, 1.30f, 0.75f, 0.95f, 1.15f,
-        1.25f, 0.85f, 1.05f, 1.35f, 1.40f
-    };
-
-    float[] rates = {
-        0.80f, 0.90f, 1.00f, 1.10f, 1.20f,
-        0.85f, 0.95f, 1.05f, 1.15f, 1.25f,
-        0.80f, 0.90f, 1.00f, 1.10f, 1.20f,
-        1.25f, 1.15f, 1.05f, 0.95f, 0.85f,
-        0.80f, 0.90f, 1.00f, 1.10f, 1.20f,
-        1.25f, 1.15f, 1.05f, 0.90f, 1.30f
-    };
-
-    // Случайный стиль для текущего сообщения.
-    int index = (int) (Math.random() * pitches.length);
-
-    textToSpeech.setPitch(pitches[index]);
-    textToSpeech.setSpeechRate(rates[index]);
+    // Голос, тон и скорость берём из настроек. Раньше они выбирались
+    // случайно для каждого сообщения — из-за этого голос «прыгал»
+    // и звучал как робот.
+    applySavedVoice();
+    applyVoiceTuning();
 
     int volume = Math.max(0, Math.min(
             100, prefs.getInt("voice_volume", 100)));
@@ -1740,10 +1822,32 @@ private void speakTextForUser(
             TextToSpeech.Engine.KEY_PARAM_VOLUME,
             volume / 100.0f);
 
+    String spokenText = text;
+
+    if (username != null && !username.trim().isEmpty()
+            && prefs.getBoolean("chat_speech_nick", true)) {
+
+        String nick = username.trim();
+
+        if (nick.startsWith("@")) {
+            nick = nick.substring(1);
+        }
+
+        if (!nick.isEmpty()) {
+            spokenText = nick + " пишет: " + text;
+        }
+    }
+
+    // Длинные сообщения не читаем целиком — эфир не должен тонуть
+    // в бесконечной озвучке.
+    if (spokenText.length() > 220) {
+        spokenText = spokenText.substring(0, 220) + "…";
+    }
+
     pendingSpeech.incrementAndGet();
 
     int speakResult = textToSpeech.speak(
-            text,
+            spokenText,
             TextToSpeech.QUEUE_ADD,
             params,
             "LiveGiftStudio_" + System.currentTimeMillis()
