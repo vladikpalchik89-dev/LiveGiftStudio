@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -49,3 +49,15 @@ jobs:
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 30
+
+      # Публичная ссылка на APK: не нужен вход в GitHub,
+      # файл просто скачивается по прямой ссылке.
+      - name: Publish APK release
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: LiveGiftStudio ${{ github.run_number }}
+          body: Автоматическая сборка из main (${{ github.sha }})
+          files: app/build/outputs/apk/debug/*.apk
+          make_latest: true
