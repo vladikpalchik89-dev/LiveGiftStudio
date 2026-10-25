@@ -16,10 +16,18 @@ let username = (process.env.TIKTOK_USERNAME || "vinnipyh99")
 const switchKey = process.env.ACCOUNT_SWITCH_KEY || "";
 const testKey = process.env.TEST_EVENT_KEY || "";
 
+// Бесплатный ключ EulerStream поднимает лимит подписей
+// с нескольких подключений в день до 2500 запросов.
+const signApiKey =
+  process.env.SIGN_API_KEY ||
+  process.env.EULER_API_KEY ||
+  "";
+
 let currentConnection = null;
 let tiktokConnected = false;
 let tiktokError = "";
 let connectStartedAt = 0;
+let rateLimitedUntil = 0;
 let reconnectTimer = null;
 let connecting = false;
 let stopped = false;
@@ -62,6 +70,10 @@ app.get("/health", (_req, res) => {
       connected: tiktokConnected,
       connecting,
       lastError: tiktokError,
+      apiKey: Boolean(signApiKey),
+      rateLimitedUntil: rateLimitedUntil
+        ? new Date(rateLimitedUntil).toISOString()
+        : null,
       connectedFor: tiktokConnected && connectStartedAt
         ? Math.round((Date.now() - connectStartedAt) / 1000)
         : 0
@@ -394,6 +406,11 @@ wss.on("close", () => {
 
 server.listen(PORT, "0.0.0.0", () => {
   console.log("LiveGiftStudio server listening on", PORT);
+
+  console.log(
+    "EulerStream API key:",
+    signApiKey ? "configured" : "NOT configured (low daily limit)"
+  );
   startTikTok();
   startDonationAlerts();
   startDonationPolling();
@@ -685,6 +702,8 @@ setInterval(() => {
   if (tiktokConnected) return;
   if (reconnectTimer) return;
 
+  if (rateLimitedUntil && Date.now() < rateLimitedUntil) return;
+
   // Даём текущей попытке 90 секунд.
   if (connecting && Date.now() - connectStartedAt < 90000) return;
 
@@ -745,7 +764,8 @@ function startTikTok() {
     }
 
     const connection = new TikTokLiveConnection(username, {
-      processInitialData: false
+      processInitialData: false,
+      ...(signApiKey ? { signApiKey } : {})
     });
 
     currentConnection = connection;
@@ -915,8 +935,13 @@ connection.on(WebcastEvent.GIFT || "gift", (data) => {
 if (
   /SignatureRateLimitError|rate_limit_account_day|rate limit/i.test(errorText)
 ) {
+  rateLimitedUntil = Date.now() + 30 * 60 * 1000;
+
   console.error(
-    "EulerStream daily limit reached. Next attempt in 30 minutes."
+    "EulerStream daily limit reached.",
+    signApiKey
+      ? "Next attempt in 30 minutes."
+      : "Add a free SIGN_API_KEY from eulerstream.com — next attempt in 30 minutes."
   );
 
   if (!reconnectTimer) {

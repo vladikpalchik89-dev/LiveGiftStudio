@@ -4862,6 +4862,20 @@ private void showTikTokAccounts() {
                 if (tiktok.optBoolean("connecting")) {
                     out.append("Сейчас подключается…\n");
                 }
+
+                if (!tiktok.optBoolean("apiKey", true)) {
+                    out.append("Ключ EulerStream: ❌ не задан\n");
+                }
+
+                String limitedUntil =
+                        tiktok.optString("rateLimitedUntil", "");
+
+                if (!limitedUntil.isEmpty()
+                        && !"null".equals(limitedUntil)) {
+                    out.append("Пауза после лимита до: ")
+                            .append(limitedUntil)
+                            .append('\n');
+                }
             }
 
             out.append("Клиентов на сервере: ")
