@@ -17,6 +17,9 @@ const switchKey = process.env.ACCOUNT_SWITCH_KEY || "";
 const testKey = process.env.TEST_EVENT_KEY || "";
 
 let currentConnection = null;
+let tiktokConnected = false;
+let tiktokError = "";
+let connectStartedAt = 0;
 let reconnectTimer = null;
 let connecting = false;
 let stopped = false;
@@ -43,7 +46,7 @@ app.get("/", (_req, res) => {
     status: "running",
     tiktok: username,
     tiktokEnabled: process.env.TIKTOK_ENABLED === "true",
-    tiktokConnected: Boolean(currentConnection),
+    tiktokConnected: tiktokConnected,
     websocket: "/events"
   });
 });
@@ -56,8 +59,12 @@ app.get("/health", (_req, res) => {
     tiktok: {
       enabled: process.env.TIKTOK_ENABLED === "true",
       username,
-      connected: Boolean(currentConnection),
-      connecting
+      connected: tiktokConnected,
+      connecting,
+      lastError: tiktokError,
+      connectedFor: tiktokConnected && connectStartedAt
+        ? Math.round((Date.now() - connectStartedAt) / 1000)
+        : 0
     },
     donationAlerts: {
       socket: Boolean(donationAlertsSocket),
@@ -671,6 +678,26 @@ function handleDonationAlertsDisconnect(reason) {
 
 
 
+// Сторож: раз в минуту проверяет, что связь действительно есть.
+// Раньше флаг «подключено» врал, потому что выставлялся до connect().
+setInterval(() => {
+  if (stopped || process.env.TIKTOK_ENABLED !== "true") return;
+  if (tiktokConnected) return;
+  if (reconnectTimer) return;
+
+  // Даём текущей попытке 90 секунд.
+  if (connecting && Date.now() - connectStartedAt < 90000) return;
+
+  console.log(
+    "TikTok watchdog: no connection, restarting (last error:",
+    tiktokError || "none",
+    ")"
+  );
+
+  connecting = false;
+  startTikTok();
+}, 60 * 1000);
+
 function scheduleReconnect(reason) {
   if (stopped || process.env.TIKTOK_ENABLED !== "true") return;
   if (reconnectTimer) return;
@@ -704,6 +731,8 @@ function startTikTok() {
 
   if (connecting) return;
   connecting = true;
+  connectStartedAt = Date.now();
+  console.log("TikTok connect attempt:", username);
 
   try {
     const connector = require("tiktok-live-connector");
@@ -801,7 +830,14 @@ connection.on(WebcastEvent.GIFT || "gift", (data) => {
 
     const handleDisconnect = (reason) => {
       if (connection !== currentConnection) return;
+
       connecting = false;
+      tiktokConnected = false;
+      tiktokError = String(reason || "disconnected");
+      currentConnection = null;
+
+      console.log("TikTok disconnected:", tiktokError);
+
       scheduleReconnect(reason || "disconnected");
     };
 
@@ -820,6 +856,8 @@ connection.on(WebcastEvent.GIFT || "gift", (data) => {
     // Останавливаем обработку чата старого эфира.
     currentConnection = null;
     connecting = false;
+    tiktokConnected = false;
+    tiktokError = "stream ended";
 
     // Сообщаем Android, что эфир завершился.
     sendEvent({
@@ -838,16 +876,28 @@ connection.on(WebcastEvent.GIFT || "gift", (data) => {
 );
 
     connection.connect()
-      .then(() => {
+      .then((state) => {
         if (connection !== currentConnection) return;
+
         connecting = false;
-        console.log("TikTok LIVE connected:", username);
+        tiktokConnected = true;
+        tiktokError = "";
+        connectStartedAt = Date.now();
+
+        console.log(
+          "TikTok LIVE connected:",
+          username,
+          "| room:",
+          state?.roomId || "?"
+        );
       })
       
 .catch((error) => {
   if (connection !== currentConnection) return;
 
   connecting = false;
+  tiktokConnected = false;
+  tiktokError = String(error.message || error);
 
   console.error(
     "TikTok connection failed:",
@@ -866,8 +916,16 @@ if (
   /SignatureRateLimitError|rate_limit_account_day|rate limit/i.test(errorText)
 ) {
   console.error(
-    "EulerStream daily limit reached. Automatic reconnect paused."
+    "EulerStream daily limit reached. Next attempt in 30 minutes."
   );
+
+  if (!reconnectTimer) {
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
+      startTikTok();
+    }, 30 * 60 * 1000);
+  }
+
   return;
 }
 

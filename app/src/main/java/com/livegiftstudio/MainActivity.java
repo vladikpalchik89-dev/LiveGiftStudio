@@ -4850,6 +4850,18 @@ private void showTikTokAccounts() {
                                 ? "✅ в эфире"
                                 : "❌ не в эфире")
                         .append('\n');
+
+                String serverError = tiktok.optString("lastError", "");
+
+                if (!serverError.isEmpty()) {
+                    out.append("Ошибка TikTok: ")
+                            .append(serverError)
+                            .append('\n');
+                }
+
+                if (tiktok.optBoolean("connecting")) {
+                    out.append("Сейчас подключается…\n");
+                }
             }
 
             out.append("Клиентов на сервере: ")
