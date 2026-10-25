@@ -24,6 +24,17 @@ let stopped = false;
 let donationAlertsSocket = null;
 let donationAlertsTimer = null;
 
+const https = require("https");
+
+let seenDonationIds = new Set();
+let donationPollTimer = null;
+let donationPollStarted = false;
+let donationPollError = null;
+let lastDonationId = null;
+let lastDonationAt = null;
+let donationsForwarded = 0;
+const recentEvents = [];
+
 const startedAt = Date.now();
 
 app.get("/", (_req, res) => {
@@ -48,8 +59,28 @@ app.get("/health", (_req, res) => {
       connected: Boolean(currentConnection),
       connecting
     },
-    donationAlerts: Boolean(donationAlertsSocket),
+    donationAlerts: {
+      socket: Boolean(donationAlertsSocket),
+      polling: Boolean(donationPollTimer),
+      forwarded: donationsForwarded,
+      lastDonationId,
+      lastDonationAt,
+      lastPollError: donationPollError
+    },
     websocketClients: wss.clients.size
+  });
+});
+
+// Последние события: видно, дошёл ли донат до сервера.
+app.get("/debug/last-events", requireTestKey, (_req, res) => {
+  res.json({
+    status: "ok",
+    donationAlerts: {
+      socket: Boolean(donationAlertsSocket),
+      polling: Boolean(donationPollTimer),
+      lastPollError: donationPollError
+    },
+    events: recentEvents.slice(-10)
   });
 });
 
@@ -220,6 +251,12 @@ function sendEvent(event) {
     }
   });
 
+  recentEvents.push(payload);
+
+  if (recentEvents.length > 20) {
+    recentEvents.shift();
+  }
+
   console.log("Event:", message, "| WebSocket clients:", delivered);
 }
 
@@ -335,6 +372,7 @@ server.listen(PORT, "0.0.0.0", () => {
   console.log("LiveGiftStudio server listening on", PORT);
   startTikTok();
   startDonationAlerts();
+  startDonationPolling();
 });
 
 app.use((_req, res) => {
@@ -362,6 +400,11 @@ function shutdown(signal) {
   if (reconnectTimer) {
     clearTimeout(reconnectTimer);
     reconnectTimer = null;
+  }
+
+  if (donationPollTimer) {
+    clearInterval(donationPollTimer);
+    donationPollTimer = null;
   }
 
   if (donationAlertsTimer) {
@@ -429,14 +472,7 @@ async function startDonationAlerts() {
     });
 
     socket.on(EventName.Donation, (donation) => {
-      sendEvent({
-        type: "donation",
-        username: String(donation.username || "Зритель"),
-        amount: donation.amountMain ?? donation.amount ?? 0,
-        currency: String(donation.currency || "RUB"),
-        message: String(donation.message || ""),
-        timestamp: Date.now()
-      });
+      forwardDonation(donation);
     });
 
     socket.on("close", () => {
@@ -462,6 +498,135 @@ async function startDonationAlerts() {
     );
     handleDonationAlertsDisconnect("connect failed");
   }
+}
+
+function daGet(path) {
+  return new Promise((resolve, reject) => {
+    const token = process.env.DONATIONALERTS_TOKEN;
+
+    if (!token) {
+      return reject(new Error("DONATIONALERTS_TOKEN is missing"));
+    }
+
+    const request = https.get(
+      `https://www.donationalerts.com${path}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json"
+        }
+      },
+      (response) => {
+        let body = "";
+
+        response.on("data", (chunk) => {
+          body += chunk;
+        });
+
+        response.on("end", () => {
+          if (response.statusCode < 200 || response.statusCode >= 300) {
+            return reject(new Error(
+              `HTTP ${response.statusCode}: ${body.slice(0, 160)}`
+            ));
+          }
+
+          try {
+            resolve(JSON.parse(body));
+          } catch (error) {
+            reject(error);
+          }
+        });
+      }
+    );
+
+    request.on("error", reject);
+    request.setTimeout(15000, () => {
+      request.destroy(new Error("DonationAlerts request timeout"));
+    });
+  });
+}
+
+function forwardDonation(donation) {
+  const id = String(donation.id ?? "");
+
+  if (id) {
+    if (seenDonationIds.has(id)) return;
+
+    seenDonationIds.add(id);
+
+    if (seenDonationIds.size > 500) {
+      seenDonationIds = new Set(
+        Array.from(seenDonationIds).slice(-250)
+      );
+    }
+  }
+
+  lastDonationId = id || null;
+  lastDonationAt = new Date().toISOString();
+  donationsForwarded++;
+
+  sendEvent({
+    type: "donation",
+    username: String(donation.username || "Зритель"),
+    amount: donation.amountMain ?? donation.amount ?? 0,
+    currency: String(donation.currency || "RUB"),
+    message: String(donation.message || ""),
+    timestamp: Date.now()
+  });
+}
+
+// Резервный канал: раз в 15 секунд спрашиваем у DonationAlerts
+// последние донаты. Если сокет молчит, донат всё равно дойдёт.
+async function pollDonations() {
+  if (stopped) return;
+
+  try {
+    const body = await daGet("/api/v1/alerts/donations?page=1");
+    const list = Array.isArray(body)
+      ? body
+      : (Array.isArray(body?.data) ? body.data : []);
+
+    const fresh = [];
+
+    for (const donation of list) {
+      const id = String(donation.id ?? "");
+
+      if (!id || seenDonationIds.has(id)) continue;
+
+      fresh.push(donation);
+    }
+
+    // Первый опрос только запоминает старые донаты,
+    // чтобы не проигрывать их заново после перезапуска.
+    if (!donationPollStarted) {
+      donationPollStarted = true;
+
+      for (const donation of fresh) {
+        seenDonationIds.add(String(donation.id));
+      }
+
+      return;
+    }
+
+    fresh.sort((left, right) => Number(left.id) - Number(right.id));
+
+    for (const donation of fresh) {
+      forwardDonation(donation);
+    }
+
+    donationPollError = null;
+  } catch (error) {
+    donationPollError = error.message;
+    console.error("DonationAlerts poll failed:", error.message);
+  }
+}
+
+function startDonationPolling() {
+  if (donationPollTimer || stopped) return;
+  if (!process.env.DONATIONALERTS_TOKEN) return;
+
+  pollDonations();
+  donationPollTimer = setInterval(pollDonations, 15000);
 }
 
 function handleDonationAlertsDisconnect(reason) {

@@ -2699,6 +2699,61 @@ if (requestCode == PICK_DONATION_SOUND) {
         nickBox.setChecked(prefs.getBoolean("chat_speech_nick", true));
         layout.addView(nickBox);
 
+        Button personas = new Button(this);
+        personas.setText("🎭 Образы голоса");
+        personas.setOnClickListener(v -> {
+            final String[] names = {
+                    "🎤 Блогер — энергичный",
+                    "😎 Стример — спокойный",
+                    "🎬 Актёр — низкий",
+                    "📺 Диктор — ровный",
+                    "🤪 Мем — высокий",
+                    "👶 Мультяшный",
+                    "👹 Демон",
+                    "🤖 Робот",
+                    "🐿️ Быстрый",
+                    "🐢 Медленный",
+                    "😂 Весёлый",
+                    "😴 Спокойный",
+                    "👧 Девочка",
+                    "👦 Мальчик",
+                    "🗣 Ведущий"
+            };
+
+            final float[] personaPitch = {
+                    1.05f, 0.98f, 0.85f, 0.95f, 1.25f,
+                    1.35f, 0.70f, 0.85f, 1.10f, 0.95f,
+                    1.15f, 0.90f, 1.30f, 1.15f, 1.00f
+            };
+
+            final float[] personaRate = {
+                    1.08f, 1.00f, 0.92f, 0.92f, 1.15f,
+                    1.10f, 0.85f, 0.85f, 1.25f, 0.80f,
+                    1.10f, 0.85f, 1.05f, 1.05f, 1.00f
+            };
+
+            new AlertDialog.Builder(this)
+                    .setTitle("🎭 Образы голоса")
+                    .setItems(names, (d, which) -> {
+                        pitch[0] = personaPitch[which];
+                        rate[0] = personaRate[which];
+
+                        pitchBar.setProgress(
+                                Math.round((pitch[0] - 0.7f) * 100));
+                        rateBar.setProgress(
+                                Math.round((rate[0] - 0.7f) * 100));
+
+                        previewVoiceWith(
+                                pitch[0], rate[0], volume[0],
+                                prefs.getString("selected_voice_name", ""));
+
+                        message("Образ: " + names[which]);
+                    })
+                    .setNegativeButton("Закрыть", null)
+                    .show();
+        });
+        layout.addView(personas);
+
         Button test = new Button(this);
         test.setText("▶ Проверить голос");
         test.setOnClickListener(v -> previewVoiceWith(
