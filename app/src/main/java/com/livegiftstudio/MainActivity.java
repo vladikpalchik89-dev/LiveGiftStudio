@@ -61,6 +61,7 @@ private int menuRowIndex = 0;
     private static final int PICK_MEDIA_FOLDER = 508;
 private static final int PICK_MEDIA_FILES = 509;
     private static final int PICK_SOUNDS_FOLDER = 530;
+    private static final int PICK_GIFT_ICONS_FOLDER = 531;
 private static final int PICK_ANIMATION_FOLLOWER = 601;
 private static final int PICK_ANIMATION_DONATION = 602;
 private static final int PICK_ANIMATION_GIFT = 603;
@@ -406,6 +407,13 @@ addMenuRow(
         "🎯\nРазложить\nпо названиям", 0xFFFFB900,
         v -> autoImportFromPhoneFolder(),
         v -> distributeSoundsByNames()
+);
+
+addMenuRow(
+        "🖼️\nИконки\nподарков", 0xFFFF1493,
+        "🎁\nВсе\nподарки", 0xFF087BFF,
+        v -> chooseGiftIconsFolder(),
+        v -> showGiftCatalog()
 );
     
     addMenuRow(
@@ -877,17 +885,18 @@ private void testAnimation(String type) {
 
 
 private void showAnimationGiftCatalog() {
-    String[] names = new String[giftCatalog.length];
+    ArrayList<String[]> gifts = allGifts();
+    String[] names = new String[gifts.size()];
 
-    for (int i = 0; i < giftCatalog.length; i++) {
-        names[i] = giftCatalog[i][1];
+    for (int i = 0; i < gifts.size(); i++) {
+        names[i] = gifts.get(i)[1];
     }
 
     new AlertDialog.Builder(this)
             .setTitle("🎁 Выбери подарок")
             .setItems(names, (dialog, which) -> {
-                selectedGiftKey = giftCatalog[which][0];
-                selectedGiftName = giftCatalog[which][1];
+                selectedGiftKey = gifts.get(which)[0];
+                selectedGiftName = gifts.get(which)[1];
                 selectedAnimationType = "gift";
 
                 String key = "animation_gift_" + selectedGiftKey;
@@ -1585,7 +1594,7 @@ private void deleteLibrarySound(String category, int index) {
         LinearLayout row = null;
         int shown = 0;
 
-        for (String[] gift : giftCatalog) {
+        for (String[] gift : allGifts()) {
             String key = gift[0];
             String name = gift[1];
 
@@ -1638,18 +1647,28 @@ private void deleteLibrarySound(String category, int index) {
         background.setStroke(dp(1), 0xFF2A3766);
         card.setBackground(background);
 
-        int imageId = getResources().getIdentifier(
-                "gift_" + key, "drawable", getPackageName());
+        ImageView icon = new ImageView(this);
+        icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
 
-        if (imageId == 0) {
-            imageId = getResources().getIdentifier(
-                    "gift_default", "drawable", getPackageName());
+        android.graphics.Bitmap customIcon = loadGiftIcon(key);
+
+        if (customIcon != null) {
+            icon.setImageBitmap(customIcon);
+        } else {
+            int imageId = getResources().getIdentifier(
+                    "gift_" + key, "drawable", getPackageName());
+
+            if (imageId == 0) {
+                imageId = getResources().getIdentifier(
+                        "gift_default", "drawable", getPackageName());
+            }
+
+            if (imageId != 0) {
+                icon.setImageResource(imageId);
+            }
         }
 
-        if (imageId != 0) {
-            ImageView icon = new ImageView(this);
-            icon.setImageResource(imageId);
-            icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        if (icon.getDrawable() != null) {
             card.addView(icon, new LinearLayout.LayoutParams(
                     dp(52), dp(52)));
         }
@@ -2226,6 +2245,44 @@ if (requestCode == PICK_MEDIA_FOLDER) {
 
         runOnUiThread(() ->
                 message("Импортировано файлов: " + imported));
+    });
+
+    return;
+}
+
+// Импорт папки с иконками подарков
+if (requestCode == PICK_GIFT_ICONS_FOLDER) {
+    if (resultCode != RESULT_OK || data == null
+            || data.getData() == null) {
+        return;
+    }
+
+    final Uri folderUri = data.getData();
+
+    try {
+        getContentResolver().takePersistableUriPermission(
+                folderUri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION
+        );
+    } catch (Exception e) {
+        message("Не удалось открыть папку");
+        return;
+    }
+
+    message("Импорт иконок начат");
+
+    executor.execute(() -> {
+        int added = importGiftIconsFolder(folderUri);
+
+        runOnUiThread(() -> {
+            message(added == 0
+                    ? "Картинки не найдены. Нужны PNG, JPG или WEBP, "
+                            + "названные как подарок: «Роза.png»."
+                    : "Иконок добавлено: " + added
+                            + ". Открой «🎁 Все подарки».");
+
+            showGiftCatalog();
+        });
     });
 
     return;
@@ -3298,6 +3355,359 @@ private void chooseMediaFolder() {
     }
 }
 
+// ------------------------------------------------------------------
+// Иконки подарков: картинка с именем подарка становится его иконкой,
+// а незнакомое имя добавляет новый подарок в список.
+// ------------------------------------------------------------------
+
+private File giftIconsDir() {
+    File dir = new File(getFilesDir(), "gift_icons");
+
+    if (!dir.exists()) {
+        dir.mkdirs();
+    }
+
+    return dir;
+}
+
+private ArrayList<String[]> allGifts() {
+    ArrayList<String[]> gifts = new ArrayList<>();
+    Collections.addAll(gifts, giftCatalog);
+
+    try {
+        JSONArray custom = new JSONArray(
+                prefs.getString("custom_gifts", "[]"));
+
+        for (int i = 0; i < custom.length(); i++) {
+            JSONObject item = custom.optJSONObject(i);
+
+            if (item == null) continue;
+
+            String key = item.optString("key", "");
+            String name = item.optString("name", "");
+
+            if (key.isEmpty() || name.isEmpty()) continue;
+
+            boolean exists = false;
+
+            for (String[] gift : gifts) {
+                if (gift[0].equals(key)) {
+                    exists = true;
+                    break;
+                }
+            }
+
+            if (!exists) {
+                gifts.add(new String[]{key, name});
+            }
+        }
+    } catch (Exception ignored) {
+    }
+
+    return gifts;
+}
+
+// Новый подарок из имени файла. Если такой уже есть — возвращаем его ключ.
+private String addCustomGift(String rawName) {
+    String name = rawName == null ? "" : rawName.trim();
+
+    if (name.isEmpty()) return null;
+
+    String known = matchGiftKey(name);
+
+    if (known != null) return known;
+
+    String normalized = normalizeName(name);
+
+    if (normalized.isEmpty()) return null;
+
+    String key = "custom_" + normalized.replace(' ', '_');
+
+    for (String[] gift : allGifts()) {
+        if (gift[0].equals(key)) return key;
+    }
+
+    String label = name.substring(0, 1).toUpperCase(Locale.ROOT)
+            + name.substring(1);
+
+    try {
+        JSONArray custom = new JSONArray(
+                prefs.getString("custom_gifts", "[]"));
+
+        JSONObject item = new JSONObject();
+        item.put("key", key);
+        item.put("name", "🎁 " + label);
+        custom.put(item);
+
+        prefs.edit()
+                .putString("custom_gifts", custom.toString())
+                .apply();
+    } catch (Exception ignored) {
+        return null;
+    }
+
+    return key;
+}
+
+private String giftIconPath(String key) {
+    return prefs.getString("gift_icon_" + key, "");
+}
+
+private android.graphics.Bitmap loadGiftIcon(String key) {
+    String path = giftIconPath(key);
+
+    if (path.isEmpty()) return null;
+
+    try {
+        android.graphics.BitmapFactory.Options options =
+                new android.graphics.BitmapFactory.Options();
+        options.inSampleSize = 2;
+
+        return android.graphics.BitmapFactory.decodeFile(path, options);
+    } catch (Exception error) {
+        return null;
+    }
+}
+
+private boolean copyGiftIcon(
+        String key, String fileName, java.io.InputStream input) {
+
+    try {
+        String ext = "png";
+        int dot = fileName.lastIndexOf('.');
+
+        if (dot >= 0) {
+            ext = fileName.substring(dot + 1).toLowerCase(Locale.ROOT);
+        }
+
+        if (!ext.equals("png")
+                && !ext.equals("jpg")
+                && !ext.equals("jpeg")
+                && !ext.equals("webp")) {
+            ext = "png";
+        }
+
+        File target = new File(giftIconsDir(), key + "." + ext);
+
+        try (java.io.OutputStream output =
+                     new java.io.FileOutputStream(target)) {
+            byte[] buffer = new byte[8192];
+            int read;
+
+            while ((read = input.read(buffer)) > 0) {
+                output.write(buffer, 0, read);
+            }
+        }
+
+        prefs.edit()
+                .putString("gift_icon_" + key, target.getAbsolutePath())
+                .apply();
+
+        return true;
+    } catch (Exception error) {
+        return false;
+    }
+}
+
+private String stripExtension(String name) {
+    int dot = name.lastIndexOf('.');
+    return dot > 0 ? name.substring(0, dot) : name;
+}
+
+private boolean looksLikeGiftIcon(String name) {
+    String lower = name.toLowerCase(Locale.ROOT);
+
+    if (!lower.endsWith(".png")
+            && !lower.endsWith(".jpg")
+            && !lower.endsWith(".jpeg")
+            && !lower.endsWith(".webp")) {
+        return false;
+    }
+
+    // Скриншоты и фото из галереи подарками не считаем.
+    return !lower.startsWith("screenshot")
+            && !lower.startsWith("img_")
+            && !lower.startsWith("photo_");
+}
+
+private void chooseGiftIconsFolder() {
+    Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+    intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+    intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+
+    try {
+        startActivityForResult(intent, PICK_GIFT_ICONS_FOLDER);
+    } catch (Exception error) {
+        message("Не удалось открыть выбор папки");
+    }
+}
+
+private int importGiftIconsFolder(Uri treeUri) {
+    try {
+        return collectGiftIcons(
+                treeUri,
+                android.provider.DocumentsContract
+                        .getTreeDocumentId(treeUri),
+                "");
+    } catch (Exception error) {
+        return 0;
+    }
+}
+
+private int collectGiftIcons(
+        Uri treeUri, String parentId, String parentName) {
+
+    int added = 0;
+
+    Uri childrenUri =
+            android.provider.DocumentsContract
+                    .buildChildDocumentsUriUsingTree(treeUri, parentId);
+
+    try (android.database.Cursor cursor =
+                 getContentResolver().query(
+                         childrenUri,
+                         new String[]{
+                                 android.provider.DocumentsContract
+                                         .Document.COLUMN_DOCUMENT_ID,
+                                 android.provider.DocumentsContract
+                                         .Document.COLUMN_DISPLAY_NAME,
+                                 android.provider.DocumentsContract
+                                         .Document.COLUMN_MIME_TYPE
+                         },
+                         null, null, null)) {
+
+        if (cursor == null) return added;
+
+        while (cursor.moveToNext()) {
+            String id = cursor.getString(0);
+            String name = cursor.getString(1);
+            String mime = cursor.getString(2);
+
+            if (android.provider.DocumentsContract.Document.MIME_TYPE_DIR
+                    .equals(mime)) {
+                added += collectGiftIcons(
+                        treeUri,
+                        id,
+                        name == null ? parentName : name);
+                continue;
+            }
+
+            if (mime == null || !mime.startsWith("image/")) {
+                continue;
+            }
+
+            if ("image/gif".equals(mime)) {
+                continue;
+            }
+
+            String fileName = name == null ? "" : name;
+
+            if (!looksLikeGiftIcon(fileName)) {
+                continue;
+            }
+
+            // Название папки тоже подсказка: Подарки/Роза/1.png — это Роза.
+            String giftKey = matchGiftKey(
+                    parentName + " " + fileName);
+
+            if (giftKey == null) {
+                giftKey = addCustomGift(stripExtension(fileName));
+            }
+
+            if (giftKey == null) continue;
+
+            if (!giftIconPath(giftKey).isEmpty()) continue;
+
+            Uri uri = android.provider.DocumentsContract
+                    .buildDocumentUriUsingTree(treeUri, id);
+
+            try (java.io.InputStream input =
+                         getContentResolver().openInputStream(uri)) {
+                if (input != null
+                        && copyGiftIcon(giftKey, fileName, input)) {
+                    added++;
+                }
+            } catch (Exception ignored) {
+            }
+        }
+    } catch (Exception ignored) {
+    }
+
+    return added;
+}
+
+private int importGiftIconsFromMediaStore() {
+    Uri collection = MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
+
+    String[] projection = {
+            MediaStore.Images.Media._ID,
+            MediaStore.Images.Media.DISPLAY_NAME,
+            MediaStore.Images.Media.MIME_TYPE
+    };
+
+    String selection;
+    String[] args;
+
+    if (Build.VERSION.SDK_INT >= 29) {
+        selection = MediaStore.Images.Media.RELATIVE_PATH + " LIKE ?";
+        args = new String[]{"Download/LGS/%"};
+    } else {
+        selection = MediaStore.Images.Media.DATA + " LIKE ?";
+        args = new String[]{"%/Download/LGS/%"};
+    }
+
+    int added = 0;
+
+    try (android.database.Cursor cursor =
+                 getContentResolver().query(
+                         collection,
+                         projection,
+                         selection,
+                         args,
+                         null)) {
+
+        if (cursor == null) return 0;
+
+        while (cursor.moveToNext()) {
+            String name = cursor.getString(1);
+            String mime = cursor.getString(2);
+
+            if (name == null || "image/gif".equals(mime)) {
+                continue;
+            }
+
+            if (!looksLikeGiftIcon(name)) {
+                continue;
+            }
+
+            String giftKey = matchGiftKey(name);
+
+            if (giftKey == null) {
+                giftKey = addCustomGift(stripExtension(name));
+            }
+
+            if (giftKey == null) continue;
+
+            if (!giftIconPath(giftKey).isEmpty()) continue;
+
+            Uri uri = ContentUris.withAppendedId(
+                    collection, cursor.getLong(0));
+
+            try (java.io.InputStream input =
+                         getContentResolver().openInputStream(uri)) {
+                if (input != null
+                        && copyGiftIcon(giftKey, name, input)) {
+                    added++;
+                }
+            } catch (Exception ignored) {
+            }
+        }
+    } catch (Exception ignored) {
+    }
+
+    return added;
+}
+
 private void autoImportFromPhoneFolder() {
     String audioPermission = Build.VERSION.SDK_INT >= 33
             ? "android.permission.READ_MEDIA_AUDIO"
@@ -3325,15 +3735,18 @@ private void autoImportFromPhoneFolder() {
 
         int sounds = importFolderSoundsFromMediaStore();
         int gifs = importFolderGifsFromMediaStore();
+        int icons = importGiftIconsFromMediaStore();
 
         final int soundCount = sounds;
         final int gifCount = gifs;
+        final int iconCount = icons;
         final int assigned = autoAssignedCount;
 
-        if (soundCount + gifCount + assigned > 0) {
+        if (soundCount + gifCount + iconCount + assigned > 0) {
             runOnUiThread(() -> message(
                     "Из папки LGS: звуков " + soundCount
                             + ", гифок " + gifCount
+                            + ", иконок " + iconCount
                             + ", сразу к подаркам " + assigned));
         }
     });
@@ -3381,7 +3794,7 @@ private String matchGiftKey(String rawName) {
 
     if (name.isEmpty()) return null;
 
-    for (String[] gift : giftCatalog) {
+    for (String[] gift : allGifts()) {
         String key = gift[0].replace('_', ' ').toLowerCase(Locale.ROOT);
 
         if (containsPhrase(name, key)) {
@@ -4076,16 +4489,17 @@ if (mime == null || mime.isEmpty()) {
                 : "Анимация подписки назначена!");
 
     } else if (choice == 1) {
-        String[] giftNames = new String[giftCatalog.length];
+        ArrayList<String[]> gifts = allGifts();
+        String[] giftNames = new String[gifts.size()];
 
-        for (int i = 0; i < giftCatalog.length; i++) {
-            giftNames[i] = giftCatalog[i][1];
+        for (int i = 0; i < gifts.size(); i++) {
+            giftNames[i] = gifts.get(i)[1];
         }
 
         new AlertDialog.Builder(this)
                 .setTitle("Выбери подарок")
                 .setItems(giftNames, (gd, giftIndex) -> {
-                    String giftKey = giftCatalog[giftIndex][0];
+                    String giftKey = gifts.get(giftIndex)[0];
 
                     prefs.edit()
                             .putString(

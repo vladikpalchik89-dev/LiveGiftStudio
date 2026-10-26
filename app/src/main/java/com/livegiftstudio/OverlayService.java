@@ -37,6 +37,7 @@ import android.view.animation.OvershootInterpolator;
 import android.view.animation.ScaleAnimation;
 import android.widget.TextView;
 import android.widget.LinearLayout;
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
@@ -864,6 +865,15 @@ private int getGiftCoins(String gift) {
     
     private String getGiftKey(String gift) {
         String name = gift.toLowerCase(Locale.ROOT);
+
+        // Подарки, добавленные вручную из папки с иконками, ищем первыми:
+        // у них русские названия, а общий ключ их не понимает.
+        String customKey = findCustomGiftKey(gift);
+
+        if (customKey != null) {
+            return customKey;
+        }
+
                 if (name.contains("rose_1")) return "rose_1";
         if (name.contains("ice_cream_cone")) return "ice_cream_cone";
         if (name.contains("you_are_amazing")) return "you_are_amazing";
@@ -1018,6 +1028,42 @@ private int getGiftCoins(String gift) {
         }
 
         return "default";
+    }
+
+    private String findCustomGiftKey(String gift) {
+        try {
+            JSONArray custom = new JSONArray(
+                    prefs.getString("custom_gifts", "[]"));
+
+            String wanted = gift.toLowerCase(Locale.ROOT)
+                    .replaceAll("[^\\p{L}\\p{N}]+", " ")
+                    .replace('ё', 'е')
+                    .trim();
+
+            if (wanted.isEmpty()) return null;
+
+            for (int i = 0; i < custom.length(); i++) {
+                JSONObject item = custom.optJSONObject(i);
+
+                if (item == null) continue;
+
+                String key = item.optString("key", "");
+                String label = item.optString("name", "")
+                        .toLowerCase(Locale.ROOT)
+                        .replaceAll("[^\\p{L}\\p{N}]+", " ")
+                        .replace('ё', 'е')
+                        .trim();
+
+                if (key.isEmpty() || label.isEmpty()) continue;
+
+                if (wanted.equals(label) || wanted.contains(label)) {
+                    return key;
+                }
+            }
+        } catch (Exception ignored) {
+        }
+
+        return null;
     }
 
     private int[] getColors(String gift) {
