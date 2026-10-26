@@ -3409,11 +3409,11 @@ private ArrayList<String[]> allGifts() {
 
 // Новый подарок из имени файла. Если такой уже есть — возвращаем его ключ.
 private String addCustomGift(String rawName) {
-    String name = rawName == null ? "" : rawName.trim();
+    String name = giftNameFromFile(rawName);
 
     if (name.isEmpty()) return null;
 
-    String known = matchGiftKey(name);
+    String known = matchGiftKey(rawName);
 
     if (known != null) return known;
 
@@ -3427,8 +3427,7 @@ private String addCustomGift(String rawName) {
         if (gift[0].equals(key)) return key;
     }
 
-    String label = name.substring(0, 1).toUpperCase(Locale.ROOT)
-            + name.substring(1);
+    String label = name;
 
     try {
         JSONArray custom = new JSONArray(
@@ -3611,15 +3610,26 @@ private int collectGiftIcons(
                 continue;
             }
 
-            // Название папки тоже подсказка: Подарки/Роза/1.png — это Роза.
-            String giftKey = matchGiftKey(
-                    parentName + " " + fileName);
+            String giftKey = matchGiftKey(fileName);
+
+            // Название папки — подсказка: Подарки/Роза/1.png — это Роза.
+            if (giftKey == null && !parentName.isEmpty()) {
+                giftKey = matchGiftKey(parentName + " " + fileName);
+            }
 
             if (giftKey == null) {
-                giftKey = addCustomGift(stripExtension(fileName));
+                giftKey = addCustomGift(fileName);
             }
 
             if (giftKey == null) continue;
+
+            int coins = giftCoinsFromFile(fileName);
+
+            if (coins > 0 && !prefs.contains("gift_coins_" + giftKey)) {
+                prefs.edit()
+                        .putInt("gift_coins_" + giftKey, coins)
+                        .apply();
+            }
 
             // При выборе папки вручную иконки обновляются,
             // при автоимпорте уже назначенные не трогаем.
@@ -3690,10 +3700,18 @@ private int importGiftIconsFromMediaStore() {
             String giftKey = matchGiftKey(name);
 
             if (giftKey == null) {
-                giftKey = addCustomGift(stripExtension(name));
+                giftKey = addCustomGift(name);
             }
 
             if (giftKey == null) continue;
+
+            int coins = giftCoinsFromFile(name);
+
+            if (coins > 0 && !prefs.contains("gift_coins_" + giftKey)) {
+                prefs.edit()
+                        .putInt("gift_coins_" + giftKey, coins)
+                        .apply();
+            }
 
             if (!giftIconPath(giftKey).isEmpty()) continue;
 
@@ -3796,15 +3814,83 @@ private boolean containsPhrase(String haystack, String needle) {
 
 // Ищет подарок по названию файла или папки: «Роза.mp3», «rose.wav»,
 // «подарок лев.mp3» — всё это найдёт нужный подарок.
+// «a-bubbly-time-150-coins.webp» → «A Bubbly Time»:
+// убираем цену и расширение, дефисы превращаем в пробелы.
+private String giftNameFromFile(String rawName) {
+    if (rawName == null) return "";
+
+    String name = stripExtension(rawName.trim());
+
+    name = name.replaceAll("(?i)[-_]\\d+[-_]coins?$", "");
+    name = name.replaceAll("(?i)[-_]coins?$", "");
+    name = name.replaceAll("[-_]+", " ").trim();
+    name = name.replaceAll("\\s+", " ");
+
+    if (name.isEmpty()) return "";
+
+    StringBuilder pretty = new StringBuilder();
+
+    for (String word : name.split(" ")) {
+        if (word.isEmpty()) continue;
+
+        if (pretty.length() > 0) pretty.append(' ');
+
+        pretty.append(Character.toUpperCase(word.charAt(0)));
+
+        if (word.length() > 1) {
+            pretty.append(word.substring(1));
+        }
+    }
+
+    return pretty.toString();
+}
+
+// Цена из имени файла: «rose-1-coins» → 1. Нет цены → -1.
+private int giftCoinsFromFile(String rawName) {
+    if (rawName == null) return -1;
+
+    java.util.regex.Matcher matcher = java.util.regex.Pattern
+            .compile("(?i)[-_](\\d+)[-_]coins?$")
+            .matcher(stripExtension(rawName.trim()));
+
+    if (!matcher.find()) return -1;
+
+    try {
+        return Integer.parseInt(matcher.group(1));
+    } catch (Exception error) {
+        return -1;
+    }
+}
+
 private String matchGiftKey(String rawName) {
-    String name = normalizeName(rawName);
+    String name = normalizeName(giftNameFromFile(rawName));
+
+    if (name.isEmpty()) {
+        name = normalizeName(rawName);
+    }
 
     if (name.isEmpty()) return null;
 
+    // 1. Точное совпадение с ключом («ice cream cone») или
+    //    названием подарка («рожок мороженого»).
+    for (String[] gift : allGifts()) {
+        String key = gift[0].replace('_', ' ').toLowerCase(Locale.ROOT);
+        String label = gift[1]
+                .replaceAll("[^\\p{L}\\p{N}]+", " ")
+                .toLowerCase(Locale.ROOT)
+                .replace('ё', 'е')
+                .trim();
+
+        if (name.equals(key) || name.equals(label)) {
+            return gift[0];
+        }
+    }
+
+    // 2. Совпадение по фразе: «2025 glasses» → «glasses».
     for (String[] gift : allGifts()) {
         String key = gift[0].replace('_', ' ').toLowerCase(Locale.ROOT);
 
-        if (containsPhrase(name, key)) {
+        if (key.length() >= 3 && containsPhrase(name, key)) {
             return gift[0];
         }
 
@@ -3814,7 +3900,7 @@ private String matchGiftKey(String rawName) {
                 .replace('ё', 'е')
                 .trim();
 
-        if (containsPhrase(name, label)) {
+        if (label.length() >= 3 && containsPhrase(name, label)) {
             return gift[0];
         }
     }
