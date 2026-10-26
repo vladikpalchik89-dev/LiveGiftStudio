@@ -3548,14 +3548,18 @@ private int importGiftIconsFolder(Uri treeUri) {
                 treeUri,
                 android.provider.DocumentsContract
                         .getTreeDocumentId(treeUri),
-                "");
+                "",
+                true);
     } catch (Exception error) {
         return 0;
     }
 }
 
 private int collectGiftIcons(
-        Uri treeUri, String parentId, String parentName) {
+        Uri treeUri,
+        String parentId,
+        String parentName,
+        boolean replace) {
 
     int added = 0;
 
@@ -3588,7 +3592,8 @@ private int collectGiftIcons(
                 added += collectGiftIcons(
                         treeUri,
                         id,
-                        name == null ? parentName : name);
+                        name == null ? parentName : name,
+                        replace);
                 continue;
             }
 
@@ -3616,7 +3621,9 @@ private int collectGiftIcons(
 
             if (giftKey == null) continue;
 
-            if (!giftIconPath(giftKey).isEmpty()) continue;
+            // При выборе папки вручную иконки обновляются,
+            // при автоимпорте уже назначенные не трогаем.
+            if (!replace && !giftIconPath(giftKey).isEmpty()) continue;
 
             Uri uri = android.provider.DocumentsContract
                     .buildDocumentUriUsingTree(treeUri, id);
