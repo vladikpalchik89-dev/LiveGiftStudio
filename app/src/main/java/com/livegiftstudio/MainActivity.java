@@ -243,42 +243,106 @@ private final String[][] giftCatalog = {
         super.onCreate(savedInstanceState);
 
         installCrashLogger();
-        
-try {
-    Intent serviceIntent =
-            new Intent(MainActivity.this, OverlayService.class);
-
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        startForegroundService(serviceIntent);
-    } else {
-        startService(serviceIntent);
-    }
-} catch (Exception e) {
-    android.util.Log.e(
-            "LiveGiftStudio",
-            "Не удалось запустить сервис",
-            e
-    );
-}
-
 
         prefs = getSharedPreferences(
                 "LiveGiftStudio", MODE_PRIVATE);
-        voicePreview = new TextToSpeech(this, status -> {
-    if (status == TextToSpeech.SUCCESS && voicePreview != null) {
-        int result = voicePreview.setLanguage(new Locale("ru", "RU"));
 
-        voicePreviewReady =
-                result != TextToSpeech.LANG_MISSING_DATA
-                && result != TextToSpeech.LANG_NOT_SUPPORTED;
-    }
-});
-
-        loadStats();
-        buildInterface();
-        requestNotificationPermission();
-        autoImportFromPhoneFolder();
+        // Сначала показываем прошлую ошибку: если приложение снова
+        // упадёт при построении меню, пользователь всё равно её увидит.
         showLastCrashIfAny();
+
+        try {
+            startOverlayService();
+            startVoicePreview();
+
+            loadStats();
+            buildInterface();
+            requestNotificationPermission();
+            autoImportFromPhoneFolder();
+        } catch (Throwable error) {
+            showFatalError(error);
+        }
+    }
+
+    private void startOverlayService() {
+        try {
+            Intent serviceIntent =
+                    new Intent(MainActivity.this, OverlayService.class);
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent);
+            } else {
+                startService(serviceIntent);
+            }
+        } catch (Exception error) {
+            android.util.Log.e(
+                    "LiveGiftStudio",
+                    "Не удалось запустить сервис",
+                    error
+            );
+        }
+    }
+
+    private void startVoicePreview() {
+        voicePreview = new TextToSpeech(this, status -> {
+            if (status == TextToSpeech.SUCCESS && voicePreview != null) {
+                int result = voicePreview.setLanguage(
+                        new Locale("ru", "RU"));
+
+                voicePreviewReady =
+                        result != TextToSpeech.LANG_MISSING_DATA
+                        && result != TextToSpeech.LANG_NOT_SUPPORTED;
+            }
+        });
+    }
+
+    // Если интерфейс не построился — показываем причину, а не
+    // молчаливое «приложение остановлено».
+    private void showFatalError(Throwable error) {
+        try {
+            java.io.StringWriter writer = new java.io.StringWriter();
+            error.printStackTrace(new java.io.PrintWriter(writer));
+
+            String text = writer.toString();
+
+            android.util.Log.e(
+                    "LiveGiftStudio", "Ошибка запуска", error);
+
+            TextView view = new TextView(this);
+            view.setText(text.length() > 4000
+                    ? text.substring(0, 4000)
+                    : text);
+            view.setTextSize(11);
+            view.setTextColor(0xFF1A2233);
+            view.setTypeface(Typeface.MONOSPACE);
+            view.setTextIsSelectable(true);
+            view.setPadding(dp(12), dp(10), dp(12), dp(10));
+
+            ScrollView scroll = new ScrollView(this);
+            scroll.addView(view);
+
+            new AlertDialog.Builder(this)
+                    .setTitle("⚠️ Ошибка приложения")
+                    .setView(scroll)
+                    .setPositiveButton("Скопировать", (d, w) -> {
+                        try {
+                            android.content.ClipboardManager clipboard =
+                                    (android.content.ClipboardManager)
+                                            getSystemService(
+                                                    CLIPBOARD_SERVICE);
+
+                            clipboard.setPrimaryClip(
+                                    android.content.ClipData
+                                            .newPlainText("error", text));
+
+                            message("Текст ошибки скопирован");
+                        } catch (Exception ignored) {
+                        }
+                    })
+                    .setNegativeButton("Закрыть", null)
+                    .show();
+        } catch (Throwable ignored) {
+        }
     }
 
     // Android 13+ не показывает уведомление foreground-сервиса без этого
@@ -456,6 +520,15 @@ addMenuRow(
                             })
                     .show();
         }
+    );
+
+    addSectionHeader("🩺 ПОМОЩЬ");
+
+    addMenuRow(
+        "⚠️\nОшибки\nприложения", 0xFFFF1764,
+        "🩺\nДиагностика\nсоединения", 0xFF087BFF,
+        v -> showCrashLog(),
+        v -> showConnectionDiagnostics()
     );
 
     addSectionHeader("🎥 ЭФИР");
@@ -1173,6 +1246,22 @@ private void installCrashLogger() {
     });
 }
 
+private void showCrashLog() {
+    try {
+        java.io.File file = new java.io.File(
+                getFilesDir(), "last_crash.txt");
+
+        if (!file.exists()) {
+            message("Ошибок не было");
+            return;
+        }
+
+        showCrashDialog(readFileText(file), file, false);
+    } catch (Throwable error) {
+        message("Не удалось прочитать журнал");
+    }
+}
+
 private void showLastCrashIfAny() {
     try {
         final java.io.File file = new java.io.File(
@@ -1194,6 +1283,14 @@ private void showLastCrashIfAny() {
 
         if (text.trim().isEmpty()) return;
 
+        showCrashDialog(text, file, true);
+    } catch (Throwable ignored) {
+    }
+}
+
+private void showCrashDialog(
+        String text, final java.io.File file, boolean deleteOffer) {
+    try {
         // В диалоге показываем начало стека — этого хватает,
         // чтобы понять, где упало.
         TextView view = new TextView(this);
