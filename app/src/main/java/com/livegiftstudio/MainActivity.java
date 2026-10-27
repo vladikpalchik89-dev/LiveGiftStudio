@@ -5808,67 +5808,103 @@ private void switchServerAccount(String username) {
         return;
     }
 
+    message("Переключаю сервер на @" + username + "…");
+
     executor.execute(() -> {
-        HttpURLConnection connection = null;
+        String error = null;
 
-        try {
-            URL url = new URL(
-                    "https://livegiftstudio.onrender.com/switch-account"
-            );
+        // Бесплатный сервер Render засыпает и просыпается до минуты,
+        // поэтому даём две попытки с большими таймаутами.
+        for (int attempt = 0; attempt < 2; attempt++) {
+            error = trySwitchAccount(username);
 
-            connection = (HttpURLConnection) url.openConnection();
-            connection.setRequestMethod("POST");
-            connection.setConnectTimeout(15000);
-            connection.setReadTimeout(15000);
-            connection.setDoOutput(true);
-
-            connection.setRequestProperty(
-                    "Content-Type",
-                    "application/json; charset=UTF-8"
-            );
-
-            connection.setRequestProperty(
-                    "x-switch-key",
-                    ACCOUNT_SWITCH_KEY
-            );
-
-            JSONObject json = new JSONObject();
-            json.put("username", username);
-
-            try (OutputStream output = connection.getOutputStream()) {
-                output.write(
-                        json.toString().getBytes(StandardCharsets.UTF_8)
-                );
-            }
-
-            int status = connection.getResponseCode();
-
-            runOnUiThread(() -> {
-                if (status >= 200 && status < 300) {
-                    // Аккаунт считаем активным только если сервер
-                    // действительно принял переключение.
+            if (error == null) {
+                runOnUiThread(() -> {
                     prefs.edit()
                             .putString("active_tiktok_account", username)
                             .putString("tiktok_username", username)
                             .apply();
 
                     message("Сервер переключён на @" + username);
-                } else {
-                    message("Ошибка переключения сервера. Код: " + status);
-                }
-            });
 
-        } catch (Exception e) {
-            runOnUiThread(() ->
-                    message("Ошибка переключения: " + e.getMessage())
-            );
-        } finally {
-            if (connection != null) {
-                connection.disconnect();
+                    // Показываем список заново, чтобы галочка
+                    // переехала на новый аккаунт.
+                    showTikTokAccounts();
+                });
+
+                return;
+            }
+
+            try {
+                Thread.sleep(3000);
+            } catch (InterruptedException ignored) {
             }
         }
+
+        final String reason = error;
+
+        runOnUiThread(() -> message(
+                "Не удалось переключить: " + reason));
     });
 }
+
+// Возвращает null при успехе, иначе текст причины.
+private String trySwitchAccount(String username) {
+    HttpURLConnection connection = null;
+
+    try {
+        URL url = new URL(
+                "https://livegiftstudio.onrender.com/switch-account");
+
+        connection = (HttpURLConnection) url.openConnection();
+        connection.setRequestMethod("POST");
+        connection.setConnectTimeout(20000);
+        connection.setReadTimeout(60000);
+        connection.setDoOutput(true);
+
+        connection.setRequestProperty(
+                "Content-Type",
+                "application/json; charset=UTF-8");
+
+        connection.setRequestProperty(
+                "x-switch-key",
+                ACCOUNT_SWITCH_KEY);
+
+        JSONObject json = new JSONObject();
+        json.put("username", username);
+
+        try (OutputStream output = connection.getOutputStream()) {
+            output.write(json.toString()
+                    .getBytes(StandardCharsets.UTF_8));
+        }
+
+        int status = connection.getResponseCode();
+
+        if (status >= 200 && status < 300) {
+            return null;
+        }
+
+        java.io.InputStream stream = status >= 400
+                ? connection.getErrorStream()
+                : connection.getInputStream();
+
+        String body = stream == null ? "" : readStream(stream);
+
+        if (body.length() > 200) {
+            body = body.substring(0, 200);
+        }
+
+        return "код " + status
+                + (body.isEmpty() ? "" : " " + body);
+    } catch (Exception error) {
+        return String.valueOf(error.getMessage());
+    } finally {
+        if (connection != null) {
+            connection.disconnect();
+        }
+    }
+}
+
 
     private void showTikTokConnection() {
         EditText input = new EditText(this);
