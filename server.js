@@ -134,38 +134,29 @@ function requireTestKey(req, res, next) {
   next();
 }
 
-app.post("/switch-account", (req, res) => {
-  if (!switchKey) {
-    return res.status(503).json({
-      status: "error",
-      message: "ACCOUNT_SWITCH_KEY is not configured"
-    });
-  }
-
-  if (req.get("x-switch-key") !== switchKey) {
-    return res.status(403).json({
-      status: "error",
-      message: "Invalid switch key"
-    });
-  }
-
-  const newUsername = String(req.body?.username || "")
+// Переключение аккаунта умеет приходить двумя путями: обычным
+// HTTP-запросом и сообщением по уже открытому WebSocket.
+function applyAccountSwitch(rawUsername) {
+  const newUsername = String(rawUsername || "")
     .trim()
     .replace(/^@/, "");
 
   if (!/^[a-zA-Z0-9._]{2,24}$/.test(newUsername)) {
-    return res.status(400).json({
-      status: "error",
-      message: "Invalid TikTok username"
-    });
+    return {
+      status: 400,
+      body: { status: "error", message: "Invalid TikTok username" }
+    };
   }
 
   if (newUsername.toLowerCase() === username.toLowerCase()) {
-    return res.json({
-      status: "ok",
-      username,
-      message: "This account is already selected"
-    });
+    return {
+      status: 200,
+      body: {
+        status: "ok",
+        username,
+        message: "This account is already selected"
+      }
+    };
   }
 
   const oldConnection = currentConnection;
@@ -173,6 +164,8 @@ app.post("/switch-account", (req, res) => {
   // Сначала отключаем старый эфир.
   currentConnection = null;
   connecting = false;
+  tiktokConnected = false;
+  tiktokError = "switching account";
 
   if (reconnectTimer) {
     clearTimeout(reconnectTimer);
@@ -191,21 +184,44 @@ app.post("/switch-account", (req, res) => {
 
   console.log("Active TikTok account changed to:", username);
 
-    // Сразу запускаем подключение нового аккаунта.
   if (process.env.TIKTOK_ENABLED === "true") {
     console.log("Starting TikTok connection for:", username);
-
     startTikTok();
   } else {
-    console.log("TikTok integration is disabled (TIKTOK_ENABLED is not true)");
+    console.log(
+      "TikTok integration is disabled (TIKTOK_ENABLED is not true)"
+    );
   }
 
-  res.json({
-    status: "ok",
-    username,
-    tiktokEnabled: process.env.TIKTOK_ENABLED === "true",
-    message: "Account selection updated"
-  });
+  return {
+    status: 200,
+    body: {
+      status: "ok",
+      username,
+      tiktokEnabled: process.env.TIKTOK_ENABLED === "true",
+      message: "Account selection updated"
+    }
+  };
+}
+
+app.post("/switch-account", (req, res) => {
+  if (!switchKey) {
+    return res.status(503).json({
+      status: "error",
+      message: "ACCOUNT_SWITCH_KEY is not configured"
+    });
+  }
+
+  if (req.get("x-switch-key") !== switchKey) {
+    return res.status(403).json({
+      status: "error",
+      message: "Invalid switch key"
+    });
+  }
+
+  const result = applyAccountSwitch(req.body?.username);
+
+  res.status(result.status).json(result.body);
 });
 
 
@@ -369,6 +385,42 @@ wss.on("connection", (socket, req) => {
 
   socket.on("pong", () => {
     socket.isAlive = true;
+  });
+
+  // Переключение аккаунта по сокету: приложение уже подключено,
+  // и это надёжнее, чем отдельный HTTP-запрос.
+  socket.on("message", (raw) => {
+    try {
+      const message = JSON.parse(raw.toString());
+
+      if (message.type !== "switch_account") return;
+
+      if (!switchKey || message.key !== switchKey) {
+        socket.send(JSON.stringify({
+          type: "switch_result",
+          ok: false,
+          message: "Invalid switch key"
+        }));
+        return;
+      }
+
+      const result = applyAccountSwitch(message.username);
+
+      socket.send(JSON.stringify({
+        type: "switch_result",
+        ok: result.status === 200,
+        username: result.body?.username || "",
+        message: result.body?.message || ""
+      }));
+
+      console.log(
+        "Account switch via WebSocket:",
+        result.status,
+        result.body?.username
+      );
+    } catch (error) {
+      console.error("WebSocket message error:", error.message);
+    }
   });
 
   socket.on("close", (code, reason) => {

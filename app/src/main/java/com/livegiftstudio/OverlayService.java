@@ -36,6 +36,7 @@ import android.view.animation.AnimationSet;
 import android.view.animation.OvershootInterpolator;
 import android.view.animation.ScaleAnimation;
 import android.widget.TextView;
+import android.widget.Toast;
 import android.widget.LinearLayout;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -167,6 +168,13 @@ private long lastGiftEventTime = 0;
 
     // Состояние для экрана диагностики: видно, живой ли сокет
     // и когда пришло последнее событие.
+    private static volatile WebSocket activeSocket = null;
+
+    public static volatile long switchResultAt = 0;
+    public static volatile boolean switchResultOk = false;
+    public static volatile String switchResultName = "";
+    public static volatile String switchResultText = "";
+
     public static volatile boolean wsConnected = false;
     public static volatile long lastEventAt = 0;
     public static volatile String lastEventType = "";
@@ -408,6 +416,25 @@ if ("yes".equals(testFollowSound)) {
     return START_STICKY;
 }
    
+    // Переключение аккаунта по уже открытому сокету.
+    // Возвращает false, если сокет не готов.
+    public static boolean sendAccountSwitch(String username, String key) {
+        WebSocket socket = activeSocket;
+
+        if (socket == null || !wsConnected) return false;
+
+        try {
+            JSONObject message = new JSONObject();
+            message.put("type", "switch_account");
+            message.put("username", username);
+            message.put("key", key);
+
+            return socket.send(message.toString());
+        } catch (Exception error) {
+            return false;
+        }
+    }
+
     private void connectToServer() {
         if (destroyed) {
             return;
@@ -448,6 +475,7 @@ public void onOpen(
     reconnectAttempts = 0;
     wsConnected = true;
     lastSocketError = "";
+    activeSocket = socket;
 
     android.util.Log.e(
             TAG,
@@ -474,6 +502,49 @@ android.util.Log.d(
 
                     lastEventAt = System.currentTimeMillis();
                     lastEventType = type;
+
+                    // Ответ на переключение аккаунта по сокету.
+                    if (type.equals("switch_result")) {
+                        final boolean ok =
+                                event.optBoolean("ok", false);
+                        final String name =
+                                event.optString("username", "");
+                        final String text =
+                                event.optString("message", "");
+
+                        switchResultOk = ok;
+                        switchResultName = name;
+                        switchResultText = text;
+                        switchResultAt = System.currentTimeMillis();
+
+                        handler.post(() -> {
+                            if (ok && !name.isEmpty()) {
+                                prefs.edit()
+                                        .putString(
+                                                "active_tiktok_account",
+                                                name)
+                                        .putString(
+                                                "tiktok_username",
+                                                name)
+                                        .apply();
+
+                                Toast.makeText(
+                                        this,
+                                        "Сервер переключён на @"
+                                                + name,
+                                        Toast.LENGTH_LONG).show();
+                            } else {
+                                Toast.makeText(
+                                        this,
+                                        "Не удалось переключить: "
+                                                + text,
+                                        Toast.LENGTH_LONG).show();
+                            }
+                        });
+
+                        return;
+                    }
+
                     if (type.equals("stream_end")) {
     handler.post(() -> {
         if (!destroyed && textToSpeech != null) {
@@ -700,6 +771,7 @@ public void onFailure(
     );
 
     wsConnected = false;
+    activeSocket = null;
     lastSocketError = "HTTP=" + httpCode + " "
             + String.valueOf(error);
 
@@ -720,6 +792,7 @@ public void onFailure(
                                 + code + " reason=" + reason);
 
                 wsConnected = false;
+                activeSocket = null;
                 lastSocketError = "closed " + code + " " + reason;
 
                 if (socket == webSocket) {

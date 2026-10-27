@@ -52,6 +52,14 @@ private int menuRowIndex = 0;
     // иначе телефон падает по памяти.
     private int giftGridLimit = 60;
 
+    private final okhttp3.OkHttpClient httpClient =
+            new okhttp3.OkHttpClient.Builder()
+                    .connectTimeout(
+                            20, java.util.concurrent.TimeUnit.SECONDS)
+                    .readTimeout(
+                            60, java.util.concurrent.TimeUnit.SECONDS)
+                    .build();
+
     private final android.util.LruCache<String, android.graphics.Bitmap>
             giftIconCache = new android.util.LruCache<String,
                     android.graphics.Bitmap>(
@@ -5811,32 +5819,43 @@ private void switchServerAccount(String username) {
     message("Переключаю сервер на @" + username + "…");
 
     executor.execute(() -> {
+        // 1. Через уже открытый сокет: он точно работает,
+        //    пока идут события эфира.
+        long startedAt = System.currentTimeMillis();
+
+        if (OverlayService.sendAccountSwitch(
+                username, ACCOUNT_SWITCH_KEY)) {
+
+            while (System.currentTimeMillis() - startedAt < 12000) {
+                if (OverlayService.switchResultAt >= startedAt) {
+                    if (OverlayService.switchResultOk) {
+                        applyActiveAccount(username);
+                        return;
+                    }
+
+                    break;
+                }
+
+                try {
+                    Thread.sleep(300);
+                } catch (InterruptedException ignored) {
+                }
+            }
+        }
+
+        // 2. Обычный запрос, если сокет молчит.
         String error = null;
 
-        // Бесплатный сервер Render засыпает и просыпается до минуты,
-        // поэтому даём две попытки с большими таймаутами.
-        for (int attempt = 0; attempt < 2; attempt++) {
+        for (int attempt = 0; attempt < 3; attempt++) {
             error = trySwitchAccount(username);
 
             if (error == null) {
-                runOnUiThread(() -> {
-                    prefs.edit()
-                            .putString("active_tiktok_account", username)
-                            .putString("tiktok_username", username)
-                            .apply();
-
-                    message("Сервер переключён на @" + username);
-
-                    // Показываем список заново, чтобы галочка
-                    // переехала на новый аккаунт.
-                    showTikTokAccounts();
-                });
-
+                applyActiveAccount(username);
                 return;
             }
 
             try {
-                Thread.sleep(3000);
+                Thread.sleep(2000);
             } catch (InterruptedException ignored) {
             }
         }
@@ -5848,63 +5867,58 @@ private void switchServerAccount(String username) {
     });
 }
 
+private void applyActiveAccount(String username) {
+    runOnUiThread(() -> {
+        prefs.edit()
+                .putString("active_tiktok_account", username)
+                .putString("tiktok_username", username)
+                .apply();
+
+        message("Сервер переключён на @" + username);
+
+        // Показываем список заново, чтобы галочка переехала.
+        showTikTokAccounts();
+    });
+}
+
 // Возвращает null при успехе, иначе текст причины.
 private String trySwitchAccount(String username) {
-    HttpURLConnection connection = null;
-
     try {
-        URL url = new URL(
-                "https://livegiftstudio.onrender.com/switch-account");
-
-        connection = (HttpURLConnection) url.openConnection();
-        connection.setRequestMethod("POST");
-        connection.setConnectTimeout(20000);
-        connection.setReadTimeout(60000);
-        connection.setDoOutput(true);
-
-        connection.setRequestProperty(
-                "Content-Type",
-                "application/json; charset=UTF-8");
-
-        connection.setRequestProperty(
-                "x-switch-key",
-                ACCOUNT_SWITCH_KEY);
-
         JSONObject json = new JSONObject();
         json.put("username", username);
 
-        try (OutputStream output = connection.getOutputStream()) {
-            output.write(json.toString()
-                    .getBytes(StandardCharsets.UTF_8));
+        okhttp3.RequestBody body = okhttp3.RequestBody.create(
+                okhttp3.MediaType.parse(
+                        "application/json; charset=utf-8"),
+                json.toString());
+
+        okhttp3.Request request = new okhttp3.Request.Builder()
+                .url("https://livegiftstudio.onrender.com/switch-account")
+                .header("x-switch-key", ACCOUNT_SWITCH_KEY)
+                .post(body)
+                .build();
+
+        try (okhttp3.Response response =
+                     httpClient.newCall(request).execute()) {
+            if (response.isSuccessful()) {
+                return null;
+            }
+
+            String text = response.body() == null
+                    ? ""
+                    : response.body().string();
+
+            if (text.length() > 200) {
+                text = text.substring(0, 200);
+            }
+
+            return "код " + response.code()
+                    + (text.isEmpty() ? "" : " " + text);
         }
-
-        int status = connection.getResponseCode();
-
-        if (status >= 200 && status < 300) {
-            return null;
-        }
-
-        java.io.InputStream stream = status >= 400
-                ? connection.getErrorStream()
-                : connection.getInputStream();
-
-        String body = stream == null ? "" : readStream(stream);
-
-        if (body.length() > 200) {
-            body = body.substring(0, 200);
-        }
-
-        return "код " + status
-                + (body.isEmpty() ? "" : " " + body);
     } catch (Exception error) {
         return String.valueOf(error.getMessage());
-    } finally {
-        if (connection != null) {
-            connection.disconnect();
-        }
     }
 }
-
 
     private void showTikTokConnection() {
         EditText input = new EditText(this);
