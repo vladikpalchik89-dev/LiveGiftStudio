@@ -864,6 +864,13 @@ private int getGiftCoins(String gift) {
 }
     
     private String getGiftKey(String gift) {
+        // «follower» и «donation» — служебные события, а не подарки.
+        // Иначе они могут совпасть с подарком из папки иконок
+        // (например, «Follower») и показать его цену.
+        if ("follower".equals(gift) || "donation".equals(gift)) {
+            return gift;
+        }
+
         String name = gift.toLowerCase(Locale.ROOT);
 
         // Подарки, добавленные вручную из папки с иконками, ищем первыми:
@@ -1503,7 +1510,10 @@ if (isGif) {
     panel.setStroke(dp(2), Color.argb(160, 255, 20, 147));
     text.setBackground(panel);
 
-    int coins = getGiftCoins(gift);
+    boolean serviceEvent = "follower".equals(gift)
+            || "donation".equals(gift);
+
+    int coins = serviceEvent ? -1 : getGiftCoins(gift);
     String displayMessage = message;
 
     if (coins >= 0) {
