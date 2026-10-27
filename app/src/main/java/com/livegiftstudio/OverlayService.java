@@ -509,12 +509,12 @@ android.util.Log.d(
                                 event.optBoolean("ok", false);
                         final String name =
                                 event.optString("username", "");
-                        final String text =
+                        final String resultText =
                                 event.optString("message", "");
 
                         switchResultOk = ok;
                         switchResultName = name;
-                        switchResultText = text;
+                        switchResultText = resultText;
                         switchResultAt = System.currentTimeMillis();
 
                         handler.post(() -> {
@@ -529,15 +529,15 @@ android.util.Log.d(
                                         .apply();
 
                                 Toast.makeText(
-                                        this,
+                                        OverlayService.this,
                                         "Сервер переключён на @"
                                                 + name,
                                         Toast.LENGTH_LONG).show();
                             } else {
                                 Toast.makeText(
-                                        this,
+                                        OverlayService.this,
                                         "Не удалось переключить: "
-                                                + text,
+                                                + resultText,
                                         Toast.LENGTH_LONG).show();
                             }
                         });
