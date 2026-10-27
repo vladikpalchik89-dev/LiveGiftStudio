@@ -47,6 +47,22 @@ import java.util.concurrent.Executors;
 
 public class MainActivity extends Activity {
 private int menuRowIndex = 0;
+
+    // Каталог вырос до сотен подарков: рисуем порциями,
+    // иначе телефон падает по памяти.
+    private int giftGridLimit = 60;
+
+    private final android.util.LruCache<String, android.graphics.Bitmap>
+            giftIconCache = new android.util.LruCache<String,
+                    android.graphics.Bitmap>(
+                    (int) Math.max(4, Runtime.getRuntime().maxMemory()
+                            / 1024 / 8)) {
+                @Override
+                protected int sizeOf(
+                        String key, android.graphics.Bitmap value) {
+                    return Math.max(1, value.getByteCount() / 1024);
+                }
+            };
     private static final String DONATE_URL =
             "https://www.donationalerts.com/r/vladdonat99";
 
@@ -225,6 +241,8 @@ private final String[][] giftCatalog = {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        installCrashLogger();
         
 try {
     Intent serviceIntent =
@@ -260,6 +278,7 @@ try {
         buildInterface();
         requestNotificationPermission();
         autoImportFromPhoneFolder();
+        showLastCrashIfAny();
     }
 
     // Android 13+ не показывает уведомление foreground-сервиса без этого
@@ -1123,6 +1142,118 @@ private void resetAppearance() {
     message("Оформление сброшено");
 }
       
+// ------------------------------------------------------------------
+// Журнал падений: без него на телефоне видно только «приложение
+// остановлено», а причину не узнать.
+// ------------------------------------------------------------------
+private void installCrashLogger() {
+    final Thread.UncaughtExceptionHandler previous =
+            Thread.getDefaultUncaughtExceptionHandler();
+
+    Thread.setDefaultUncaughtExceptionHandler((thread, error) -> {
+        try {
+            java.io.StringWriter writer = new java.io.StringWriter();
+            error.printStackTrace(new java.io.PrintWriter(writer));
+
+            java.io.File file = new java.io.File(
+                    getFilesDir(), "last_crash.txt");
+
+            try (java.io.FileWriter out =
+                         new java.io.FileWriter(file, false)) {
+                out.write(new java.util.Date().toString());
+                out.write("\n\n");
+                out.write(writer.toString());
+            }
+        } catch (Throwable ignored) {
+        }
+
+        if (previous != null) {
+            previous.uncaughtException(thread, error);
+        }
+    });
+}
+
+private void showLastCrashIfAny() {
+    try {
+        final java.io.File file = new java.io.File(
+                getFilesDir(), "last_crash.txt");
+
+        if (!file.exists()) return;
+
+        long modified = file.lastModified();
+
+        if (prefs.getLong("last_crash_shown", 0) == modified) {
+            return;
+        }
+
+        prefs.edit()
+                .putLong("last_crash_shown", modified)
+                .apply();
+
+        String text = readFileText(file);
+
+        if (text.trim().isEmpty()) return;
+
+        // В диалоге показываем начало стека — этого хватает,
+        // чтобы понять, где упало.
+        TextView view = new TextView(this);
+        view.setText(text.length() > 4000
+                ? text.substring(0, 4000)
+                : text);
+        view.setTextSize(11);
+        view.setTextColor(0xFF1A2233);
+        view.setTypeface(Typeface.MONOSPACE);
+        view.setTextIsSelectable(true);
+        view.setPadding(dp(12), dp(10), dp(12), dp(10));
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(view);
+
+        new AlertDialog.Builder(this)
+                .setTitle("⚠️ Прошлый запуск упал")
+                .setView(scroll)
+                .setPositiveButton("Скопировать", (d, w) -> {
+                    try {
+                        android.content.ClipboardManager clipboard =
+                                (android.content.ClipboardManager)
+                                        getSystemService(CLIPBOARD_SERVICE);
+
+                        clipboard.setPrimaryClip(
+                                android.content.ClipData.newPlainText(
+                                        "crash", text));
+
+                        message("Текст ошибки скопирован");
+                    } catch (Exception error) {
+                        message("Не удалось скопировать");
+                    }
+                })
+                .setNeutralButton("Удалить", (d, w) -> {
+                    file.delete();
+                    message("Запись об ошибке удалена");
+                })
+                .setNegativeButton("Закрыть", null)
+                .show();
+    } catch (Throwable ignored) {
+    }
+}
+
+private String readFileText(java.io.File file) {
+    StringBuilder body = new StringBuilder();
+
+    try (java.io.BufferedReader reader =
+                 new java.io.BufferedReader(
+                         new java.io.FileReader(file))) {
+        String line;
+
+        while ((line = reader.readLine()) != null) {
+            body.append(line).append('\n');
+        }
+    } catch (Exception ignored) {
+    }
+
+    return body.toString();
+}
+
 private int dp(float value) {
     return (int) (value * getResources()
             .getDisplayMetrics().density + 0.5f);
@@ -1576,6 +1707,7 @@ private void deleteLibrarySound(String category, int index) {
             @Override
             public void onTextChanged(
                     CharSequence s, int start, int before, int count) {
+                giftGridLimit = 60;
                 renderGiftGrid(grid, s.toString(), dialog);
             }
 
@@ -1593,6 +1725,7 @@ private void deleteLibrarySound(String category, int index) {
         String q = query.toLowerCase(Locale.ROOT).trim();
         LinearLayout row = null;
         int shown = 0;
+        int matched = 0;
 
         for (String[] gift : allGifts()) {
             String key = gift[0];
@@ -1601,6 +1734,12 @@ private void deleteLibrarySound(String category, int index) {
             if (!q.isEmpty()
                     && !name.toLowerCase(Locale.ROOT).contains(q)
                     && !key.toLowerCase(Locale.ROOT).contains(q)) {
+                continue;
+            }
+
+            matched++;
+
+            if (shown >= giftGridLimit) {
                 continue;
             }
 
@@ -1622,6 +1761,18 @@ private void deleteLibrarySound(String category, int index) {
             row.addView(createGiftCard(key, name, dialog), cardParams);
 
             shown++;
+        }
+
+        if (matched > shown) {
+            Button more = new Button(this);
+            more.setText("Показать ещё "
+                    + Math.min(60, matched - shown)
+                    + " из " + matched);
+            more.setOnClickListener(v -> {
+                giftGridLimit += 60;
+                renderGiftGrid(grid, query, dialog);
+            });
+            grid.addView(more);
         }
 
         if (shown == 0) {
@@ -3453,17 +3604,41 @@ private String giftIconPath(String key) {
 }
 
 private android.graphics.Bitmap loadGiftIcon(String key) {
+    android.graphics.Bitmap cached = giftIconCache.get(key);
+
+    if (cached != null) return cached;
+
     String path = giftIconPath(key);
 
     if (path.isEmpty()) return null;
 
     try {
+        android.graphics.BitmapFactory.Options bounds =
+                new android.graphics.BitmapFactory.Options();
+        bounds.inJustDecodeBounds = true;
+        android.graphics.BitmapFactory.decodeFile(path, bounds);
+
+        int target = 120;
+        int sample = 1;
+
+        while (bounds.outWidth / (sample * 2) >= target
+                && bounds.outHeight / (sample * 2) >= target) {
+            sample *= 2;
+        }
+
         android.graphics.BitmapFactory.Options options =
                 new android.graphics.BitmapFactory.Options();
-        options.inSampleSize = 2;
+        options.inSampleSize = sample;
 
-        return android.graphics.BitmapFactory.decodeFile(path, options);
-    } catch (Exception error) {
+        android.graphics.Bitmap bitmap =
+                android.graphics.BitmapFactory.decodeFile(path, options);
+
+        if (bitmap != null) {
+            giftIconCache.put(key, bitmap);
+        }
+
+        return bitmap;
+    } catch (Throwable error) {
         return null;
     }
 }
