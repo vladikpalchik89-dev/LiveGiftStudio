@@ -733,7 +733,8 @@ if (type.equals("test_donation")) {
                                 event.optString("username", "Зритель"),
                                 Math.max(1, event.optInt("likeCount", 1)));
 
-                        handler.post(this::updateWidgets);
+                        handler.post(
+                                OverlayService.this::updateWidgets);
 
                         return;
                     }
