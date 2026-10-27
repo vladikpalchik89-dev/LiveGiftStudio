@@ -5607,24 +5607,28 @@ private void showTikTokAccounts() {
 
         out.append("\nСЕРВЕР\n");
 
-        HttpURLConnection connection = null;
-
         try {
-            connection = (HttpURLConnection) new URL(
-                    "https://livegiftstudio.onrender.com/health")
-                    .openConnection();
-            connection.setConnectTimeout(20000);
-            connection.setReadTimeout(20000);
+            okhttp3.Request request = new okhttp3.Request.Builder()
+                    .url("https://livegiftstudio.onrender.com/health")
+                    .build();
 
-            int code = connection.getResponseCode();
+            okhttp3.Response response =
+                    httpClient.newCall(request).execute();
+
+            int code = response.code();
 
             if (code != 200) {
                 out.append("Ответ: HTTP ").append(code).append('\n');
+                response.close();
                 return out.toString();
             }
 
-            JSONObject json = new JSONObject(
-                    readStream(connection.getInputStream()));
+            JSONObject json;
+
+            try (okhttp3.ResponseBody body = response.body()) {
+                json = new JSONObject(
+                        body == null ? "{}" : body.string());
+            }
 
             JSONObject tiktok = json.optJSONObject("tiktok");
             JSONObject events = json.optJSONObject("events");
@@ -5646,8 +5650,30 @@ private void showTikTokAccounts() {
 
                 if (!serverError.isEmpty()) {
                     out.append("Ошибка TikTok: ")
-                            .append(serverError)
+                            .append(explainTikTokError(serverError))
                             .append('\n');
+                }
+
+                if (!tiktok.optBoolean("connected")) {
+                    out.append("Подсказка: TikTok отдаёт подарки только")
+                            .append(" когда эфир уже идёт. Включите")
+                            .append(" прямой эфир в приложении TikTok,")
+                            .append(" затем нажмите «🔄 Подключить")
+                            .append(" сейчас» в меню аккаунта.\n");
+                }
+
+                JSONObject lastSwitch = tiktok.optJSONObject("lastSwitch");
+
+                if (lastSwitch != null) {
+                    out.append("Переключение: ")
+                            .append(lastSwitch.optString("from"))
+                            .append(" → ")
+                            .append(lastSwitch.optString("to"))
+                            .append(" (")
+                            .append(lastSwitch.optString("via"))
+                            .append(", ")
+                            .append(lastSwitch.optString("at"))
+                            .append(")\n");
                 }
 
                 if (tiktok.optBoolean("connecting")) {
@@ -5691,13 +5717,41 @@ private void showTikTokAccounts() {
             out.append("❌ Нет связи с сервером\n")
                     .append(String.valueOf(error))
                     .append('\n');
-        } finally {
-            if (connection != null) {
-                connection.disconnect();
-            }
         }
 
         return out.toString();
+    }
+
+    private String explainTikTokError(String raw) {
+        String lower = raw.toLowerCase();
+
+        if (lower.contains("isn't online")
+                || lower.contains("is not online")
+                || lower.contains("not online")) {
+            return "аккаунт сейчас не в эфире ("
+                    + raw + ")";
+        }
+
+        if (lower.contains("stream ended")) {
+            return "эфир закончился или ещё не начался ("
+                    + raw + ")";
+        }
+
+        if (lower.contains("rate limit")
+                || lower.contains("too many")
+                || lower.contains("429")) {
+            return "лимит запросов к TikTok, нужна пауза ("
+                    + raw + ")";
+        }
+
+        if (lower.contains("sign")
+                || lower.contains("api key")
+                || lower.contains("euler")) {
+            return "проблема с ключом EulerStream ("
+                    + raw + ")";
+        }
+
+        return raw;
     }
 
     private String readStream(java.io.InputStream stream) throws Exception {
