@@ -240,6 +240,21 @@ app.post("/switch-account", (req, res) => {
 });
 
 
+app.get("/test-like", requireTestKey, (req, res) => {
+  const event = {
+    type: "like",
+    username: String(req.query.username || "TestViewer"),
+    likeCount: Number(req.query.count || 10) || 10,
+    totalLikeCount: 0,
+    timestamp: Date.now(),
+    test: true
+  };
+
+  sendEvent(event);
+
+  res.json({ status: "ok", message: "Test like sent", event });
+});
+
 app.get("/test-gift", requireTestKey, (req, res) => {
   const event = {
     type: "gift",
@@ -935,6 +950,25 @@ connection.on(WebcastEvent.GIFT || "gift", (data) => {
   });
 });
     
+    connection.on(WebcastEvent.LIKE || "like", (data) => {
+      if (connection !== currentConnection) return;
+
+      const likeCount = Number(
+        data?.likeCount ?? data?.count ?? 1
+      );
+
+      sendEvent({
+        type: "like",
+        username: getUserName(data),
+        likeCount:
+          Number.isFinite(likeCount) && likeCount > 0
+            ? likeCount
+            : 1,
+        totalLikeCount: Number(data?.totalLikeCount || 0) || 0,
+        timestamp: Date.now()
+      });
+    });
+
     connection.on(WebcastEvent.CHAT || "chat", (data) => {
       if (connection !== currentConnection) return;
 

@@ -38,10 +38,12 @@ import android.view.animation.ScaleAnimation;
 import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
@@ -136,6 +138,21 @@ private void startForegroundNotification() {
             new Handler(Looper.getMainLooper());
 
     private WindowManager windowManager;
+
+    private static volatile OverlayService instance = null;
+
+    // Виджеты эфира: цель сбора, лайки, топ подарков.
+    private LinearLayout widgetsRoot;
+    private LinearLayout widgetGoalPanel;
+    private TextView widgetGoalTitle;
+    private TextView widgetGoalValue;
+    private ProgressBar widgetGoalBar;
+    private LinearLayout widgetLikesPanel;
+    private TextView widgetLikesValue;
+    private TextView widgetLikesTop;
+    private LinearLayout widgetTopPanel;
+    private TextView widgetTopTitle;
+    private TextView widgetTopList;
     private TextView overlay;
     private View overlayView;
     private SharedPreferences prefs;
@@ -197,6 +214,10 @@ public void onCreate() {
 
     prefs = getSharedPreferences(
             "LiveGiftStudio", MODE_PRIVATE);
+
+    instance = this;
+
+    handler.post(this::updateWidgets);
 
     chatSpeechEnabled = prefs.getBoolean(
             "chat_speech_enabled", true);
@@ -706,6 +727,17 @@ if (type.equals("test_donation")) {
 
                         return;
                     } 
+                    // Лайки: считаем общее число и по зрителям.
+                    if (type.equals("like")) {
+                        addLikeStats(
+                                event.optString("username", "Зритель"),
+                                Math.max(1, event.optInt("likeCount", 1)));
+
+                        handler.post(this::updateWidgets);
+
+                        return;
+                    }
+
                     // Подарок
                     if (!type.equals("gift")) {
                         return;
@@ -742,6 +774,13 @@ if (type.equals("test_donation")) {
                     lastGiftEventKey = giftEventKey;
                     lastGiftEventTime = now;
 
+                    // Комбо приходит несколькими событиями: в топ
+                    // пишем только его завершение, иначе сумма
+                    // задваивается.
+                    if (event.optBoolean("repeatEnd", true)) {
+                        addGiftStats(username, gift, count);
+                    }
+
                     final String message =
                             "🎁 " + gift + " × " + count
                                     + "\n@" + username;
@@ -750,6 +789,7 @@ if (type.equals("test_donation")) {
                         if (!destroyed) {
                             showGift(message, gift);
                             playGiftSound(gift);
+                            updateWidgets();
 
                             speakText(
                                     "Подарок " + gift
@@ -1863,6 +1903,19 @@ private void handleDonation(
         displayMessage += "\n💬 " + text;
     }
 
+    try {
+        double value = Double.parseDouble(
+                String.valueOf(amount).replace(',', '.'));
+
+        if (!"RUB".equalsIgnoreCase(currency)) {
+            value = value * 90;
+        }
+
+        addDonationStats(value);
+        handler.post(this::updateWidgets);
+    } catch (Exception ignored) {
+    }
+
     final String finalMessage = displayMessage;
     final String finalDonor = donor;
     final String finalAmount = amount;
@@ -2240,8 +2293,11 @@ android.util.Log.e(
         // ссылку на уже уничтоженный сервис.
         handler.removeCallbacksAndMessages(null);
 
+        removeWidgets();
         removeOverlay();
         stopCurrentSound();
+
+        instance = null;
 
         if (webSocket != null) {
             webSocket.close(1000, "Service stopped");
@@ -2258,6 +2314,373 @@ android.util.Log.e(
         super.onDestroy();
     }
    
+    // ===== ВИДЖЕТЫ ЭФИРА =====
+    // Цель сбора, лайки и топ подарков показываются отдельным окном
+    // поверх эфира и обновляются по событиям с сервера.
+
+    public static void refreshWidgetsFromPrefs() {
+        OverlayService service = instance;
+
+        if (service == null) return;
+
+        service.handler.post(service::updateWidgets);
+    }
+
+    private String formatNumber(int value) {
+        return String.format(Locale.US, "%,d", value)
+                .replace(',', ' ');
+    }
+
+    private JSONObject statsUsers(String key) {
+        try {
+            return new JSONObject(prefs.getString(key, "{}"));
+        } catch (Exception error) {
+            return new JSONObject();
+        }
+    }
+
+    private void addLikeStats(String username, int count) {
+        JSONObject users = statsUsers("stats_like_users");
+
+        try {
+            users.put(username, users.optInt(username, 0) + count);
+        } catch (Exception ignored) {
+        }
+
+        prefs.edit()
+                .putInt("stats_like_total",
+                        prefs.getInt("stats_like_total", 0) + count)
+                .putString("stats_like_users", users.toString())
+                .apply();
+    }
+
+    private void addGiftStats(
+            String username, String giftName, int count) {
+        int coins = Math.max(0, getGiftCoins(giftName));
+        int total = coins * count;
+
+        JSONObject users = statsUsers("stats_gift_users");
+
+        try {
+            users.put(username, users.optInt(username, 0) + total);
+        } catch (Exception ignored) {
+        }
+
+        prefs.edit()
+                .putInt("stats_gift_coins",
+                        prefs.getInt("stats_gift_coins", 0) + total)
+                .putInt("stats_gift_count",
+                        prefs.getInt("stats_gift_count", 0) + count)
+                .putString("stats_gift_users", users.toString())
+                .apply();
+    }
+
+    private void addDonationStats(double amount) {
+        int rub = (int) Math.round(amount);
+
+        if (rub <= 0) return;
+
+        prefs.edit()
+                .putInt("stats_donation_rub",
+                        prefs.getInt("stats_donation_rub", 0) + rub)
+                .apply();
+    }
+
+    private String goalMetric() {
+        return prefs.getString("widget_goal_metric", "coins");
+    }
+
+    private String goalUnit() {
+        switch (goalMetric()) {
+            case "likes":
+                return "❤️";
+            case "gifts":
+                return "🎁";
+            case "rub":
+                return "₽";
+            default:
+                return "🪙";
+        }
+    }
+
+    private int goalCurrent() {
+        int base = prefs.getInt("widget_goal_base", 0);
+
+        switch (goalMetric()) {
+            case "likes":
+                return base + prefs.getInt("stats_like_total", 0);
+            case "gifts":
+                return base + prefs.getInt("stats_gift_count", 0);
+            case "rub":
+                return base + prefs.getInt("stats_donation_rub", 0);
+            default:
+                return base + prefs.getInt("stats_gift_coins", 0);
+        }
+    }
+
+    private String buildUserList(
+            JSONObject users, int limit, String suffix) {
+        List<String[]> rows = new ArrayList<>();
+        java.util.Iterator<String> keys = users.keys();
+
+        while (keys.hasNext()) {
+            String name = keys.next();
+
+            rows.add(new String[]{
+                    name,
+                    String.valueOf(users.optInt(name, 0))
+            });
+        }
+
+        Collections.sort(rows, (first, second) -> Integer.compare(
+                Integer.parseInt(second[1]),
+                Integer.parseInt(first[1])));
+
+        StringBuilder out = new StringBuilder();
+
+        for (int i = 0; i < rows.size() && i < limit; i++) {
+            if (i > 0) out.append('\n');
+
+            out.append(i + 1)
+                    .append(". @")
+                    .append(rows.get(i)[0])
+                    .append(" — ")
+                    .append(formatNumber(
+                            Integer.parseInt(rows.get(i)[1])))
+                    .append(suffix);
+        }
+
+        if (rows.isEmpty()) {
+            out.append("пока пусто");
+        }
+
+        return out.toString();
+    }
+
+    private TextView widgetText(int size, boolean bold, int color) {
+        TextView view = new TextView(this);
+        view.setTextColor(color);
+        view.setTextSize(size);
+
+        if (bold) {
+            view.setTypeface(null, android.graphics.Typeface.BOLD);
+        }
+
+        view.setShadowLayer(6f, 0f, 2f, Color.BLACK);
+        view.setPadding(0, dp(2), 0, dp(2));
+
+        return view;
+    }
+
+    private LinearLayout widgetPanel(int accent) {
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(14), dp(10), dp(14), dp(10));
+
+        GradientDrawable background = new GradientDrawable();
+        background.setColor(Color.argb(215, 8, 10, 26));
+        background.setCornerRadius(dp(18));
+        background.setStroke(dp(2), accent);
+
+        panel.setBackground(background);
+
+        LinearLayout.LayoutParams params =
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT);
+
+        params.bottomMargin = dp(8);
+        panel.setLayoutParams(params);
+
+        return panel;
+    }
+
+    private void buildWidgets() {
+        if (windowManager == null || destroyed) return;
+
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+
+        // Цель сбора
+        widgetGoalPanel = widgetPanel(0xFFFF1493);
+        widgetGoalTitle = widgetText(13, true, 0xFFFFB3DC);
+        widgetGoalValue = widgetText(18, true, Color.WHITE);
+
+        widgetGoalBar = new ProgressBar(
+                this, null,
+                android.R.attr.progressBarStyleHorizontal);
+
+        widgetGoalBar.setMax(100);
+        widgetGoalBar.setProgressTintList(
+                android.content.res.ColorStateList
+                        .valueOf(0xFFFF1493));
+        widgetGoalBar.setProgressBackgroundTintList(
+                android.content.res.ColorStateList
+                        .valueOf(0x44FFFFFF));
+        widgetGoalBar.setLayoutParams(
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        dp(12)));
+
+        widgetGoalPanel.addView(widgetGoalTitle);
+        widgetGoalPanel.addView(widgetGoalValue);
+        widgetGoalPanel.addView(widgetGoalBar);
+        root.addView(widgetGoalPanel);
+
+        // Лайки
+        widgetLikesPanel = widgetPanel(0xFF00C8FF);
+        widgetLikesValue = widgetText(18, true, Color.WHITE);
+        widgetLikesTop = widgetText(13, false, 0xFFCFE6FF);
+        widgetLikesPanel.addView(widgetLikesValue);
+        widgetLikesPanel.addView(widgetLikesTop);
+        root.addView(widgetLikesPanel);
+
+        // Топ подарков
+        widgetTopPanel = widgetPanel(0xFFFFB900);
+        widgetTopTitle = widgetText(13, true, 0xFFFFE08A);
+        widgetTopTitle.setText("🏆 Топ подарков");
+        widgetTopList = widgetText(14, true, Color.WHITE);
+        widgetTopPanel.addView(widgetTopTitle);
+        widgetTopPanel.addView(widgetTopList);
+        root.addView(widgetTopPanel);
+
+        widgetsRoot = root;
+
+        int type = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                : WindowManager.LayoutParams.TYPE_PHONE;
+
+        WindowManager.LayoutParams params =
+                new WindowManager.LayoutParams(
+                        dp(300),
+                        WindowManager.LayoutParams.WRAP_CONTENT,
+                        type,
+                        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                                | WindowManager.LayoutParams
+                                .FLAG_NOT_TOUCHABLE
+                                | WindowManager.LayoutParams
+                                .FLAG_NOT_TOUCH_MODAL
+                                | WindowManager.LayoutParams
+                                .FLAG_LAYOUT_IN_SCREEN,
+                        PixelFormat.TRANSLUCENT);
+
+        boolean right = "right".equals(
+                prefs.getString("widgets_position", "left"));
+
+        // Виджеты живут снизу: там они не мешают всплывающему
+        // подарку и анимации по центру экрана.
+        params.gravity = Gravity.BOTTOM
+                | (right ? Gravity.END : Gravity.START);
+        params.x = dp(10);
+        params.y = dp(120);
+
+        int scale = prefs.getInt("widgets_scale", 100);
+        float factor = scale / 100f;
+
+        root.setScaleX(factor);
+        root.setScaleY(factor);
+
+        // Масштаб считаем от нижнего угла, иначе крупный размер
+        // уезжает за край экрана.
+        root.post(() -> {
+            root.setPivotX(right ? root.getWidth() : 0f);
+            root.setPivotY(root.getHeight());
+        });
+
+        try {
+            windowManager.addView(root, params);
+        } catch (Exception error) {
+            android.util.Log.e(
+                    TAG, "Не удалось показать виджеты", error);
+            widgetsRoot = null;
+        }
+    }
+
+    private void updateWidgets() {
+        if (destroyed) return;
+
+        if (!prefs.getBoolean("widgets_enabled", false)) {
+            removeWidgets();
+            return;
+        }
+
+        if (widgetsRoot == null) {
+            buildWidgets();
+        }
+
+        if (widgetsRoot == null || widgetGoalPanel == null) return;
+
+        boolean goalOn = prefs.getBoolean("widget_goal_on", true);
+        widgetGoalPanel.setVisibility(
+                goalOn ? View.VISIBLE : View.GONE);
+
+        if (goalOn) {
+            int target = Math.max(
+                    1, prefs.getInt("widget_goal_target", 1000));
+            int current = goalCurrent();
+            int percent = (int) Math.min(100,
+                    Math.round(current * 100.0 / target));
+
+            widgetGoalTitle.setText("🎯 " + prefs.getString(
+                    "widget_goal_title", "Сбор"));
+
+            widgetGoalValue.setText(
+                    formatNumber(current)
+                            + " / " + formatNumber(target)
+                            + " " + goalUnit()
+                            + "  " + percent + "%");
+
+            widgetGoalBar.setProgress(percent);
+        }
+
+        boolean likesOn = prefs.getBoolean("widget_likes_on", true);
+        widgetLikesPanel.setVisibility(
+                likesOn ? View.VISIBLE : View.GONE);
+
+        if (likesOn) {
+            widgetLikesValue.setText("❤️ Лайки: "
+                    + formatNumber(prefs.getInt(
+                    "stats_like_total", 0)));
+
+            widgetLikesTop.setText(buildUserList(
+                    statsUsers("stats_like_users"),
+                    prefs.getInt("widget_likes_top", 3),
+                    " ❤️"));
+        }
+
+        boolean topOn = prefs.getBoolean("widget_top_on", true);
+        widgetTopPanel.setVisibility(
+                topOn ? View.VISIBLE : View.GONE);
+
+        if (topOn) {
+            widgetTopList.setText(buildUserList(
+                    statsUsers("stats_gift_users"),
+                    prefs.getInt("widget_top_limit", 3),
+                    " 🪙"));
+        }
+    }
+
+    private void removeWidgets() {
+        if (widgetsRoot != null && windowManager != null) {
+            try {
+                windowManager.removeView(widgetsRoot);
+            } catch (Exception ignored) {
+            }
+        }
+
+        widgetsRoot = null;
+        widgetGoalPanel = null;
+        widgetGoalTitle = null;
+        widgetGoalValue = null;
+        widgetGoalBar = null;
+        widgetLikesPanel = null;
+        widgetLikesValue = null;
+        widgetLikesTop = null;
+        widgetTopPanel = null;
+        widgetTopTitle = null;
+        widgetTopList = null;
+    }
+
 private static class GifView extends View {
     private final Movie movie;
     private final Paint paint =

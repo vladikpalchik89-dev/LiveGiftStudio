@@ -26,6 +26,7 @@ import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.ImageView;
 import android.widget.ScrollView;
+import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 import android.graphics.Typeface;
@@ -477,6 +478,29 @@ addMenuRow(
         v -> showDaTokenDialog(),
         v -> showDaTokenHelp()
 );
+addSectionHeader("📊 ВИДЖЕТЫ ЭФИРА");
+
+addMenuRow(
+        "🎯\nЦель\nсбора", 0xFFFF1493,
+        "❤️\nЛайки\nзрителей", 0xFF00C8FF,
+        v -> showGoalSettings(),
+        v -> showLikesSettings()
+);
+
+addMenuRow(
+        "🏆\nТоп\nподарков", 0xFFFFB900,
+        "📊\nВиджеты\nвкл/выкл", 0xFF00C853,
+        v -> toggleWidgets(),
+        v -> showWidgetLayoutSettings()
+);
+
+addMenuRow(
+        "🧪\nТест\nвиджетов", 0xFF9B20FF,
+        "🧹\nСбросить\nстатистику", 0xFFFF1764,
+        v -> testWidgets(),
+        v -> resetWidgetStats()
+);
+
 addSectionHeader("📚 ЗВУКИ И МЕДИА");
 
 addMenuRow(
@@ -5546,6 +5570,365 @@ private void showTikTokAccounts() {
     // Диагностика соединения: одна кнопка, один экран.
     // Видно, жив ли сокет, в эфире ли TikTok и доходят ли события.
     // ------------------------------------------------------------------
+    // ===== ВИДЖЕТЫ ЭФИРА =====
+
+    private void showGoalSettings() {
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(dp(18), dp(10), dp(18), dp(10));
+
+        EditText titleInput = new EditText(this);
+        titleInput.setHint("Название сбора");
+        titleInput.setText(prefs.getString(
+                "widget_goal_title", "Сбор"));
+        layout.addView(titleInput);
+
+        EditText targetInput = new EditText(this);
+        targetInput.setHint("Цель, например 5000");
+        targetInput.setInputType(
+                android.text.InputType.TYPE_CLASS_NUMBER);
+        targetInput.setText(String.valueOf(
+                prefs.getInt("widget_goal_target", 1000)));
+        layout.addView(targetInput);
+
+        EditText baseInput = new EditText(this);
+        baseInput.setHint("Уже собрано до приложения");
+        baseInput.setInputType(
+                android.text.InputType.TYPE_CLASS_NUMBER);
+        baseInput.setText(String.valueOf(
+                prefs.getInt("widget_goal_base", 0)));
+        layout.addView(baseInput);
+
+        TextView metricLabel = new TextView(this);
+        metricLabel.setText("Что считаем:");
+        metricLabel.setPadding(0, dp(10), 0, dp(4));
+        layout.addView(metricLabel);
+
+        Spinner metric = new Spinner(this);
+
+        String[] metricNames = {
+                "Монеты 🪙",
+                "Лайки ❤️",
+                "Подарки 🎁",
+                "Рубли ₽"
+        };
+
+        String[] metricKeys = {"coins", "likes", "gifts", "rub"};
+
+        metric.setAdapter(new ArrayAdapter<>(
+                this,
+                android.R.layout.simple_spinner_dropdown_item,
+                metricNames));
+
+        String currentMetric = prefs.getString(
+                "widget_goal_metric", "coins");
+
+        for (int i = 0; i < metricKeys.length; i++) {
+            if (metricKeys[i].equals(currentMetric)) {
+                metric.setSelection(i);
+            }
+        }
+
+        layout.addView(metric);
+
+        TextView hint = new TextView(this);
+        hint.setText("Прогресс считается сам: из подарков, лайков,"
+                + " донатов. Поле «уже собрано» — то, что было"
+                + " до запуска приложения.");
+        hint.setTextSize(12);
+        hint.setPadding(0, dp(12), 0, 0);
+        layout.addView(hint);
+
+        new AlertDialog.Builder(this)
+                .setTitle("🎯 Цель сбора")
+                .setView(layout)
+                .setPositiveButton("Сохранить", (dialog, which) -> {
+                    String title = titleInput.getText()
+                            .toString().trim();
+
+                    if (title.isEmpty()) title = "Сбор";
+
+                    int target = parseIntSafe(
+                            targetInput.getText().toString(), 1000);
+                    int base = parseIntSafe(
+                            baseInput.getText().toString(), 0);
+
+                    prefs.edit()
+                            .putString("widget_goal_title", title)
+                            .putInt("widget_goal_target",
+                                    Math.max(1, target))
+                            .putInt("widget_goal_base",
+                                    Math.max(0, base))
+                            .putString("widget_goal_metric",
+                                    metricKeys[metric
+                                            .getSelectedItemPosition()])
+                            .putBoolean("widget_goal_on", true)
+                            .putBoolean("widgets_enabled", true)
+                            .apply();
+
+                    OverlayService.refreshWidgetsFromPrefs();
+
+                    message("Цель сохранена");
+                })
+                .setNeutralButton("Сбросить прогресс", (dialog, which) ->
+                        resetWidgetStats())
+                .setNegativeButton("Отмена", null)
+                .show();
+    }
+
+    private void showLikesSettings() {
+        int total = prefs.getInt("stats_like_total", 0);
+
+        String top = formatUsersList(
+                prefs.getString("stats_like_users", "{}"),
+                5, " ❤️");
+
+        boolean on = prefs.getBoolean("widget_likes_on", true);
+
+        new AlertDialog.Builder(this)
+                .setTitle("❤️ Лайки зрителей")
+                .setMessage("Всего лайков: " + total
+                        + "\n\nТоп зрителей:\n" + top)
+                .setPositiveButton(on ? "Скрыть" : "Показать",
+                        (dialog, which) -> {
+                            boolean next = !prefs.getBoolean(
+                                    "widget_likes_on", true);
+
+                            prefs.edit()
+                                    .putBoolean("widget_likes_on", next)
+                                    .putBoolean("widgets_enabled", true)
+                                    .apply();
+
+                            OverlayService.refreshWidgetsFromPrefs();
+
+                            message(next
+                                    ? "Лайки включены"
+                                    : "Лайки скрыты");
+                        })
+                .setNeutralButton("Сбросить", (dialog, which) -> {
+                    prefs.edit()
+                            .putInt("stats_like_total", 0)
+                            .putString("stats_like_users", "{}")
+                            .apply();
+
+                    OverlayService.refreshWidgetsFromPrefs();
+
+                    message("Счётчики лайков сброшены");
+                })
+                .setNegativeButton("Закрыть", null)
+                .show();
+    }
+
+    private void showTopGiftSettings() {
+        int coins = prefs.getInt("stats_gift_coins", 0);
+        int count = prefs.getInt("stats_gift_count", 0);
+        int limit = prefs.getInt("widget_top_limit", 3);
+
+        String top = formatUsersList(
+                prefs.getString("stats_gift_users", "{}"),
+                10, " 🪙");
+
+        boolean on = prefs.getBoolean("widget_top_on", true);
+
+        new AlertDialog.Builder(this)
+                .setTitle("🏆 Топ подарков")
+                .setMessage("Подарено монет: " + coins
+                        + "\nПодарков: " + count
+                        + "\n\nКто сколько:\n" + top)
+                .setPositiveButton(on ? "Скрыть" : "Показать",
+                        (dialog, which) -> {
+                            boolean next = !prefs.getBoolean(
+                                    "widget_top_on", true);
+
+                            prefs.edit()
+                                    .putBoolean("widget_top_on", next)
+                                    .putBoolean("widgets_enabled", true)
+                                    .apply();
+
+                            OverlayService.refreshWidgetsFromPrefs();
+
+                            message(next
+                                    ? "Топ подарков включён"
+                                    : "Топ подарков скрыт");
+                        })
+                .setNeutralButton("Мест: " + limit,
+                        (dialog, which) -> {
+                            int next = limit == 3
+                                    ? 5
+                                    : (limit == 5 ? 10 : 3);
+
+                            prefs.edit()
+                                    .putInt("widget_top_limit", next)
+                                    .apply();
+
+                            OverlayService.refreshWidgetsFromPrefs();
+
+                            message("Показываю " + next + " мест");
+                        })
+                .setNegativeButton("Сбросить", (dialog, which) -> {
+                    prefs.edit()
+                            .putInt("stats_gift_coins", 0)
+                            .putInt("stats_gift_count", 0)
+                            .putString("stats_gift_users", "{}")
+                            .apply();
+
+                    OverlayService.refreshWidgetsFromPrefs();
+
+                    message("Топ подарков сброшен");
+                })
+                .show();
+    }
+
+    private void toggleWidgets() {
+        boolean enabled = !prefs.getBoolean(
+                "widgets_enabled", false);
+
+        prefs.edit()
+                .putBoolean("widgets_enabled", enabled)
+                .apply();
+
+        OverlayService.refreshWidgetsFromPrefs();
+
+        message(enabled
+                ? "Виджеты включены"
+                : "Виджеты скрыты");
+    }
+
+    private void showWidgetLayoutSettings() {
+        new AlertDialog.Builder(this)
+                .setTitle("📐 Положение и размер")
+                .setItems(new String[]{
+                        "⬅️ Слева",
+                        "➡️ Справа",
+                        "🔍 Размер: мелкий",
+                        "🔍 Размер: обычный",
+                        "🔍 Размер: крупный"
+                }, (dialog, which) -> {
+                    SharedPreferences.Editor editor = prefs.edit();
+
+                    if (which == 0) {
+                        editor.putString("widgets_position", "left");
+                    } else if (which == 1) {
+                        editor.putString("widgets_position", "right");
+                    } else if (which == 2) {
+                        editor.putInt("widgets_scale", 80);
+                    } else if (which == 3) {
+                        editor.putInt("widgets_scale", 100);
+                    } else {
+                        editor.putInt("widgets_scale", 125);
+                    }
+
+                    editor.apply();
+
+                    OverlayService.refreshWidgetsFromPrefs();
+
+                    message("Готово");
+                })
+                .show();
+    }
+
+    private void resetWidgetStats() {
+        new AlertDialog.Builder(this)
+                .setTitle("🧹 Сбросить статистику")
+                .setMessage("Обнулить лайки, монеты подарков и донаты?"
+                        + "\nНастройки цели останутся.")
+                .setPositiveButton("Сбросить", (dialog, which) -> {
+                    prefs.edit()
+                            .putInt("stats_like_total", 0)
+                            .putString("stats_like_users", "{}")
+                            .putInt("stats_gift_coins", 0)
+                            .putInt("stats_gift_count", 0)
+                            .putString("stats_gift_users", "{}")
+                            .putInt("stats_donation_rub", 0)
+                            .putInt("widget_goal_base", 0)
+                            .apply();
+
+                    OverlayService.refreshWidgetsFromPrefs();
+
+                    message("Статистика сброшена");
+                })
+                .setNegativeButton("Отмена", null)
+                .show();
+    }
+
+    private void testWidgets() {
+        message("Отправляю тестовые лайки и подарок…");
+
+        executor.execute(() -> {
+            sendTestRequest("test-like?count=50&username=ТестЛайк");
+            sendTestRequest("test-like?count=30&username=ВторойЗритель");
+            sendTestRequest("test-gift");
+        });
+    }
+
+    private void sendTestRequest(String path) {
+        try {
+            okhttp3.Request request = new okhttp3.Request.Builder()
+                    .url("https://livegiftstudio.onrender.com/" + path)
+                    .header("x-switch-key", ACCOUNT_SWITCH_KEY)
+                    .build();
+
+            try (okhttp3.Response response =
+                         httpClient.newCall(request).execute()) {
+                response.close();
+            }
+        } catch (Exception error) {
+            runOnUiThread(() -> message(
+                    "Тест не отправлен: " + error.getMessage()));
+        }
+    }
+
+    private String formatUsersList(
+            String json, int limit, String suffix) {
+        try {
+            JSONObject users = new JSONObject(json);
+
+            List<String[]> rows = new ArrayList<>();
+            java.util.Iterator<String> keys = users.keys();
+
+            while (keys.hasNext()) {
+                String name = keys.next();
+
+                rows.add(new String[]{
+                        name,
+                        String.valueOf(users.optInt(name, 0))
+                });
+            }
+
+            Collections.sort(rows, (first, second) -> Integer.compare(
+                    Integer.parseInt(second[1]),
+                    Integer.parseInt(first[1])));
+
+            StringBuilder out = new StringBuilder();
+
+            for (int i = 0; i < rows.size() && i < limit; i++) {
+                out.append(i + 1)
+                        .append(". @")
+                        .append(rows.get(i)[0])
+                        .append(" — ")
+                        .append(rows.get(i)[1])
+                        .append(suffix)
+                        .append('\n');
+            }
+
+            if (rows.isEmpty()) {
+                out.append("пока пусто\n");
+            }
+
+            return out.toString().trim();
+        } catch (Exception error) {
+            return "пока пусто";
+        }
+    }
+
+    private int parseIntSafe(String value, int fallback) {
+        try {
+            return Integer.parseInt(value.trim());
+        } catch (Exception error) {
+            return fallback;
+        }
+    }
+
     private void showConnectionDiagnostics() {
         message("Проверяю соединение…");
 
