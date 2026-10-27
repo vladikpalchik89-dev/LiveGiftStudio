@@ -5510,7 +5510,8 @@ private void showTikTokAccounts() {
                                 new String[]{
                                         "✅ Сделать активным",
                                         "✏️ Изменить ник",
-                                        "🔎 Проверить подключение"
+                                        "🔎 Проверить подключение",
+                                        "🔄 Подключить сейчас"
                                 },
                                 (d, action) -> {
 
@@ -5526,6 +5527,9 @@ private void showTikTokAccounts() {
                                     } else if (action == 2) {
                                         checkServerConnection(
                                                 accounts[which]);
+
+                                    } else if (action == 3) {
+                                        forceReconnectNow();
                                     }
                                 }
                         )
@@ -5865,6 +5869,78 @@ private void switchServerAccount(String username) {
         runOnUiThread(() -> message(
                 "Не удалось переключить: " + reason));
     });
+}
+
+private void forceReconnectNow() {
+    message("Прошу сервер подключиться заново…");
+
+    executor.execute(() -> {
+        long startedAt = System.currentTimeMillis();
+        boolean answered = false;
+
+        if (OverlayService.sendReconnectRequest(ACCOUNT_SWITCH_KEY)) {
+            while (System.currentTimeMillis() - startedAt < 8000) {
+                if (OverlayService.switchResultAt >= startedAt) {
+                    answered = true;
+                    break;
+                }
+
+                try {
+                    Thread.sleep(300);
+                } catch (InterruptedException ignored) {
+                }
+            }
+        }
+
+        if (!answered) {
+            String error = tryReconnect();
+
+            if (error != null) {
+                final String reason = error;
+
+                runOnUiThread(() -> message(
+                        "Не удалось переподключить: " + reason));
+                return;
+            }
+        }
+
+        runOnUiThread(() -> {
+            message("Сервер подключается к TikTok заново");
+
+            executor.execute(() -> {
+                try {
+                    Thread.sleep(6000);
+                } catch (InterruptedException ignored) {
+                }
+
+                runOnUiThread(() -> showConnectionDiagnostics());
+            });
+        });
+    });
+}
+
+private String tryReconnect() {
+    try {
+        okhttp3.Request request = new okhttp3.Request.Builder()
+                .url("https://livegiftstudio.onrender.com/reconnect")
+                .header("x-switch-key", ACCOUNT_SWITCH_KEY)
+                .post(okhttp3.RequestBody.create(
+                        okhttp3.MediaType.parse(
+                                "application/json; charset=utf-8"),
+                        "{}"))
+                .build();
+
+        try (okhttp3.Response response =
+                     httpClient.newCall(request).execute()) {
+            if (response.isSuccessful()) {
+                return null;
+            }
+
+            return "код " + response.code();
+        }
+    } catch (Exception error) {
+        return String.valueOf(error.getMessage());
+    }
 }
 
 private void applyActiveAccount(String username) {

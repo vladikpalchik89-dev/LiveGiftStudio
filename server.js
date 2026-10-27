@@ -28,6 +28,7 @@ let tiktokConnected = false;
 let tiktokError = "";
 let connectStartedAt = 0;
 let rateLimitedUntil = 0;
+let lastSwitch = null;
 let consecutiveFailures = 0;
 let reconnectTimer = null;
 let connecting = false;
@@ -72,6 +73,7 @@ app.get("/health", (_req, res) => {
       connecting,
       lastError: tiktokError,
       apiKey: Boolean(signApiKey),
+      lastSwitch,
       rateLimitedUntil: rateLimitedUntil
         ? new Date(rateLimitedUntil).toISOString()
         : null,
@@ -136,7 +138,7 @@ function requireTestKey(req, res, next) {
 
 // Переключение аккаунта умеет приходить двумя путями: обычным
 // HTTP-запросом и сообщением по уже открытому WebSocket.
-function applyAccountSwitch(rawUsername) {
+function applyAccountSwitch(rawUsername, via) {
   const newUsername = String(rawUsername || "")
     .trim()
     .replace(/^@/, "");
@@ -180,9 +182,22 @@ function applyAccountSwitch(rawUsername) {
     }
   }
 
+  const previousUsername = username;
   username = newUsername;
 
-  console.log("Active TikTok account changed to:", username);
+  lastSwitch = {
+    at: new Date().toISOString(),
+    from: previousUsername,
+    to: username,
+    via: via || "http"
+  };
+
+  console.log(
+    "Active TikTok account changed to:",
+    username,
+    "(was:",
+    previousUsername + ", via " + lastSwitch.via + ")"
+  );
 
   if (process.env.TIKTOK_ENABLED === "true") {
     console.log("Starting TikTok connection for:", username);
@@ -219,7 +234,7 @@ app.post("/switch-account", (req, res) => {
     });
   }
 
-  const result = applyAccountSwitch(req.body?.username);
+  const result = applyAccountSwitch(req.body?.username, "http");
 
   res.status(result.status).json(result.body);
 });
@@ -393,6 +408,28 @@ wss.on("connection", (socket, req) => {
     try {
       const message = JSON.parse(raw.toString());
 
+      if (message.type === "reconnect") {
+        if (!switchKey || message.key !== switchKey) {
+          socket.send(JSON.stringify({
+            type: "switch_result",
+            ok: false,
+            message: "Invalid switch key"
+          }));
+          return;
+        }
+
+        const result = forceReconnect();
+
+        socket.send(JSON.stringify({
+          type: "switch_result",
+          ok: result.ok,
+          username: result.username,
+          message: result.message
+        }));
+
+        return;
+      }
+
       if (message.type !== "switch_account") return;
 
       if (!switchKey || message.key !== switchKey) {
@@ -404,7 +441,7 @@ wss.on("connection", (socket, req) => {
         return;
       }
 
-      const result = applyAccountSwitch(message.username);
+      const result = applyAccountSwitch(message.username, "socket");
 
       socket.send(JSON.stringify({
         type: "switch_result",
@@ -770,6 +807,63 @@ setInterval(() => {
   startTikTok();
 }, 60 * 1000);
 
+// Принудительное переподключение: сбрасывает паузы и пробует сразу.
+function forceReconnect() {
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+
+  consecutiveFailures = 0;
+  connecting = false;
+  tiktokConnected = false;
+  tiktokError = "manual reconnect";
+
+  if (currentConnection) {
+    try {
+      currentConnection.disconnect();
+    } catch (error) {
+      console.error("Reconnect disconnect error:", error.message);
+    }
+
+    currentConnection = null;
+  }
+
+  console.log("Manual reconnect requested for:", username);
+
+  startTikTok();
+
+  return {
+    ok: true,
+    username,
+    message: "Reconnect started"
+  };
+}
+
+app.post("/reconnect", (req, res) => {
+  if (!switchKey) {
+    return res.status(503).json({
+      status: "error",
+      message: "ACCOUNT_SWITCH_KEY is not configured"
+    });
+  }
+
+  if (req.get("x-switch-key") !== switchKey) {
+    return res.status(403).json({
+      status: "error",
+      message: "Invalid switch key"
+    });
+  }
+
+  const result = forceReconnect();
+
+  res.json({
+    status: result.ok ? "ok" : "error",
+    username: result.username,
+    message: result.message
+  });
+});
+
 function scheduleReconnect(reason) {
   if (stopped || process.env.TIKTOK_ENABLED !== "true") return;
   if (reconnectTimer) return;
@@ -1016,7 +1110,7 @@ if (/requested user isn't online|user is not online/i.test(errorText)) {
 
   const offlineDelay = Math.min(
     30 * 1000 * Math.pow(2, consecutiveFailures - 1),
-    10 * 60 * 1000
+    2 * 60 * 1000
   );
 
   console.log(

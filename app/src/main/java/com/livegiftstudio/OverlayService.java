@@ -435,6 +435,23 @@ if ("yes".equals(testFollowSound)) {
         }
     }
 
+    // Просьба подключиться к TikTok заново по открытому сокету.
+    public static boolean sendReconnectRequest(String key) {
+        WebSocket socket = activeSocket;
+
+        if (socket == null || !wsConnected) return false;
+
+        try {
+            JSONObject message = new JSONObject();
+            message.put("type", "reconnect");
+            message.put("key", key);
+
+            return socket.send(message.toString());
+        } catch (Exception error) {
+            return false;
+        }
+    }
+
     private void connectToServer() {
         if (destroyed) {
             return;
