@@ -489,15 +489,22 @@ addMenuRow(
 
 addMenuRow(
         "🏆\nТоп\nподарков", 0xFFFFB900,
-        "📊\nВиджеты\nвкл/выкл", 0xFF00C853,
-        v -> toggleWidgets(),
-        v -> showWidgetLayoutSettings()
+        "🖐\nДвигать\nвиджеты", 0xFF00C853,
+        v -> showTopGiftSettings(),
+        v -> toggleWidgetEdit()
 );
 
 addMenuRow(
         "🧪\nТест\nвиджетов", 0xFF9B20FF,
-        "🧹\nСбросить\nстатистику", 0xFFFF1764,
+        "📐\nСброс\nположения", 0xFF087BFF,
         v -> testWidgets(),
+        v -> resetWidgetPosition()
+);
+
+addMenuRow(
+        "📊\nВиджеты\nвкл/выкл", 0xFF00C853,
+        "🧹\nСбросить\nстатистику", 0xFFFF1764,
+        v -> toggleWidgets(),
         v -> resetWidgetStats()
 );
 
@@ -5684,9 +5691,10 @@ private void showTikTokAccounts() {
                 5, " ❤️");
 
         boolean on = prefs.getBoolean("widget_likes_on", true);
+        int limit = prefs.getInt("widget_likes_top", 5);
 
         new AlertDialog.Builder(this)
-                .setTitle("❤️ Лайки зрителей")
+                .setTitle("❤️ Топ по лайкам")
                 .setMessage("Всего лайков: " + total
                         + "\n\nТоп зрителей:\n" + top)
                 .setPositiveButton(on ? "Скрыть" : "Показать",
@@ -5705,7 +5713,21 @@ private void showTikTokAccounts() {
                                     ? "Лайки включены"
                                     : "Лайки скрыты");
                         })
-                .setNeutralButton("Сбросить", (dialog, which) -> {
+                .setNeutralButton("Мест: " + limit,
+                        (dialog, which) -> {
+                            int next = limit == 3
+                                    ? 5
+                                    : (limit == 5 ? 10 : 3);
+
+                            prefs.edit()
+                                    .putInt("widget_likes_top", next)
+                                    .apply();
+
+                            OverlayService.refreshWidgetsFromPrefs();
+
+                            message("Показываю " + next + " мест");
+                        })
+                .setNegativeButton("Сбросить", (dialog, which) -> {
                     prefs.edit()
                             .putInt("stats_like_total", 0)
                             .putString("stats_like_users", "{}")
@@ -5715,7 +5737,6 @@ private void showTikTokAccounts() {
 
                     message("Счётчики лайков сброшены");
                 })
-                .setNegativeButton("Закрыть", null)
                 .show();
     }
 
@@ -5731,7 +5752,7 @@ private void showTikTokAccounts() {
         boolean on = prefs.getBoolean("widget_top_on", true);
 
         new AlertDialog.Builder(this)
-                .setTitle("🏆 Топ подарков")
+                .setTitle("🏆 Топ по подаркам")
                 .setMessage("Подарено монет: " + coins
                         + "\nПодарков: " + count
                         + "\n\nКто сколько:\n" + top)
@@ -5794,37 +5815,31 @@ private void showTikTokAccounts() {
                 : "Виджеты скрыты");
     }
 
-    private void showWidgetLayoutSettings() {
-        new AlertDialog.Builder(this)
-                .setTitle("📐 Положение и размер")
-                .setItems(new String[]{
-                        "⬅️ Слева",
-                        "➡️ Справа",
-                        "🔍 Размер: мелкий",
-                        "🔍 Размер: обычный",
-                        "🔍 Размер: крупный"
-                }, (dialog, which) -> {
-                    SharedPreferences.Editor editor = prefs.edit();
+    private void toggleWidgetEdit() {
+        boolean edit = !prefs.getBoolean("widgets_edit", false);
 
-                    if (which == 0) {
-                        editor.putString("widgets_position", "left");
-                    } else if (which == 1) {
-                        editor.putString("widgets_position", "right");
-                    } else if (which == 2) {
-                        editor.putInt("widgets_scale", 80);
-                    } else if (which == 3) {
-                        editor.putInt("widgets_scale", 100);
-                    } else {
-                        editor.putInt("widgets_scale", 125);
-                    }
+        prefs.edit()
+                .putBoolean("widgets_edit", edit)
+                .putBoolean("widgets_enabled", true)
+                .apply();
 
-                    editor.apply();
+        OverlayService.refreshWidgetsFromPrefs();
 
-                    OverlayService.refreshWidgetsFromPrefs();
+        message(edit
+                ? "Двигайте виджеты пальцем, размер — двумя"
+                : "Виджеты закреплены на месте");
+    }
 
-                    message("Готово");
-                })
-                .show();
+    private void resetWidgetPosition() {
+        prefs.edit()
+                .remove("widgets_x")
+                .remove("widgets_y")
+                .putInt("widgets_scale", 100)
+                .apply();
+
+        OverlayService.refreshWidgetsFromPrefs();
+
+        message("Виджеты вернулись вниз, размер обычный");
     }
 
     private void resetWidgetStats() {

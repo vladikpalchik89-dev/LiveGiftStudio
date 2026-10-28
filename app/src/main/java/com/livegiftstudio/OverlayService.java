@@ -141,18 +141,30 @@ private void startForegroundNotification() {
 
     private static volatile OverlayService instance = null;
 
-    // Виджеты эфира: цель сбора, лайки, топ подарков.
-    private LinearLayout widgetsRoot;
+    // Виджеты эфира: цель сбора, топ лайков, топ подарков.
+    private FrameLayout widgetsWrapper;
+    private LinearLayout widgetsContent;
+    private WindowManager.LayoutParams widgetsParams;
+
     private LinearLayout widgetGoalPanel;
     private TextView widgetGoalTitle;
     private TextView widgetGoalValue;
     private ProgressBar widgetGoalBar;
+
     private LinearLayout widgetLikesPanel;
-    private TextView widgetLikesValue;
-    private TextView widgetLikesTop;
+    private LinearLayout widgetLikesRows;
+
     private LinearLayout widgetTopPanel;
-    private TextView widgetTopTitle;
-    private TextView widgetTopList;
+    private LinearLayout widgetTopRows;
+
+    private boolean widgetTouchApplied = false;
+    private boolean widgetTouchEdit = false;
+    private float widgetContentX = 0f;
+    private float widgetScale = 1f;
+    private float dragStartX = 0f;
+    private float dragStartY = 0f;
+    private float dragStartContentX = 0f;
+    private int dragStartWindowY = 0;
     private TextView overlay;
     private View overlayView;
     private SharedPreferences prefs;
@@ -2398,7 +2410,7 @@ android.util.Log.e(
             case "gifts":
                 return "🎁";
             case "rub":
-                return "₽";
+                return "RUB";
             default:
                 return "🪙";
         }
@@ -2496,56 +2508,266 @@ android.util.Log.e(
         return panel;
     }
 
+    private android.graphics.drawable.Drawable goalBarDrawable() {
+        GradientDrawable background = new GradientDrawable();
+        background.setColor(Color.TRANSPARENT);
+        background.setCornerRadius(dp(10));
+
+        GradientDrawable fill = new GradientDrawable();
+        fill.setColor(0xFFFF7A00);
+        fill.setCornerRadius(dp(9));
+
+        android.graphics.drawable.ClipDrawable clip =
+                new android.graphics.drawable.ClipDrawable(
+                        fill,
+                        Gravity.START,
+                        android.graphics.drawable.ClipDrawable.HORIZONTAL);
+
+        android.graphics.drawable.LayerDrawable layers =
+                new android.graphics.drawable.LayerDrawable(
+                        new android.graphics.drawable.Drawable[]{
+                                background,
+                                clip
+                        });
+
+        layers.setLayerInset(1, 0, 0, 0, 0);
+
+        return layers;
+    }
+
+    private LinearLayout listPanel(int accent) {
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(12), dp(8), dp(12), dp(10));
+
+        GradientDrawable background = new GradientDrawable();
+        background.setColor(Color.argb(205, 5, 9, 18));
+        background.setCornerRadius(dp(14));
+        background.setStroke(dp(2), accent);
+        panel.setBackground(background);
+
+        LinearLayout.LayoutParams params =
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT);
+
+        params.bottomMargin = dp(8);
+        panel.setLayoutParams(params);
+
+        return panel;
+    }
+
+    private TextView listHeader(String text, int color) {
+        TextView header = widgetText(13, true, color);
+        header.setText(text);
+        header.setGravity(Gravity.CENTER);
+        header.setLetterSpacing(0.08f);
+        header.setPadding(0, dp(2), 0, dp(6));
+
+        return header;
+    }
+
+    private int rankColor(int index) {
+        switch (index) {
+            case 0:
+                return 0xFF52E37F;
+            case 1:
+                return 0xFFFFA63C;
+            case 2:
+                return 0xFF6FD0FF;
+            case 3:
+                return 0xFFB98CFF;
+            case 4:
+                return 0xFFFF8ADB;
+            default:
+                return 0xFFE6ECFF;
+        }
+    }
+
+    private LinearLayout buildRow(
+            int index, String name, int value, String icon) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(0, dp(3), 0, dp(3));
+
+        TextView rank = new TextView(this);
+        rank.setTextSize(15);
+        rank.setGravity(Gravity.CENTER);
+        rank.setWidth(dp(30));
+
+        if (index == 0) {
+            rank.setText("🥇");
+        } else if (index == 1) {
+            rank.setText("🥈");
+        } else if (index == 2) {
+            rank.setText("🥉");
+        } else {
+            rank.setText((index + 1) + ".");
+            rank.setTextColor(0xFFB9C4E6);
+            rank.setTypeface(null, android.graphics.Typeface.BOLD);
+        }
+
+        row.addView(rank);
+
+        LinearLayout texts = new LinearLayout(this);
+        texts.setOrientation(LinearLayout.VERTICAL);
+        texts.setPadding(dp(4), 0, 0, 0);
+
+        TextView nameView = new TextView(this);
+        nameView.setText(name);
+        nameView.setTextSize(13);
+        nameView.setTypeface(null, android.graphics.Typeface.BOLD);
+        nameView.setSingleLine(true);
+        nameView.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        nameView.setTextColor(rankColor(index));
+        nameView.setShadowLayer(5f, 0f, 1f, Color.BLACK);
+        texts.addView(nameView);
+
+        TextView valueView = new TextView(this);
+        valueView.setText(icon + " " + formatNumber(value));
+        valueView.setTextSize(12);
+        valueView.setTextColor(0xFFE9EEFF);
+        valueView.setShadowLayer(5f, 0f, 1f, Color.BLACK);
+        texts.addView(valueView);
+
+        row.addView(texts);
+
+        return row;
+    }
+
+    private void fillRows(
+            LinearLayout container, JSONObject users,
+            int limit, String icon) {
+        container.removeAllViews();
+
+        List<String[]> rows = new ArrayList<>();
+        java.util.Iterator<String> keys = users.keys();
+
+        while (keys.hasNext()) {
+            String name = keys.next();
+
+            rows.add(new String[]{
+                    name,
+                    String.valueOf(users.optInt(name, 0))
+            });
+        }
+
+        Collections.sort(rows, (first, second) -> Integer.compare(
+                Integer.parseInt(second[1]),
+                Integer.parseInt(first[1])));
+
+        if (rows.isEmpty()) {
+            TextView empty = widgetText(12, false, 0xFF9AA6C8);
+            empty.setText("пока пусто");
+            container.addView(empty);
+            return;
+        }
+
+        for (int i = 0; i < rows.size() && i < limit; i++) {
+            container.addView(buildRow(
+                    i,
+                    rows.get(i)[0],
+                    Integer.parseInt(rows.get(i)[1]),
+                    icon));
+        }
+    }
+
     private void buildWidgets() {
         if (windowManager == null || destroyed) return;
 
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
+        FrameLayout wrapper = new FrameLayout(this);
 
-        // Цель сбора
-        widgetGoalPanel = widgetPanel(0xFFFF1493);
-        widgetGoalTitle = widgetText(13, true, 0xFFFFB3DC);
-        widgetGoalValue = widgetText(18, true, Color.WHITE);
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setLayoutParams(new FrameLayout.LayoutParams(
+                dp(280),
+                FrameLayout.LayoutParams.WRAP_CONTENT));
+
+        // Цель сбора: полоса с заливкой, название внутри,
+        // сумма под полосой.
+        widgetGoalPanel = new LinearLayout(this);
+        widgetGoalPanel.setOrientation(LinearLayout.VERTICAL);
+        widgetGoalPanel.setPadding(dp(2), dp(2), dp(2), dp(6));
+
+        GradientDrawable goalBackground = new GradientDrawable();
+        goalBackground.setColor(Color.argb(210, 12, 14, 22));
+        goalBackground.setCornerRadius(dp(11));
+        goalBackground.setStroke(dp(1), 0x55FFFFFF);
+        widgetGoalPanel.setBackground(goalBackground);
+
+        FrameLayout barFrame = new FrameLayout(this);
+        barFrame.setLayoutParams(new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(44)));
 
         widgetGoalBar = new ProgressBar(
                 this, null,
                 android.R.attr.progressBarStyleHorizontal);
-
         widgetGoalBar.setMax(100);
-        widgetGoalBar.setProgressTintList(
-                android.content.res.ColorStateList
-                        .valueOf(0xFFFF1493));
-        widgetGoalBar.setProgressBackgroundTintList(
-                android.content.res.ColorStateList
-                        .valueOf(0x44FFFFFF));
-        widgetGoalBar.setLayoutParams(
+        widgetGoalBar.setProgressDrawable(goalBarDrawable());
+        barFrame.addView(widgetGoalBar, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT));
+
+        widgetGoalTitle = new TextView(this);
+        widgetGoalTitle.setTextColor(Color.WHITE);
+        widgetGoalTitle.setTextSize(14);
+        widgetGoalTitle.setTypeface(null, android.graphics.Typeface.BOLD);
+        widgetGoalTitle.setGravity(Gravity.CENTER);
+        widgetGoalTitle.setShadowLayer(6f, 0f, 2f, Color.BLACK);
+        widgetGoalTitle.setLetterSpacing(0.06f);
+        widgetGoalTitle.setSingleLine(true);
+        widgetGoalTitle.setEllipsize(
+                android.text.TextUtils.TruncateAt.END);
+        barFrame.addView(widgetGoalTitle, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                Gravity.CENTER));
+
+        widgetGoalPanel.addView(barFrame);
+
+        widgetGoalValue = new TextView(this);
+        widgetGoalValue.setTextColor(Color.WHITE);
+        widgetGoalValue.setTextSize(15);
+        widgetGoalValue.setTypeface(null, android.graphics.Typeface.BOLD);
+        widgetGoalValue.setGravity(Gravity.CENTER);
+        widgetGoalValue.setShadowLayer(6f, 0f, 2f, Color.BLACK);
+        widgetGoalValue.setPadding(0, dp(5), 0, dp(1));
+        widgetGoalPanel.addView(widgetGoalValue);
+
+        LinearLayout.LayoutParams goalParams =
                 new LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.MATCH_PARENT,
-                        dp(12)));
+                        LinearLayout.LayoutParams.WRAP_CONTENT);
+        goalParams.bottomMargin = dp(8);
+        widgetGoalPanel.setLayoutParams(goalParams);
 
-        widgetGoalPanel.addView(widgetGoalTitle);
-        widgetGoalPanel.addView(widgetGoalValue);
-        widgetGoalPanel.addView(widgetGoalBar);
-        root.addView(widgetGoalPanel);
+        content.addView(widgetGoalPanel);
 
-        // Лайки
-        widgetLikesPanel = widgetPanel(0xFF00C8FF);
-        widgetLikesValue = widgetText(18, true, Color.WHITE);
-        widgetLikesTop = widgetText(13, false, 0xFFCFE6FF);
-        widgetLikesPanel.addView(widgetLikesValue);
-        widgetLikesPanel.addView(widgetLikesTop);
-        root.addView(widgetLikesPanel);
+        // Топ по лайкам
+        widgetLikesPanel = listPanel(0xFF29D3FF);
+        widgetLikesPanel.addView(
+                listHeader("👑 ТОП ПО ЛАЙКАМ", 0xFFB8F1FF));
 
-        // Топ подарков
-        widgetTopPanel = widgetPanel(0xFFFFB900);
-        widgetTopTitle = widgetText(13, true, 0xFFFFE08A);
-        widgetTopTitle.setText("🏆 Топ подарков");
-        widgetTopList = widgetText(14, true, Color.WHITE);
-        widgetTopPanel.addView(widgetTopTitle);
-        widgetTopPanel.addView(widgetTopList);
-        root.addView(widgetTopPanel);
+        widgetLikesRows = new LinearLayout(this);
+        widgetLikesRows.setOrientation(LinearLayout.VERTICAL);
+        widgetLikesPanel.addView(widgetLikesRows);
+        content.addView(widgetLikesPanel);
 
-        widgetsRoot = root;
+        // Топ по подаркам
+        widgetTopPanel = listPanel(0xFFFFB900);
+        widgetTopPanel.addView(
+                listHeader("👑 ТОП ПО ПОДАРКАМ", 0xFFFFE08A));
+
+        widgetTopRows = new LinearLayout(this);
+        widgetTopRows.setOrientation(LinearLayout.VERTICAL);
+        widgetTopPanel.addView(widgetTopRows);
+        content.addView(widgetTopPanel);
+
+        wrapper.addView(content);
+
+        widgetsWrapper = wrapper;
+        widgetsContent = content;
 
         int type = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
                 ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -2553,47 +2775,192 @@ android.util.Log.e(
 
         WindowManager.LayoutParams params =
                 new WindowManager.LayoutParams(
-                        dp(300),
+                        WindowManager.LayoutParams.MATCH_PARENT,
                         WindowManager.LayoutParams.WRAP_CONTENT,
                         type,
                         WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                                | WindowManager.LayoutParams
-                                .FLAG_NOT_TOUCHABLE
                                 | WindowManager.LayoutParams
                                 .FLAG_NOT_TOUCH_MODAL
                                 | WindowManager.LayoutParams
                                 .FLAG_LAYOUT_IN_SCREEN,
                         PixelFormat.TRANSLUCENT);
 
-        boolean right = "right".equals(
-                prefs.getString("widgets_position", "left"));
+        params.gravity = Gravity.TOP | Gravity.START;
+        params.x = 0;
 
-        // Виджеты живут снизу: там они не мешают всплывающему
-        // подарку и анимации по центру экрана.
-        params.gravity = Gravity.BOTTOM
-                | (right ? Gravity.END : Gravity.START);
-        params.x = dp(10);
-        params.y = dp(120);
+        int screenHeight = getResources()
+                .getDisplayMetrics().heightPixels;
 
-        int scale = prefs.getInt("widgets_scale", 100);
-        float factor = scale / 100f;
+        params.y = prefs.getInt("widgets_y",
+                Math.max(0, screenHeight - dp(360)));
 
-        root.setScaleX(factor);
-        root.setScaleY(factor);
+        widgetContentX = prefs.getInt("widgets_x", 0);
+        widgetScale = prefs.getInt("widgets_scale", 100) / 100f;
 
-        // Масштаб считаем от нижнего угла, иначе крупный размер
-        // уезжает за край экрана.
-        root.post(() -> {
-            root.setPivotX(right ? root.getWidth() : 0f);
-            root.setPivotY(root.getHeight());
+        widgetsParams = params;
+
+        content.setX(widgetContentX);
+
+        // Движение пальцем и щипок для размера.
+        final android.view.ScaleGestureDetector scaleDetector =
+                new android.view.ScaleGestureDetector(
+                        this,
+                        new android.view.ScaleGestureDetector
+                                .SimpleOnScaleGestureListener() {
+                            @Override
+                            public boolean onScale(
+                                    android.view.ScaleGestureDetector
+                                            detector) {
+                                setWidgetScale(widgetScale
+                                        * detector.getScaleFactor());
+
+                                return true;
+                            }
+
+                            @Override
+                            public void onScaleEnd(
+                                    android.view.ScaleGestureDetector
+                                            detector) {
+                                prefs.edit()
+                                        .putInt("widgets_scale",
+                                                Math.round(
+                                                        widgetScale * 100))
+                                        .apply();
+                            }
+                        });
+
+        wrapper.setOnTouchListener((view, event) -> {
+            scaleDetector.onTouchEvent(event);
+
+            switch (event.getActionMasked()) {
+                case android.view.MotionEvent.ACTION_DOWN:
+                    dragStartX = event.getRawX();
+                    dragStartY = event.getRawY();
+                    dragStartContentX = widgetContentX;
+                    dragStartWindowY = widgetsParams.y;
+                    return true;
+
+                case android.view.MotionEvent.ACTION_MOVE:
+                    if (scaleDetector.isInProgress()) return true;
+
+                    moveWidgets(
+                            dragStartContentX
+                                    + (event.getRawX() - dragStartX),
+                            dragStartWindowY
+                                    + (int) (event.getRawY()
+                                    - dragStartY));
+
+                    return true;
+
+                case android.view.MotionEvent.ACTION_UP:
+                case android.view.MotionEvent.ACTION_CANCEL:
+                    prefs.edit()
+                            .putInt("widgets_x",
+                                    Math.round(widgetContentX))
+                            .putInt("widgets_y", widgetsParams.y)
+                            .apply();
+                    return true;
+
+                default:
+                    return true;
+            }
         });
 
+        setWidgetScale(widgetScale);
+        applyWidgetTouchMode();
+
         try {
-            windowManager.addView(root, params);
+            windowManager.addView(wrapper, params);
         } catch (Exception error) {
             android.util.Log.e(
                     TAG, "Не удалось показать виджеты", error);
-            widgetsRoot = null;
+            widgetsWrapper = null;
+            widgetsContent = null;
+        }
+    }
+
+    private void moveWidgets(float contentX, int windowY) {
+        if (widgetsWrapper == null || widgetsParams == null) return;
+
+        int contentWidth = (int) (dp(280) * widgetScale);
+        int maxX = Math.max(0,
+                widgetsWrapper.getWidth() - contentWidth);
+
+        int contentHeight = (int) (
+                widgetsContent.getHeight() * widgetScale);
+
+        int maxY = Math.max(0,
+                getResources().getDisplayMetrics().heightPixels
+                        - contentHeight);
+
+        widgetContentX = Math.max(0f, Math.min(maxX, contentX));
+        widgetsParams.y = Math.max(0, Math.min(maxY, windowY));
+
+        widgetsContent.setX(widgetContentX);
+
+        try {
+            windowManager.updateViewLayout(
+                    widgetsWrapper, widgetsParams);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void setWidgetScale(float value) {
+        // Шире экрана виджет не нужен: иначе край обрежется.
+        float maxScale = Math.max(1.0f,
+                (getResources().getDisplayMetrics().widthPixels - dp(6))
+                        / (float) dp(280));
+
+        widgetScale = Math.max(0.6f, Math.min(maxScale, value));
+
+        if (widgetsContent == null) return;
+
+        widgetsContent.setPivotX(0f);
+        widgetsContent.setPivotY(0f);
+        widgetsContent.setScaleX(widgetScale);
+        widgetsContent.setScaleY(widgetScale);
+
+        if (widgetsParams == null) return;
+
+        int height = (int) (widgetsContent.getHeight() * widgetScale);
+
+        if (height > 0) {
+            widgetsParams.height = height;
+        }
+
+        try {
+            windowManager.updateViewLayout(
+                    widgetsWrapper, widgetsParams);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void applyWidgetTouchMode() {
+        if (widgetsWrapper == null || widgetsParams == null) return;
+
+        boolean edit = prefs.getBoolean("widgets_edit", false);
+
+        if (widgetTouchApplied && widgetTouchEdit == edit) return;
+
+        widgetTouchApplied = true;
+        widgetTouchEdit = edit;
+
+        widgetsParams.flags =
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                        | WindowManager.LayoutParams
+                        .FLAG_NOT_TOUCH_MODAL
+                        | WindowManager.LayoutParams
+                        .FLAG_LAYOUT_IN_SCREEN;
+
+        if (!edit) {
+            widgetsParams.flags |=
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE;
+        }
+
+        try {
+            windowManager.updateViewLayout(
+                    widgetsWrapper, widgetsParams);
+        } catch (Exception ignored) {
         }
     }
 
@@ -2605,11 +2972,11 @@ android.util.Log.e(
             return;
         }
 
-        if (widgetsRoot == null) {
+        if (widgetsWrapper == null) {
             buildWidgets();
         }
 
-        if (widgetsRoot == null || widgetGoalPanel == null) return;
+        if (widgetsWrapper == null || widgetGoalPanel == null) return;
 
         boolean goalOn = prefs.getBoolean("widget_goal_on", true);
         widgetGoalPanel.setVisibility(
@@ -2622,14 +2989,15 @@ android.util.Log.e(
             int percent = (int) Math.min(100,
                     Math.round(current * 100.0 / target));
 
-            widgetGoalTitle.setText("🎯 " + prefs.getString(
-                    "widget_goal_title", "Сбор"));
+            String title = prefs.getString(
+                    "widget_goal_title", "Сбор");
+
+            widgetGoalTitle.setText(title.toUpperCase(Locale.ROOT));
 
             widgetGoalValue.setText(
                     formatNumber(current)
                             + " / " + formatNumber(target)
-                            + " " + goalUnit()
-                            + "  " + percent + "%");
+                            + " " + goalUnit());
 
             widgetGoalBar.setProgress(percent);
         }
@@ -2639,14 +3007,11 @@ android.util.Log.e(
                 likesOn ? View.VISIBLE : View.GONE);
 
         if (likesOn) {
-            widgetLikesValue.setText("❤️ Лайки: "
-                    + formatNumber(prefs.getInt(
-                    "stats_like_total", 0)));
-
-            widgetLikesTop.setText(buildUserList(
+            fillRows(
+                    widgetLikesRows,
                     statsUsers("stats_like_users"),
-                    prefs.getInt("widget_likes_top", 3),
-                    " ❤️"));
+                    prefs.getInt("widget_likes_top", 5),
+                    "❤️");
         }
 
         boolean topOn = prefs.getBoolean("widget_top_on", true);
@@ -2654,32 +3019,38 @@ android.util.Log.e(
                 topOn ? View.VISIBLE : View.GONE);
 
         if (topOn) {
-            widgetTopList.setText(buildUserList(
+            fillRows(
+                    widgetTopRows,
                     statsUsers("stats_gift_users"),
                     prefs.getInt("widget_top_limit", 3),
-                    " 🪙"));
+                    "🪙");
         }
+
+        applyWidgetTouchMode();
+
+        widgetsContent.post(() -> setWidgetScale(widgetScale));
     }
 
     private void removeWidgets() {
-        if (widgetsRoot != null && windowManager != null) {
+        if (widgetsWrapper != null && windowManager != null) {
             try {
-                windowManager.removeView(widgetsRoot);
+                windowManager.removeView(widgetsWrapper);
             } catch (Exception ignored) {
             }
         }
 
-        widgetsRoot = null;
+        widgetsWrapper = null;
+        widgetsContent = null;
+        widgetsParams = null;
+        widgetTouchApplied = false;
         widgetGoalPanel = null;
         widgetGoalTitle = null;
         widgetGoalValue = null;
         widgetGoalBar = null;
         widgetLikesPanel = null;
-        widgetLikesValue = null;
-        widgetLikesTop = null;
+        widgetLikesRows = null;
         widgetTopPanel = null;
-        widgetTopTitle = null;
-        widgetTopList = null;
+        widgetTopRows = null;
     }
 
 private static class GifView extends View {
