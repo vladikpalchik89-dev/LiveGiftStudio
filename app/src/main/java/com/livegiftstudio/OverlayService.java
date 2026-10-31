@@ -142,32 +142,34 @@ private void startForegroundNotification() {
     private static volatile OverlayService instance = null;
 
     // Виджеты эфира: цель сбора, топ лайков, топ подарков.
-    private FrameLayout widgetsWrapper;
-    private LinearLayout widgetsContent;
-    private WindowManager.LayoutParams widgetsParams;
+    // Каждый виджет — своё окно, его можно двигать отдельно.
+    private static class WidgetSlot {
+        String key;
+        FrameLayout wrapper;
+        LinearLayout content;
+        WindowManager.LayoutParams params;
+        float offsetX = 0f;
+        float scale = 1f;
+        float dragStartX;
+        float dragStartY;
+        float dragStartOffsetX;
+        int dragStartWindowY;
+        boolean attached = false;
+        boolean touchApplied = false;
+        boolean touchEdit = false;
+    }
+
+    private WidgetSlot goalSlot;
+    private WidgetSlot likesSlot;
+    private WidgetSlot topSlot;
 
     private LinearLayout widgetGoalPanel;
     private TextView widgetGoalTitle;
     private TextView widgetGoalValue;
     private ProgressBar widgetGoalBar;
 
-    private LinearLayout widgetLikesPanel;
     private LinearLayout widgetLikesRows;
-
-    private LinearLayout widgetTopPanel;
     private LinearLayout widgetTopRows;
-
-    private boolean widgetTouchApplied = false;
-    private boolean widgetTouchEdit = false;
-    private float widgetContentX = 0f;
-    private float widgetScale = 1f;
-    private float dragStartX = 0f;
-    private float dragStartY = 0f;
-    private float dragStartContentX = 0f;
-    private int dragStartWindowY = 0;
-    private TextView overlay;
-    private View overlayView;
-    private SharedPreferences prefs;
 
     private OkHttpClient client;
     private WebSocket webSocket;
@@ -2431,45 +2433,6 @@ android.util.Log.e(
         }
     }
 
-    private String buildUserList(
-            JSONObject users, int limit, String suffix) {
-        List<String[]> rows = new ArrayList<>();
-        java.util.Iterator<String> keys = users.keys();
-
-        while (keys.hasNext()) {
-            String name = keys.next();
-
-            rows.add(new String[]{
-                    name,
-                    String.valueOf(users.optInt(name, 0))
-            });
-        }
-
-        Collections.sort(rows, (first, second) -> Integer.compare(
-                Integer.parseInt(second[1]),
-                Integer.parseInt(first[1])));
-
-        StringBuilder out = new StringBuilder();
-
-        for (int i = 0; i < rows.size() && i < limit; i++) {
-            if (i > 0) out.append('\n');
-
-            out.append(i + 1)
-                    .append(". @")
-                    .append(rows.get(i)[0])
-                    .append(" — ")
-                    .append(formatNumber(
-                            Integer.parseInt(rows.get(i)[1])))
-                    .append(suffix);
-        }
-
-        if (rows.isEmpty()) {
-            out.append("пока пусто");
-        }
-
-        return out.toString();
-    }
-
     private TextView widgetText(int size, boolean bold, int color) {
         TextView view = new TextView(this);
         view.setTextColor(color);
@@ -2485,37 +2448,15 @@ android.util.Log.e(
         return view;
     }
 
-    private LinearLayout widgetPanel(int accent) {
-        LinearLayout panel = new LinearLayout(this);
-        panel.setOrientation(LinearLayout.VERTICAL);
-        panel.setPadding(dp(14), dp(10), dp(14), dp(10));
-
-        GradientDrawable background = new GradientDrawable();
-        background.setColor(Color.argb(215, 8, 10, 26));
-        background.setCornerRadius(dp(18));
-        background.setStroke(dp(2), accent);
-
-        panel.setBackground(background);
-
-        LinearLayout.LayoutParams params =
-                new LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT);
-
-        params.bottomMargin = dp(8);
-        panel.setLayoutParams(params);
-
-        return panel;
-    }
-
     private android.graphics.drawable.Drawable goalBarDrawable() {
         GradientDrawable background = new GradientDrawable();
-        background.setColor(Color.TRANSPARENT);
-        background.setCornerRadius(dp(10));
+        background.setColor(0x33101828);
+        background.setCornerRadius(dp(14));
 
-        GradientDrawable fill = new GradientDrawable();
-        fill.setColor(0xFFFF7A00);
-        fill.setCornerRadius(dp(9));
+        GradientDrawable fill = new GradientDrawable(
+                GradientDrawable.Orientation.LEFT_RIGHT,
+                new int[]{0xFFFFB300, 0xFFFF5E00});
+        fill.setCornerRadius(dp(14));
 
         android.graphics.drawable.ClipDrawable clip =
                 new android.graphics.drawable.ClipDrawable(
@@ -2535,36 +2476,15 @@ android.util.Log.e(
         return layers;
     }
 
-    private LinearLayout listPanel(int accent) {
-        LinearLayout panel = new LinearLayout(this);
-        panel.setOrientation(LinearLayout.VERTICAL);
-        panel.setPadding(dp(12), dp(8), dp(12), dp(10));
+    private GradientDrawable cardBackground(int accent) {
+        GradientDrawable background = new GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[]{0xF0121224, 0xF0060812});
 
-        GradientDrawable background = new GradientDrawable();
-        background.setColor(Color.argb(205, 5, 9, 18));
-        background.setCornerRadius(dp(14));
+        background.setCornerRadius(dp(18));
         background.setStroke(dp(2), accent);
-        panel.setBackground(background);
 
-        LinearLayout.LayoutParams params =
-                new LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT);
-
-        params.bottomMargin = dp(8);
-        panel.setLayoutParams(params);
-
-        return panel;
-    }
-
-    private TextView listHeader(String text, int color) {
-        TextView header = widgetText(13, true, color);
-        header.setText(text);
-        header.setGravity(Gravity.CENTER);
-        header.setLetterSpacing(0.08f);
-        header.setPadding(0, dp(2), 0, dp(6));
-
-        return header;
+        return background;
     }
 
     private int rankColor(int index) {
@@ -2572,7 +2492,7 @@ android.util.Log.e(
             case 0:
                 return 0xFF52E37F;
             case 1:
-                return 0xFFFFA63C;
+                return 0xFFFFB13C;
             case 2:
                 return 0xFF6FD0FF;
             case 3:
@@ -2584,35 +2504,57 @@ android.util.Log.e(
         }
     }
 
+    private int[] badgeColors(int index) {
+        switch (index) {
+            case 0:
+                return new int[]{0xFFFFE58A, 0xFFFFB300};
+            case 1:
+                return new int[]{0xFFF2F7FC, 0xFFB6C4D6};
+            case 2:
+                return new int[]{0xFFF0B27A, 0xFFC46A28};
+            default:
+                return new int[]{0xFF243050, 0xFF131A2B};
+        }
+    }
+
     private LinearLayout buildRow(
             int index, String name, int value, String icon) {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(0, dp(3), 0, dp(3));
+        row.setPadding(dp(6), dp(4), dp(6), dp(4));
 
-        TextView rank = new TextView(this);
-        rank.setTextSize(15);
-        rank.setGravity(Gravity.CENTER);
-        rank.setWidth(dp(30));
-
-        if (index == 0) {
-            rank.setText("🥇");
-        } else if (index == 1) {
-            rank.setText("🥈");
-        } else if (index == 2) {
-            rank.setText("🥉");
-        } else {
-            rank.setText((index + 1) + ".");
-            rank.setTextColor(0xFFB9C4E6);
-            rank.setTypeface(null, android.graphics.Typeface.BOLD);
+        if (index < 3) {
+            GradientDrawable rowBackground = new GradientDrawable(
+                    GradientDrawable.Orientation.LEFT_RIGHT,
+                    new int[]{0x18FFFFFF, 0x00FFFFFF});
+            rowBackground.setCornerRadius(dp(10));
+            row.setBackground(rowBackground);
         }
 
-        row.addView(rank);
+        TextView badge = new TextView(this);
+        badge.setText(String.valueOf(index + 1));
+        badge.setTextSize(12);
+        badge.setTypeface(null, android.graphics.Typeface.BOLD);
+        badge.setTextColor(index < 3
+                ? 0xFF10131F
+                : 0xFFE6ECFF);
+        badge.setGravity(Gravity.CENTER);
+        badge.setShadowLayer(4f, 0f, 1f, 0x55000000);
+
+        GradientDrawable badgeBackground = new GradientDrawable(
+                GradientDrawable.Orientation.TL_BR,
+                badgeColors(index));
+        badgeBackground.setShape(GradientDrawable.OVAL);
+        badge.setBackground(badgeBackground);
+
+        LinearLayout.LayoutParams badgeParams =
+                new LinearLayout.LayoutParams(dp(26), dp(26));
+        badgeParams.rightMargin = dp(8);
+        row.addView(badge, badgeParams);
 
         LinearLayout texts = new LinearLayout(this);
         texts.setOrientation(LinearLayout.VERTICAL);
-        texts.setPadding(dp(4), 0, 0, 0);
 
         TextView nameView = new TextView(this);
         nameView.setText(name);
@@ -2621,11 +2563,11 @@ android.util.Log.e(
         nameView.setSingleLine(true);
         nameView.setEllipsize(android.text.TextUtils.TruncateAt.END);
         nameView.setTextColor(rankColor(index));
-        nameView.setShadowLayer(5f, 0f, 1f, Color.BLACK);
+        nameView.setShadowLayer(6f, 0f, 2f, Color.BLACK);
         texts.addView(nameView);
 
         TextView valueView = new TextView(this);
-        valueView.setText(icon + " " + formatNumber(value));
+        valueView.setText(icon + "  " + formatNumber(value));
         valueView.setTextSize(12);
         valueView.setTextColor(0xFFE9EEFF);
         valueView.setShadowLayer(5f, 0f, 1f, Color.BLACK);
@@ -2658,8 +2600,10 @@ android.util.Log.e(
                 Integer.parseInt(first[1])));
 
         if (rows.isEmpty()) {
-            TextView empty = widgetText(12, false, 0xFF9AA6C8);
-            empty.setText("пока пусто");
+            TextView empty = widgetText(12, false, 0xFF8C97B8);
+            empty.setText("пока никого");
+            empty.setGravity(Gravity.CENTER);
+            empty.setPadding(0, dp(6), 0, dp(6));
             container.addView(empty);
             return;
         }
@@ -2673,32 +2617,32 @@ android.util.Log.e(
         }
     }
 
-    private void buildWidgets() {
-        if (windowManager == null || destroyed) return;
+    private TextView widgetText(int size, boolean bold, int color) {
+        TextView view = new TextView(this);
+        view.setTextColor(color);
+        view.setTextSize(size);
 
-        FrameLayout wrapper = new FrameLayout(this);
+        if (bold) {
+            view.setTypeface(null, android.graphics.Typeface.BOLD);
+        }
 
-        LinearLayout content = new LinearLayout(this);
-        content.setOrientation(LinearLayout.VERTICAL);
-        content.setLayoutParams(new FrameLayout.LayoutParams(
+        view.setShadowLayer(6f, 0f, 2f, Color.BLACK);
+
+        return view;
+    }
+
+    private void buildGoalWidget() {
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setLayoutParams(new FrameLayout.LayoutParams(
                 dp(280),
                 FrameLayout.LayoutParams.WRAP_CONTENT));
-
-        // Цель сбора: полоса с заливкой, название внутри,
-        // сумма под полосой.
-        widgetGoalPanel = new LinearLayout(this);
-        widgetGoalPanel.setOrientation(LinearLayout.VERTICAL);
-        widgetGoalPanel.setPadding(dp(2), dp(2), dp(2), dp(6));
-
-        GradientDrawable goalBackground = new GradientDrawable();
-        goalBackground.setColor(Color.argb(210, 12, 14, 22));
-        goalBackground.setCornerRadius(dp(11));
-        goalBackground.setStroke(dp(1), 0x55FFFFFF);
-        widgetGoalPanel.setBackground(goalBackground);
+        panel.setBackground(cardBackground(0x88FF1493));
+        panel.setPadding(dp(4), dp(4), dp(4), dp(8));
 
         FrameLayout barFrame = new FrameLayout(this);
         barFrame.setLayoutParams(new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(44)));
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(46)));
 
         widgetGoalBar = new ProgressBar(
                 this, null,
@@ -2714,17 +2658,18 @@ android.util.Log.e(
         widgetGoalTitle.setTextSize(14);
         widgetGoalTitle.setTypeface(null, android.graphics.Typeface.BOLD);
         widgetGoalTitle.setGravity(Gravity.CENTER);
-        widgetGoalTitle.setShadowLayer(6f, 0f, 2f, Color.BLACK);
-        widgetGoalTitle.setLetterSpacing(0.06f);
+        widgetGoalTitle.setShadowLayer(8f, 0f, 2f, 0xAA000000);
+        widgetGoalTitle.setLetterSpacing(0.08f);
         widgetGoalTitle.setSingleLine(true);
         widgetGoalTitle.setEllipsize(
                 android.text.TextUtils.TruncateAt.END);
+        widgetGoalTitle.setPadding(dp(8), 0, dp(8), 0);
         barFrame.addView(widgetGoalTitle, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 Gravity.CENTER));
 
-        widgetGoalPanel.addView(barFrame);
+        panel.addView(barFrame);
 
         widgetGoalValue = new TextView(this);
         widgetGoalValue.setTextColor(Color.WHITE);
@@ -2732,42 +2677,101 @@ android.util.Log.e(
         widgetGoalValue.setTypeface(null, android.graphics.Typeface.BOLD);
         widgetGoalValue.setGravity(Gravity.CENTER);
         widgetGoalValue.setShadowLayer(6f, 0f, 2f, Color.BLACK);
-        widgetGoalValue.setPadding(0, dp(5), 0, dp(1));
-        widgetGoalPanel.addView(widgetGoalValue);
+        widgetGoalValue.setPadding(0, dp(7), 0, dp(1));
+        panel.addView(widgetGoalValue);
 
-        LinearLayout.LayoutParams goalParams =
+        widgetGoalPanel = panel;
+        goalSlot = createSlot("goal", panel);
+    }
+
+    private LinearLayout buildListCard(
+            String header, int accent, int accentLight,
+            LinearLayout[] rowsHolder) {
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setLayoutParams(new FrameLayout.LayoutParams(
+                dp(280),
+                FrameLayout.LayoutParams.WRAP_CONTENT));
+        panel.setBackground(cardBackground(accent));
+        panel.setPadding(dp(10), dp(8), dp(10), dp(10));
+
+        LinearLayout headerRow = new LinearLayout(this);
+        headerRow.setOrientation(LinearLayout.HORIZONTAL);
+        headerRow.setGravity(Gravity.CENTER);
+        headerRow.setPadding(0, dp(2), 0, dp(5));
+
+        TextView crown = new TextView(this);
+        crown.setText("👑");
+        crown.setTextSize(14);
+        headerRow.addView(crown);
+
+        TextView title = widgetText(13, true, accentLight);
+        title.setText(header);
+        title.setLetterSpacing(0.12f);
+        title.setPadding(dp(6), 0, 0, 0);
+        headerRow.addView(title);
+
+        panel.addView(headerRow);
+
+        View divider = new View(this);
+        divider.setBackgroundColor(0x22FFFFFF);
+
+        LinearLayout.LayoutParams dividerParams =
                 new LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT);
-        goalParams.bottomMargin = dp(8);
-        widgetGoalPanel.setLayoutParams(goalParams);
+                        LinearLayout.LayoutParams.MATCH_PARENT, dp(1));
+        dividerParams.bottomMargin = dp(6);
+        panel.addView(divider, dividerParams);
 
-        content.addView(widgetGoalPanel);
+        LinearLayout rows = new LinearLayout(this);
+        rows.setOrientation(LinearLayout.VERTICAL);
+        panel.addView(rows);
 
-        // Топ по лайкам
-        widgetLikesPanel = listPanel(0xFF29D3FF);
-        widgetLikesPanel.addView(
-                listHeader("👑 ТОП ПО ЛАЙКАМ", 0xFFB8F1FF));
+        rowsHolder[0] = rows;
 
-        widgetLikesRows = new LinearLayout(this);
-        widgetLikesRows.setOrientation(LinearLayout.VERTICAL);
-        widgetLikesPanel.addView(widgetLikesRows);
-        content.addView(widgetLikesPanel);
+        return panel;
+    }
 
-        // Топ по подаркам
-        widgetTopPanel = listPanel(0xFFFFB900);
-        widgetTopPanel.addView(
-                listHeader("👑 ТОП ПО ПОДАРКАМ", 0xFFFFE08A));
+    private void buildLikesWidget() {
+        LinearLayout[] holder = new LinearLayout[1];
 
-        widgetTopRows = new LinearLayout(this);
-        widgetTopRows.setOrientation(LinearLayout.VERTICAL);
-        widgetTopPanel.addView(widgetTopRows);
-        content.addView(widgetTopPanel);
+        LinearLayout panel = buildListCard(
+                "ТОП ПО ЛАЙКАМ",
+                0x8829D3FF,
+                0xFFB8F1FF,
+                holder);
 
+        widgetLikesRows = holder[0];
+        likesSlot = createSlot("likes", panel);
+    }
+
+    private void buildTopWidget() {
+        LinearLayout[] holder = new LinearLayout[1];
+
+        LinearLayout panel = buildListCard(
+                "ТОП ПО ПОДАРКАМ",
+                0x88FFB900,
+                0xFFFFE08A,
+                holder);
+
+        widgetTopRows = holder[0];
+        topSlot = createSlot("top", panel);
+    }
+
+    private WidgetSlot createSlot(String key, LinearLayout content) {
+        WidgetSlot slot = new WidgetSlot();
+        slot.key = key;
+        slot.content = content;
+
+        FrameLayout wrapper = new FrameLayout(this);
         wrapper.addView(content);
 
-        widgetsWrapper = wrapper;
-        widgetsContent = content;
+        slot.wrapper = wrapper;
+
+        return slot;
+    }
+
+    private void attachSlot(WidgetSlot slot, int defaultY) {
+        if (slot == null || slot.attached || destroyed) return;
 
         int type = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
                 ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -2787,22 +2791,14 @@ android.util.Log.e(
 
         params.gravity = Gravity.TOP | Gravity.START;
         params.x = 0;
+        params.y = prefs.getInt(slot.key + "_y", defaultY);
 
-        int screenHeight = getResources()
-                .getDisplayMetrics().heightPixels;
+        slot.params = params;
+        slot.offsetX = prefs.getInt(slot.key + "_x", 0);
+        slot.scale = prefs.getInt(slot.key + "_scale", 100) / 100f;
+        slot.content.setX(slot.offsetX);
 
-        params.y = prefs.getInt("widgets_y",
-                Math.max(0, screenHeight - dp(360)));
-
-        widgetContentX = prefs.getInt("widgets_x", 0);
-        widgetScale = prefs.getInt("widgets_scale", 100) / 100f;
-
-        widgetsParams = params;
-
-        content.setX(widgetContentX);
-
-        // Движение пальцем и щипок для размера.
-        final android.view.ScaleGestureDetector scaleDetector =
+        final android.view.ScaleGestureDetector detector =
                 new android.view.ScaleGestureDetector(
                         this,
                         new android.view.ScaleGestureDetector
@@ -2810,9 +2806,12 @@ android.util.Log.e(
                             @Override
                             public boolean onScale(
                                     android.view.ScaleGestureDetector
-                                            detector) {
-                                setWidgetScale(widgetScale
-                                        * detector.getScaleFactor());
+                                            gesture) {
+                                setSlotScale(
+                                        slot,
+                                        slot.scale
+                                                * gesture
+                                                .getScaleFactor());
 
                                 return true;
                             }
@@ -2820,44 +2819,47 @@ android.util.Log.e(
                             @Override
                             public void onScaleEnd(
                                     android.view.ScaleGestureDetector
-                                            detector) {
+                                            gesture) {
                                 prefs.edit()
-                                        .putInt("widgets_scale",
+                                        .putInt(
+                                                slot.key + "_scale",
                                                 Math.round(
-                                                        widgetScale * 100))
+                                                        slot.scale * 100))
                                         .apply();
                             }
                         });
 
-        wrapper.setOnTouchListener((view, event) -> {
-            scaleDetector.onTouchEvent(event);
+        slot.wrapper.setOnTouchListener((view, event) -> {
+            detector.onTouchEvent(event);
 
             switch (event.getActionMasked()) {
                 case android.view.MotionEvent.ACTION_DOWN:
-                    dragStartX = event.getRawX();
-                    dragStartY = event.getRawY();
-                    dragStartContentX = widgetContentX;
-                    dragStartWindowY = widgetsParams.y;
+                    slot.dragStartX = event.getRawX();
+                    slot.dragStartY = event.getRawY();
+                    slot.dragStartOffsetX = slot.offsetX;
+                    slot.dragStartWindowY = slot.params.y;
                     return true;
 
                 case android.view.MotionEvent.ACTION_MOVE:
-                    if (scaleDetector.isInProgress()) return true;
+                    if (detector.isInProgress()) return true;
 
-                    moveWidgets(
-                            dragStartContentX
-                                    + (event.getRawX() - dragStartX),
-                            dragStartWindowY
+                    moveSlot(
+                            slot,
+                            slot.dragStartOffsetX
+                                    + (event.getRawX()
+                                    - slot.dragStartX),
+                            slot.dragStartWindowY
                                     + (int) (event.getRawY()
-                                    - dragStartY));
+                                    - slot.dragStartY));
 
                     return true;
 
                 case android.view.MotionEvent.ACTION_UP:
                 case android.view.MotionEvent.ACTION_CANCEL:
                     prefs.edit()
-                            .putInt("widgets_x",
-                                    Math.round(widgetContentX))
-                            .putInt("widgets_y", widgetsParams.y)
+                            .putInt(slot.key + "_x",
+                                    Math.round(slot.offsetX))
+                            .putInt(slot.key + "_y", slot.params.y)
                             .apply();
                     return true;
 
@@ -2866,86 +2868,88 @@ android.util.Log.e(
             }
         });
 
-        setWidgetScale(widgetScale);
-        applyWidgetTouchMode();
-
         try {
-            windowManager.addView(wrapper, params);
+            windowManager.addView(slot.wrapper, params);
+            slot.attached = true;
         } catch (Exception error) {
             android.util.Log.e(
-                    TAG, "Не удалось показать виджеты", error);
-            widgetsWrapper = null;
-            widgetsContent = null;
+                    TAG, "Не удалось показать виджет " + slot.key,
+                    error);
+            slot.attached = false;
+            return;
         }
+
+        slot.wrapper.post(() -> setSlotScale(slot, slot.scale));
+
+        applyTouchMode(slot);
     }
 
-    private void moveWidgets(float contentX, int windowY) {
-        if (widgetsWrapper == null || widgetsParams == null) return;
+    private void moveSlot(WidgetSlot slot, float offsetX, int windowY) {
+        if (slot == null || !slot.attached || slot.params == null) {
+            return;
+        }
 
-        int contentWidth = (int) (dp(280) * widgetScale);
+        int contentWidth = (int) (dp(280) * slot.scale);
         int maxX = Math.max(0,
-                widgetsWrapper.getWidth() - contentWidth);
-
+                slot.wrapper.getWidth() - contentWidth);
         int contentHeight = (int) (
-                widgetsContent.getHeight() * widgetScale);
-
+                slot.content.getHeight() * slot.scale);
         int maxY = Math.max(0,
                 getResources().getDisplayMetrics().heightPixels
                         - contentHeight);
 
-        widgetContentX = Math.max(0f, Math.min(maxX, contentX));
-        widgetsParams.y = Math.max(0, Math.min(maxY, windowY));
+        slot.offsetX = Math.max(0f, Math.min(maxX, offsetX));
+        slot.params.y = Math.max(0, Math.min(maxY, windowY));
 
-        widgetsContent.setX(widgetContentX);
+        slot.content.setX(slot.offsetX);
 
         try {
-            windowManager.updateViewLayout(
-                    widgetsWrapper, widgetsParams);
+            windowManager.updateViewLayout(slot.wrapper, slot.params);
         } catch (Exception ignored) {
         }
     }
 
-    private void setWidgetScale(float value) {
-        // Шире экрана виджет не нужен: иначе край обрежется.
+    private void setSlotScale(WidgetSlot slot, float value) {
+        if (slot == null) return;
+
         float maxScale = Math.max(1.0f,
                 (getResources().getDisplayMetrics().widthPixels - dp(6))
                         / (float) dp(280));
 
-        widgetScale = Math.max(0.6f, Math.min(maxScale, value));
+        slot.scale = Math.max(0.6f, Math.min(maxScale, value));
 
-        if (widgetsContent == null) return;
+        slot.content.setPivotX(0f);
+        slot.content.setPivotY(0f);
+        slot.content.setScaleX(slot.scale);
+        slot.content.setScaleY(slot.scale);
 
-        widgetsContent.setPivotX(0f);
-        widgetsContent.setPivotY(0f);
-        widgetsContent.setScaleX(widgetScale);
-        widgetsContent.setScaleY(widgetScale);
+        if (slot.params == null || !slot.attached) return;
 
-        if (widgetsParams == null) return;
-
-        int height = (int) (widgetsContent.getHeight() * widgetScale);
+        int height = (int) (slot.content.getHeight() * slot.scale);
 
         if (height > 0) {
-            widgetsParams.height = height;
+            slot.params.height = height;
         }
 
         try {
-            windowManager.updateViewLayout(
-                    widgetsWrapper, widgetsParams);
+            windowManager.updateViewLayout(slot.wrapper, slot.params);
         } catch (Exception ignored) {
         }
     }
 
-    private void applyWidgetTouchMode() {
-        if (widgetsWrapper == null || widgetsParams == null) return;
+    private void applyTouchMode(WidgetSlot slot) {
+        if (slot == null || !slot.attached || slot.params == null) {
+            return;
+        }
 
         boolean edit = prefs.getBoolean("widgets_edit", false);
 
-        if (widgetTouchApplied && widgetTouchEdit == edit) return;
+        if (slot.touchApplied && slot.touchEdit == edit) return;
 
-        widgetTouchApplied = true;
-        widgetTouchEdit = edit;
+        slot.touchApplied = true;
+        slot.touchEdit = edit;
 
-        widgetsParams.flags =
+        slot.params.flags =
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                         | WindowManager.LayoutParams
                         .FLAG_NOT_TOUCH_MODAL
@@ -2953,34 +2957,54 @@ android.util.Log.e(
                         .FLAG_LAYOUT_IN_SCREEN;
 
         if (!edit) {
-            widgetsParams.flags |=
+            slot.params.flags |=
                     WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE;
         }
 
         try {
-            windowManager.updateViewLayout(
-                    widgetsWrapper, widgetsParams);
+            windowManager.updateViewLayout(slot.wrapper, slot.params);
         } catch (Exception ignored) {
         }
+    }
+
+    private void removeSlot(WidgetSlot slot) {
+        if (slot == null) return;
+
+        if (slot.attached && windowManager != null
+                && slot.wrapper != null) {
+            try {
+                windowManager.removeView(slot.wrapper);
+            } catch (Exception ignored) {
+            }
+        }
+
+        slot.attached = false;
+        slot.touchApplied = false;
+    }
+
+    private int defaultSlotY(int offsetDp) {
+        return Math.max(0,
+                getResources().getDisplayMetrics().heightPixels
+                        - dp(offsetDp));
     }
 
     private void updateWidgets() {
         if (destroyed) return;
 
         if (!prefs.getBoolean("widgets_enabled", false)) {
-            removeWidgets();
+            removeSlot(goalSlot);
+            removeSlot(likesSlot);
+            removeSlot(topSlot);
             return;
         }
 
-        if (widgetsWrapper == null) {
-            buildWidgets();
-        }
-
-        if (widgetsWrapper == null || widgetGoalPanel == null) return;
+        if (goalSlot == null) buildGoalWidget();
+        if (likesSlot == null) buildLikesWidget();
+        if (topSlot == null) buildTopWidget();
 
         boolean goalOn = prefs.getBoolean("widget_goal_on", true);
-        widgetGoalPanel.setVisibility(
-                goalOn ? View.VISIBLE : View.GONE);
+        boolean likesOn = prefs.getBoolean("widget_likes_on", true);
+        boolean topOn = prefs.getBoolean("widget_top_on", true);
 
         if (goalOn) {
             int target = Math.max(
@@ -2989,22 +3013,22 @@ android.util.Log.e(
             int percent = (int) Math.min(100,
                     Math.round(current * 100.0 / target));
 
-            String title = prefs.getString(
-                    "widget_goal_title", "Сбор");
-
-            widgetGoalTitle.setText(title.toUpperCase(Locale.ROOT));
+            widgetGoalTitle.setText(prefs
+                    .getString("widget_goal_title", "Сбор")
+                    .toUpperCase(Locale.ROOT));
 
             widgetGoalValue.setText(
                     formatNumber(current)
                             + " / " + formatNumber(target)
-                            + " " + goalUnit());
+                            + " " + goalUnit()
+                            + "  ·  " + percent + "%");
 
             widgetGoalBar.setProgress(percent);
-        }
 
-        boolean likesOn = prefs.getBoolean("widget_likes_on", true);
-        widgetLikesPanel.setVisibility(
-                likesOn ? View.VISIBLE : View.GONE);
+            attachSlot(goalSlot, defaultSlotY(200));
+        } else {
+            removeSlot(goalSlot);
+        }
 
         if (likesOn) {
             fillRows(
@@ -3012,11 +3036,11 @@ android.util.Log.e(
                     statsUsers("stats_like_users"),
                     prefs.getInt("widget_likes_top", 5),
                     "❤️");
-        }
 
-        boolean topOn = prefs.getBoolean("widget_top_on", true);
-        widgetTopPanel.setVisibility(
-                topOn ? View.VISIBLE : View.GONE);
+            attachSlot(likesSlot, defaultSlotY(390));
+        } else {
+            removeSlot(likesSlot);
+        }
 
         if (topOn) {
             fillRows(
@@ -3024,32 +3048,38 @@ android.util.Log.e(
                     statsUsers("stats_gift_users"),
                     prefs.getInt("widget_top_limit", 3),
                     "🪙");
+
+            attachSlot(topSlot, defaultSlotY(590));
+        } else {
+            removeSlot(topSlot);
         }
 
-        applyWidgetTouchMode();
+        applyTouchMode(goalSlot);
+        applyTouchMode(likesSlot);
+        applyTouchMode(topSlot);
 
-        widgetsContent.post(() -> setWidgetScale(widgetScale));
+        for (WidgetSlot slot : new WidgetSlot[]{
+                goalSlot, likesSlot, topSlot}) {
+            if (slot != null && slot.attached) {
+                slot.content.post(
+                        () -> setSlotScale(slot, slot.scale));
+            }
+        }
     }
 
     private void removeWidgets() {
-        if (widgetsWrapper != null && windowManager != null) {
-            try {
-                windowManager.removeView(widgetsWrapper);
-            } catch (Exception ignored) {
-            }
-        }
+        removeSlot(goalSlot);
+        removeSlot(likesSlot);
+        removeSlot(topSlot);
 
-        widgetsWrapper = null;
-        widgetsContent = null;
-        widgetsParams = null;
-        widgetTouchApplied = false;
+        goalSlot = null;
+        likesSlot = null;
+        topSlot = null;
         widgetGoalPanel = null;
         widgetGoalTitle = null;
         widgetGoalValue = null;
         widgetGoalBar = null;
-        widgetLikesPanel = null;
         widgetLikesRows = null;
-        widgetTopPanel = null;
         widgetTopRows = null;
     }
 

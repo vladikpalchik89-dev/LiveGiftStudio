@@ -5826,20 +5826,24 @@ private void showTikTokAccounts() {
         OverlayService.refreshWidgetsFromPrefs();
 
         message(edit
-                ? "Двигайте виджеты пальцем, размер — двумя"
+                ? "Каждый виджет двигается отдельно, размер — двумя пальцами"
                 : "Виджеты закреплены на месте");
     }
 
     private void resetWidgetPosition() {
-        prefs.edit()
-                .remove("widgets_x")
-                .remove("widgets_y")
-                .putInt("widgets_scale", 100)
-                .apply();
+        SharedPreferences.Editor editor = prefs.edit();
+
+        for (String key : new String[]{"goal", "likes", "top"}) {
+            editor.remove(key + "_x");
+            editor.remove(key + "_y");
+            editor.remove(key + "_scale");
+        }
+
+        editor.apply();
 
         OverlayService.refreshWidgetsFromPrefs();
 
-        message("Виджеты вернулись вниз, размер обычный");
+        message("Виджеты вернулись на место, размер обычный");
     }
 
     private void resetWidgetStats() {
