@@ -138,6 +138,9 @@ private void startForegroundNotification() {
             new Handler(Looper.getMainLooper());
 
     private WindowManager windowManager;
+    private TextView overlay;
+    private View overlayView;
+    private SharedPreferences prefs;
 
     private static volatile OverlayService instance = null;
 
@@ -2431,21 +2434,6 @@ android.util.Log.e(
             default:
                 return base + prefs.getInt("stats_gift_coins", 0);
         }
-    }
-
-    private TextView widgetText(int size, boolean bold, int color) {
-        TextView view = new TextView(this);
-        view.setTextColor(color);
-        view.setTextSize(size);
-
-        if (bold) {
-            view.setTypeface(null, android.graphics.Typeface.BOLD);
-        }
-
-        view.setShadowLayer(6f, 0f, 2f, Color.BLACK);
-        view.setPadding(0, dp(2), 0, dp(2));
-
-        return view;
     }
 
     private android.graphics.drawable.Drawable goalBarDrawable() {
