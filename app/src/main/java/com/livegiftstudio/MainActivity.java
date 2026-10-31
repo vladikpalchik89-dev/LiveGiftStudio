@@ -5858,6 +5858,7 @@ private void showTikTokAccounts() {
                             .putInt("stats_gift_coins", 0)
                             .putInt("stats_gift_count", 0)
                             .putString("stats_gift_users", "{}")
+                            .putString("stats_user_avatars", "{}")
                             .putInt("stats_donation_rub", 0)
                             .putInt("widget_goal_base", 0)
                             .apply();

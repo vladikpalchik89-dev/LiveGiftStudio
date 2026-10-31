@@ -352,6 +352,26 @@ function getUserName(data) {
 }
 
 
+// Картинка профиля: коннектор отдаёт её в разных полях
+// в зависимости от версии.
+function getUserAvatar(data) {
+  const user = data?.user || data || {};
+  const raw =
+    user.profilePictureUrl ||
+    user.avatarLarger ||
+    user.avatarMedium ||
+    user.avatarThumb ||
+    user.avatar ||
+    "";
+
+  let url = typeof raw === "string" ? raw.replace(/&amp;/g, "&") : "";
+
+  if (url.startsWith("//")) url = "https:" + url;
+  if (url.startsWith("http://")) url = "https://" + url.slice(7);
+
+  return url;
+}
+
 function getGiftName(data) {
   return data?.giftDetails?.giftName ||
     data?.extendedGiftInfo?.name ||
@@ -941,6 +961,7 @@ connection.on(WebcastEvent.GIFT || "gift", (data) => {
   sendEvent({
     type: "gift",
     username: getUserName(data),
+    avatar: getUserAvatar(data),
     giftName: info.giftName,
     giftId: info.giftId,
     giftDiamondCount: info.giftDiamondCount,
@@ -960,6 +981,7 @@ connection.on(WebcastEvent.GIFT || "gift", (data) => {
       sendEvent({
         type: "like",
         username: getUserName(data),
+        avatar: getUserAvatar(data),
         likeCount:
           Number.isFinite(likeCount) && likeCount > 0
             ? likeCount

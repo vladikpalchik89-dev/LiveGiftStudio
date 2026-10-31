@@ -174,6 +174,25 @@ private void startForegroundNotification() {
     private LinearLayout widgetLikesRows;
     private LinearLayout widgetTopRows;
 
+    // Аватарки зрителей: качаем по одной, держим в памяти.
+    private static final android.util.LruCache<String, android.graphics.Bitmap>
+            avatarCache = new android.util.LruCache<>(60);
+
+    private static final java.util.Set<String> avatarLoading =
+            java.util.Collections.synchronizedSet(
+                    new java.util.HashSet<>());
+
+    private final java.util.concurrent.ExecutorService avatarExecutor =
+            java.util.concurrent.Executors.newFixedThreadPool(2);
+
+    private final okhttp3.OkHttpClient avatarClient =
+            new okhttp3.OkHttpClient.Builder()
+                    .connectTimeout(10, TimeUnit.SECONDS)
+                    .readTimeout(10, TimeUnit.SECONDS)
+                    .build();
+
+    private volatile boolean widgetUpdateScheduled = false;
+
     private OkHttpClient client;
     private WebSocket webSocket;
     private MediaPlayer currentPlayer;
@@ -746,12 +765,18 @@ if (type.equals("test_donation")) {
                     } 
                     // Лайки: считаем общее число и по зрителям.
                     if (type.equals("like")) {
+                        String likeUser =
+                                event.optString("username", "Зритель");
+
                         addLikeStats(
-                                event.optString("username", "Зритель"),
+                                likeUser,
                                 Math.max(1, event.optInt("likeCount", 1)));
 
-                        handler.post(
-                                OverlayService.this::updateWidgets);
+                        saveAvatar(
+                                likeUser,
+                                event.optString("avatar", ""));
+
+                        requestWidgetUpdate();
 
                         return;
                     }
@@ -799,6 +824,10 @@ if (type.equals("test_donation")) {
                         addGiftStats(username, gift, count);
                     }
 
+                    saveAvatar(
+                            username,
+                            event.optString("avatar", ""));
+
                     final String message =
                             "🎁 " + gift + " × " + count
                                     + "\n@" + username;
@@ -807,7 +836,7 @@ if (type.equals("test_donation")) {
                         if (!destroyed) {
                             showGift(message, gift);
                             playGiftSound(gift);
-                            updateWidgets();
+                            requestWidgetUpdate();
 
                             speakText(
                                     "Подарок " + gift
@@ -1930,7 +1959,7 @@ private void handleDonation(
         }
 
         addDonationStats(value);
-        handler.post(this::updateWidgets);
+        requestWidgetUpdate();
     } catch (Exception ignored) {
     }
 
@@ -2315,6 +2344,10 @@ android.util.Log.e(
         removeOverlay();
         stopCurrentSound();
 
+        avatarExecutor.shutdownNow();
+        avatarClient.dispatcher().cancelAll();
+        avatarClient.connectionPool().evictAll();
+
         instance = null;
 
         if (webSocket != null) {
@@ -2391,6 +2424,38 @@ android.util.Log.e(
                         prefs.getInt("stats_gift_count", 0) + count)
                 .putString("stats_gift_users", users.toString())
                 .apply();
+    }
+
+    private void saveAvatar(String username, String url) {
+        if (username == null || username.isEmpty()) return;
+        if (url == null || url.isEmpty()) return;
+
+        JSONObject map = statsUsers("stats_user_avatars");
+
+        if (url.equals(map.optString(username, ""))) return;
+
+        try {
+            map.put(username, url);
+        } catch (Exception ignored) {
+            return;
+        }
+
+        prefs.edit()
+                .putString("stats_user_avatars", map.toString())
+                .apply();
+    }
+
+    // Лайки приходят пачками: перерисовываем виджеты не чаще
+    // трёх раз в секунду, иначе телефон начинает тормозить.
+    private void requestWidgetUpdate() {
+        if (widgetUpdateScheduled) return;
+
+        widgetUpdateScheduled = true;
+
+        handler.postDelayed(() -> {
+            widgetUpdateScheduled = false;
+            updateWidgets();
+        }, 350);
     }
 
     private void addDonationStats(double amount) {
@@ -2506,7 +2571,8 @@ android.util.Log.e(
     }
 
     private LinearLayout buildRow(
-            int index, String name, int value, String icon) {
+            int index, String name, int value,
+            String icon, String avatarUrl) {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
@@ -2538,8 +2604,23 @@ android.util.Log.e(
 
         LinearLayout.LayoutParams badgeParams =
                 new LinearLayout.LayoutParams(dp(26), dp(26));
-        badgeParams.rightMargin = dp(8);
+        badgeParams.rightMargin = dp(6);
         row.addView(badge, badgeParams);
+
+        ImageView avatar = new ImageView(this);
+
+        GradientDrawable avatarBackground = new GradientDrawable();
+        avatarBackground.setShape(GradientDrawable.OVAL);
+        avatarBackground.setColor(0xFF141B2C);
+        avatarBackground.setStroke(dp(1), 0x66FFFFFF);
+        avatar.setBackground(avatarBackground);
+
+        LinearLayout.LayoutParams avatarParams =
+                new LinearLayout.LayoutParams(dp(38), dp(38));
+        avatarParams.rightMargin = dp(8);
+        row.addView(avatar, avatarParams);
+
+        loadAvatar(avatar, avatarUrl);
 
         LinearLayout texts = new LinearLayout(this);
         texts.setOrientation(LinearLayout.VERTICAL);
@@ -2566,10 +2647,166 @@ android.util.Log.e(
         return row;
     }
 
+    private void loadAvatar(ImageView view, String url) {
+        if (view == null) return;
+
+        if (url == null || url.isEmpty()) {
+            view.setImageDrawable(null);
+            return;
+        }
+
+        android.graphics.Bitmap cached = avatarCache.get(url);
+
+        if (cached != null) {
+            view.setImageBitmap(cached);
+            return;
+        }
+
+        view.setImageDrawable(null);
+
+        // Одну и ту же картинку не качаем по несколько раз.
+        if (!avatarLoading.add(url)) return;
+
+        final int size = dp(38);
+
+        avatarExecutor.execute(() -> {
+            android.graphics.Bitmap bitmap = null;
+
+            try {
+                bitmap = downloadAvatar(url, size);
+            } finally {
+                avatarLoading.remove(url);
+            }
+
+            if (bitmap == null) return;
+
+            avatarCache.put(url, bitmap);
+
+            final android.graphics.Bitmap loaded = bitmap;
+
+            handler.post(() -> {
+                if (destroyed) return;
+
+                if (view.getParent() != null) {
+                    view.setImageBitmap(loaded);
+                }
+
+                // Строки перерисуются и возьмут картинку из кэша.
+                requestWidgetUpdate();
+            });
+        });
+    }
+
+    private android.graphics.Bitmap downloadAvatar(
+            String url, int size) {
+        try {
+            okhttp3.Request request = new okhttp3.Request.Builder()
+                    .url(url)
+                    .header("User-Agent",
+                            "Mozilla/5.0 (Linux; Android 13)")
+                    .build();
+
+            try (okhttp3.Response response =
+                         avatarClient.newCall(request).execute()) {
+                if (!response.isSuccessful()
+                        || response.body() == null) {
+                    return null;
+                }
+
+                byte[] bytes = response.body().bytes();
+
+                android.graphics.BitmapFactory.Options options =
+                        new android.graphics.BitmapFactory.Options();
+                options.inJustDecodeBounds = true;
+
+                android.graphics.BitmapFactory.decodeByteArray(
+                        bytes, 0, bytes.length, options);
+
+                int scale = 1;
+                int minSide = Math.min(
+                        options.outWidth, options.outHeight);
+
+                while (minSide / (scale * 2) >= size) {
+                    scale *= 2;
+                }
+
+                options.inJustDecodeBounds = false;
+                options.inSampleSize = scale;
+
+                android.graphics.Bitmap raw =
+                        android.graphics.BitmapFactory.decodeByteArray(
+                                bytes, 0, bytes.length, options);
+
+                if (raw == null) return null;
+
+                return circularBitmap(raw, size);
+            }
+        } catch (Exception error) {
+            android.util.Log.d(
+                    TAG, "Аватарка не загрузилась: " + error);
+            return null;
+        }
+    }
+
+    private android.graphics.Bitmap circularBitmap(
+            android.graphics.Bitmap source, int size) {
+        android.graphics.Bitmap output =
+                android.graphics.Bitmap.createBitmap(
+                        size, size,
+                        android.graphics.Bitmap.Config.ARGB_8888);
+
+        android.graphics.Canvas canvas =
+                new android.graphics.Canvas(output);
+
+        android.graphics.Paint paint =
+                new android.graphics.Paint(
+                        android.graphics.Paint.ANTI_ALIAS_FLAG
+                                | android.graphics.Paint.FILTER_BITMAP_FLAG);
+
+        // Вписываем по короткой стороне и обрезаем лишнее.
+        float ratio = Math.max(
+                size / (float) source.getWidth(),
+                size / (float) source.getHeight());
+
+        float left = (size - source.getWidth() * ratio) / 2f;
+        float top = (size - source.getHeight() * ratio) / 2f;
+
+        android.graphics.RectF target =
+                new android.graphics.RectF(
+                        left,
+                        top,
+                        left + source.getWidth() * ratio,
+                        top + source.getHeight() * ratio);
+
+        android.graphics.BitmapShader shader =
+                new android.graphics.BitmapShader(
+                        source,
+                        android.graphics.Shader.TileMode.CLAMP,
+                        android.graphics.Shader.TileMode.CLAMP);
+
+        android.graphics.Matrix matrix =
+                new android.graphics.Matrix();
+        matrix.setRectToRect(
+                new android.graphics.RectF(
+                        0, 0,
+                        source.getWidth(), source.getHeight()),
+                target,
+                android.graphics.Matrix.ScaleToFit.FILL);
+
+        shader.setLocalMatrix(matrix);
+        paint.setShader(shader);
+
+        canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint);
+
+        return output;
+    }
+
     private void fillRows(
             LinearLayout container, JSONObject users,
             int limit, String icon) {
         container.removeAllViews();
+
+        JSONObject avatars = statsUsers("stats_user_avatars");
 
         List<String[]> rows = new ArrayList<>();
         java.util.Iterator<String> keys = users.keys();
@@ -2597,11 +2834,14 @@ android.util.Log.e(
         }
 
         for (int i = 0; i < rows.size() && i < limit; i++) {
+            String name = rows.get(i)[0];
+
             container.addView(buildRow(
                     i,
-                    rows.get(i)[0],
+                    name,
                     Integer.parseInt(rows.get(i)[1]),
-                    icon));
+                    icon,
+                    avatars.optString(name, "")));
         }
     }
 
