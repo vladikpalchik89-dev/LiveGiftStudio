@@ -524,6 +524,13 @@ addMenuRow(
         v -> showGameHelp()
 );
 
+addMenuRow(
+        "🔊\nГолос\nвкл/выкл", 0xFF00C853,
+        "📝\nСлова\nигры", 0xFF9B20FF,
+        v -> toggleGameVoice(),
+        v -> showGameWords()
+);
+
 addSectionHeader("📚 ЗВУКИ И МЕДИА");
 
 addMenuRow(
@@ -5841,6 +5848,56 @@ private void showTikTokAccounts() {
         message(enabled
                 ? "Игра включена: подарки полетят в персонажа"
                 : "Игра выключена");
+    }
+
+    private void toggleGameVoice() {
+        boolean on = !prefs.getBoolean("game_voice", true);
+
+        prefs.edit()
+                .putBoolean("game_voice", on)
+                .apply();
+
+        message(on
+                ? "Голос игры включён: слова озвучиваются"
+                : "Голос игры выключен");
+    }
+
+    private void showGameWords() {
+        EditText input = new EditText(this);
+        input.setMinLines(8);
+        input.setGravity(Gravity.TOP | Gravity.START);
+        input.setText(prefs.getString(
+                "game_words",
+                OverlayService.DEFAULT_GAME_WORDS));
+
+        new AlertDialog.Builder(this)
+                .setTitle("📝 Слова игры")
+                .setMessage("Каждое слово с новой строки."
+                        + "\nПодарки берут слова отсюда и летят в персонажа."
+                        + "\nСлова с матом озвучиваются «пип».")
+                .setView(input)
+                .setPositiveButton("Сохранить", (dialog, which) -> {
+                    String text = input.getText().toString();
+
+                    if (text.trim().isEmpty()) {
+                        text = OverlayService.DEFAULT_GAME_WORDS;
+                    }
+
+                    prefs.edit()
+                            .putString("game_words", text)
+                            .apply();
+
+                    message("Слова игры сохранены");
+                })
+                .setNegativeButton("Сбросить", (dialog, which) -> {
+                    prefs.edit()
+                            .putString("game_words",
+                                    OverlayService.DEFAULT_GAME_WORDS)
+                            .apply();
+
+                    message("Слова вернулись к списку с картинки");
+                })
+                .show();
     }
 
     private void testGameWord() {
