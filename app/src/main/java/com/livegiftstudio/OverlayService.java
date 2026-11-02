@@ -194,6 +194,37 @@ private void startForegroundNotification() {
 
     private volatile boolean widgetUpdateScheduled = false;
 
+    // Игра «Словесный разнос»: полноэкранный оверлей, в который
+    // прилетают названия подарков.
+    private FrameLayout gameRoot;
+    private FrameLayout gameWordLayer;
+    private ImageView gameCharacter;
+    private ProgressBar gameHpBar;
+    private TextView gameHpText;
+    private TextView gameCombo;
+    private View gameCloseButton;
+    private volatile boolean gameVisible = false;
+    private int gameHp = 1000;
+    private int gameMaxHp = 1000;
+    private int gameComboCount = 0;
+    private long gameLastHitAt = 0;
+
+    private static final String[] GAME_BAD_WORDS = {
+            "бля", "хуй", "хуя", "хуе", "пизд", "ебал", "ебат",
+            "ебан", "ебуч", "сука", "суки", "мудак", "мудил",
+            "гандон", "долбо", "залуп", "пидор", "пидар", "нахуй",
+            "ахуе", "охуе", "уеб", "хер", "дерьм", "жоп"
+    };
+
+    private static final String[] GAME_TAUNTS = {
+            "ЭТО ЧТО ТАКОЕ",
+            "ТЫ ЧЁ ТАКОЙ ДЕРЗКИЙ",
+            "МАМА ЗВОНИЛА",
+            "БЫК СКИНУЛ",
+            "ПОЛНЫЙ РАЗНОС",
+            "СЕЛЁДКА ПРИБЫЛА"
+    };
+
     private OkHttpClient client;
     private WebSocket webSocket;
     private MediaPlayer currentPlayer;
@@ -255,6 +286,7 @@ public void onCreate() {
     instance = this;
 
     handler.post(this::updateWidgets);
+    handler.post(OverlayService::applyGamePrefs);
 
     chatSpeechEnabled = prefs.getBoolean(
             "chat_speech_enabled", true);
@@ -838,6 +870,14 @@ if (type.equals("test_donation")) {
                             showGift(message, gift);
                             playGiftSound(gift);
                             requestWidgetUpdate();
+
+                            if (gameVisible) {
+                                int coins = getGiftCoins(gift);
+                                int damage = Math.max(1,
+                                        coins > 0 ? coins : 10) * count;
+
+                                spawnGameWord(gift, damage);
+                            }
 
                             speakText(
                                     "Подарок " + gift
@@ -2341,6 +2381,7 @@ android.util.Log.e(
         // ссылку на уже уничтоженный сервис.
         handler.removeCallbacksAndMessages(null);
 
+        hideGame();
         removeWidgets();
         removeOverlay();
         stopCurrentSound();
@@ -2457,6 +2498,584 @@ android.util.Log.e(
             widgetUpdateScheduled = false;
             updateWidgets();
         }, 350);
+    }
+
+    // ===== ИГРА «СЛОВЕСНЫЙ РАЗНОС» =====
+
+    public static boolean isRunning() {
+        return instance != null;
+    }
+
+    public static void applyGamePrefs() {
+        final OverlayService service = instance;
+
+        if (service == null) return;
+
+        final boolean visible =
+                service.prefs.getBoolean("game_enabled", false);
+
+        service.handler.post(() -> {
+            if (!visible) {
+                service.hideGame();
+                return;
+            }
+
+            int hp = Math.max(100,
+                    service.prefs.getInt("game_hp", 1000));
+
+            if (service.gameRoot != null && service.gameMaxHp != hp) {
+                service.hideGame();
+            }
+
+            service.showGame();
+        });
+    }
+
+    public static boolean isGameRunning() {
+        OverlayService service = instance;
+
+        return service != null && service.gameVisible;
+    }
+
+    public static void testGameWord(String word) {
+        final OverlayService service = instance;
+
+        if (service == null) return;
+
+        service.handler.post(
+                () -> service.spawnGameWord(word, 25));
+    }
+
+    private void showGame() {
+        if (destroyed || windowManager == null || gameRoot != null) {
+            return;
+        }
+
+        gameMaxHp = Math.max(100, prefs.getInt("game_hp", 1000));
+        gameHp = gameMaxHp;
+        gameComboCount = 0;
+
+        FrameLayout root = new FrameLayout(this);
+
+        root.setBackground(new GradientDrawable(
+                GradientDrawable.Orientation.TL_BR,
+                new int[]{0xFF160B33, 0xFF04030C, 0xFF2E0733}));
+
+        // Персонаж
+        ImageView character = new ImageView(this);
+        character.setImageResource(R.drawable.game_character);
+        character.setScaleType(ImageView.ScaleType.FIT_CENTER);
+
+        GradientDrawable ring = new GradientDrawable();
+        ring.setShape(GradientDrawable.OVAL);
+        ring.setColor(0x1AFFFFFF);
+        ring.setStroke(dp(5), 0xFFFF2D8A);
+
+        character.setBackground(ring);
+        character.setPadding(dp(5), dp(5), dp(5), dp(5));
+
+        root.addView(character, new FrameLayout.LayoutParams(
+                dp(300), dp(300), Gravity.CENTER));
+
+        gameCharacter = character;
+
+        // Прочность
+        LinearLayout top = new LinearLayout(this);
+        top.setOrientation(LinearLayout.VERTICAL);
+        top.setPadding(dp(24), dp(36), dp(24), 0);
+
+        TextView title = new TextView(this);
+        title.setText("ПРОЧНОСТЬ");
+        title.setTextSize(13f);
+        title.setLetterSpacing(0.3f);
+        title.setTextColor(0xCCFFFFFF);
+        title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        top.addView(title);
+
+        ProgressBar bar = new ProgressBar(
+                this, null, android.R.attr.progressBarStyleHorizontal);
+        bar.setMax(gameMaxHp);
+        bar.setProgress(gameHp);
+        bar.setProgressTintList(
+                android.content.res.ColorStateList.valueOf(0xFFFF2D8A));
+
+        LinearLayout.LayoutParams barParams =
+                new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, dp(10));
+
+        barParams.topMargin = dp(8);
+        top.addView(bar, barParams);
+        gameHpBar = bar;
+
+        TextView hpText = new TextView(this);
+        hpText.setText(gameHp + " / " + gameMaxHp);
+        hpText.setTextSize(12f);
+        hpText.setTextColor(0x99FFFFFF);
+
+        LinearLayout.LayoutParams hpParams =
+                new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT);
+
+        hpParams.topMargin = dp(4);
+        top.addView(hpText, hpParams);
+        gameHpText = hpText;
+
+        root.addView(top, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.TOP));
+
+        // Комбо
+        TextView combo = new TextView(this);
+        combo.setText("ЖДЁМ ПОДАРКОВ");
+        combo.setTextSize(18f);
+        combo.setTextColor(0xFFFFD54A);
+        combo.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        combo.setGravity(Gravity.CENTER);
+        combo.setShadowLayer(dp(6), 0f, 0f, 0xFFFF2D8A);
+
+        FrameLayout.LayoutParams comboParams =
+                new FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                        Gravity.BOTTOM);
+
+        comboParams.bottomMargin = dp(56);
+        root.addView(combo, comboParams);
+        gameCombo = combo;
+
+        // Слой для летящих слов
+        FrameLayout wordLayer = new FrameLayout(this);
+        root.addView(wordLayer, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT));
+        gameWordLayer = wordLayer;
+
+        WindowManager.LayoutParams params =
+                new WindowManager.LayoutParams(
+                        WindowManager.LayoutParams.MATCH_PARENT,
+                        WindowManager.LayoutParams.MATCH_PARENT,
+                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                                ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                                : WindowManager.LayoutParams.TYPE_PHONE,
+                        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                                | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+                                | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+                                | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                        PixelFormat.TRANSLUCENT);
+
+        params.gravity = Gravity.TOP | Gravity.START;
+
+        try {
+            windowManager.addView(root, params);
+            gameRoot = root;
+            gameVisible = true;
+        } catch (Exception e) {
+            android.util.Log.e(TAG, "Не удалось открыть игру", e);
+            gameRoot = null;
+            gameWordLayer = null;
+            gameVisible = false;
+            return;
+        }
+
+        showGameCloseButton();
+    }
+
+    private void showGameCloseButton() {
+        if (windowManager == null) return;
+
+        TextView close = new TextView(this);
+        close.setText("✕");
+        close.setTextSize(20f);
+        close.setTextColor(Color.WHITE);
+        close.setGravity(Gravity.CENTER);
+        close.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+
+        GradientDrawable bg = new GradientDrawable();
+        bg.setShape(GradientDrawable.OVAL);
+        bg.setColor(0xCC120A24);
+        bg.setStroke(dp(2), 0xFFFF2D8A);
+        close.setBackground(bg);
+
+        close.setOnClickListener(v -> {
+            prefs.edit().putBoolean("game_enabled", false).apply();
+            hideGame();
+        });
+
+        WindowManager.LayoutParams params =
+                new WindowManager.LayoutParams(
+                        dp(44), dp(44),
+                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                                ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                                : WindowManager.LayoutParams.TYPE_PHONE,
+                        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                        PixelFormat.TRANSLUCENT);
+
+        params.gravity = Gravity.TOP | Gravity.END;
+        params.x = dp(12);
+        params.y = dp(40);
+
+        try {
+            windowManager.addView(close, params);
+            gameCloseButton = close;
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void hideGame() {
+        gameVisible = false;
+
+        if (gameCloseButton != null && windowManager != null) {
+            try {
+                windowManager.removeView(gameCloseButton);
+            } catch (Exception ignored) {
+            }
+        }
+
+        gameCloseButton = null;
+
+        if (gameRoot != null && windowManager != null) {
+            try {
+                gameRoot.clearAnimation();
+                windowManager.removeView(gameRoot);
+            } catch (Exception ignored) {
+            }
+        }
+
+        gameRoot = null;
+        gameWordLayer = null;
+        gameCharacter = null;
+        gameHpBar = null;
+        gameHpText = null;
+        gameCombo = null;
+    }
+
+    private void spawnGameWord(String word, int damage) {
+        if (gameWordLayer == null || gameRoot == null) return;
+
+        String text = censorWord(word);
+
+        if (text == null || text.trim().isEmpty()) return;
+
+        text = text.trim().toUpperCase(Locale.ROOT);
+
+        TextView card = new TextView(this);
+        card.setText(text);
+        card.setTextSize(26f);
+        card.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        card.setTextColor(Color.WHITE);
+        card.setGravity(Gravity.CENTER);
+        card.setPadding(dp(20), dp(10), dp(20), dp(10));
+        card.setShadowLayer(dp(6), 0f, dp(2), 0xAA000000);
+
+        int[][] palettes = {
+                {0xFFE91E63, 0xFF7B1FA2},
+                {0xFF00B0FF, 0xFF1A237E},
+                {0xFFFF6D00, 0xFFB71C1C},
+                {0xFF00C853, 0xFF004D40},
+                {0xFFFFD600, 0xFFE65100}
+        };
+
+        int[] palette = palettes[
+                (int) (Math.random() * palettes.length)];
+
+        GradientDrawable bg = new GradientDrawable(
+                GradientDrawable.Orientation.TL_BR, palette);
+
+        bg.setCornerRadius(dp(18));
+        bg.setStroke(dp(2), 0x66FFFFFF);
+        card.setBackground(bg);
+
+        gameWordLayer.addView(card);
+
+        card.measure(
+                View.MeasureSpec.makeMeasureSpec(
+                        0, View.MeasureSpec.UNSPECIFIED),
+                View.MeasureSpec.makeMeasureSpec(
+                        0, View.MeasureSpec.UNSPECIFIED));
+
+        int cardW = Math.max(card.getMeasuredWidth(), dp(60));
+        int cardH = Math.max(card.getMeasuredHeight(), dp(40));
+
+        android.util.DisplayMetrics metrics =
+                getResources().getDisplayMetrics();
+
+        int screenW = metrics.widthPixels;
+        int screenH = metrics.heightPixels;
+
+        int edge = (int) (Math.random() * 4);
+        float startX;
+        float startY;
+
+        if (edge == 0) {
+            startX = -cardW;
+            startY = dp(140) + (float) (Math.random()
+                    * Math.max(dp(1), screenH - dp(380)));
+        } else if (edge == 1) {
+            startX = screenW;
+            startY = dp(140) + (float) (Math.random()
+                    * Math.max(dp(1), screenH - dp(380)));
+        } else if (edge == 2) {
+            startX = (float) (Math.random()
+                    * Math.max(dp(1), screenW - cardW));
+            startY = -cardH;
+        } else {
+            startX = (float) (Math.random()
+                    * Math.max(dp(1), screenW - cardW));
+            startY = screenH;
+        }
+
+        float endX = screenW / 2f - cardW / 2f
+                + (float) ((Math.random() - 0.5) * dp(60));
+        float endY = screenH / 2f - cardH / 2f
+                + (float) ((Math.random() - 0.5) * dp(60));
+
+        card.setX(startX);
+        card.setY(startY);
+        card.setRotation((float) ((Math.random() - 0.5) * 40));
+        card.setScaleX(1.4f);
+        card.setScaleY(1.4f);
+
+        android.animation.ObjectAnimator moveX =
+                android.animation.ObjectAnimator.ofFloat(
+                        card, "x", startX, endX);
+
+        android.animation.ObjectAnimator moveY =
+                android.animation.ObjectAnimator.ofFloat(
+                        card, "y", startY, endY);
+
+        android.animation.ObjectAnimator rotate =
+                android.animation.ObjectAnimator.ofFloat(
+                        card, "rotation", card.getRotation(), 0f);
+
+        android.animation.ObjectAnimator scaleX =
+                android.animation.ObjectAnimator.ofFloat(
+                        card, "scaleX", 1.4f, 1f);
+
+        android.animation.ObjectAnimator scaleY =
+                android.animation.ObjectAnimator.ofFloat(
+                        card, "scaleY", 1.4f, 1f);
+
+        android.animation.AnimatorSet set =
+                new android.animation.AnimatorSet();
+
+        set.playTogether(moveX, moveY, rotate, scaleX, scaleY);
+        set.setDuration(650);
+        set.setInterpolator(
+                new android.view.animation.DecelerateInterpolator(1.4f));
+
+        final TextView finalCard = card;
+        final int finalDamage = damage;
+
+        set.addListener(new android.animation.AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(android.animation.Animator animation) {
+                applyGameHit(finalCard, finalDamage);
+            }
+        });
+
+        set.start();
+    }
+
+    private void applyGameHit(View card, int damage) {
+        card.animate()
+                .scaleX(0.2f)
+                .scaleY(0.2f)
+                .alpha(0f)
+                .setDuration(200)
+                .withEndAction(() -> {
+                    if (gameWordLayer != null
+                            && card.getParent() == gameWordLayer) {
+                        gameWordLayer.removeView(card);
+                    }
+                })
+                .start();
+
+        if (gameCharacter != null) {
+            android.animation.ObjectAnimator shake =
+                    android.animation.ObjectAnimator.ofFloat(
+                            gameCharacter, "translationX",
+                            0f, -18f, 16f, -12f, 9f, 0f);
+
+            shake.setDuration(340);
+            shake.start();
+        }
+
+        if (gameRoot != null) {
+            View flash = new View(this);
+            flash.setBackgroundColor(0x44FF2D8A);
+
+            gameRoot.addView(flash, new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT));
+
+            flash.animate().alpha(0f).setDuration(220)
+                    .withEndAction(() -> {
+                        if (gameRoot != null) gameRoot.removeView(flash);
+                    })
+                    .start();
+        }
+
+        gameHp = Math.max(0, gameHp - Math.max(1, damage));
+
+        if (gameCharacter != null) {
+            float ratio = gameMaxHp <= 0
+                    ? 1f : (float) gameHp / gameMaxHp;
+            float scale = 0.72f + 0.28f * ratio;
+
+            gameCharacter.animate()
+                    .scaleX(scale)
+                    .scaleY(scale)
+                    .setDuration(260)
+                    .start();
+        }
+
+        updateGameHp();
+        showGameDamage(damage);
+
+        long now = System.currentTimeMillis();
+
+        if (now - gameLastHitAt <= 4000) {
+            gameComboCount++;
+        } else {
+            gameComboCount = 1;
+        }
+
+        gameLastHitAt = now;
+
+        if (gameCombo != null) {
+            gameCombo.setText(gameComboCount > 1
+                    ? "КОМБО ×" + gameComboCount
+                    : "ПОПАДАНИЕ");
+
+            gameCombo.setScaleX(1.4f);
+            gameCombo.setScaleY(1.4f);
+            gameCombo.animate()
+                    .scaleX(1f)
+                    .scaleY(1f)
+                    .setDuration(220)
+                    .start();
+        }
+
+        if (gameHp <= 0) gameKnockout();
+    }
+
+    private void showGameDamage(int damage) {
+        if (gameRoot == null) return;
+
+        TextView label = new TextView(this);
+        label.setText("−" + damage);
+        label.setTextSize(24f);
+        label.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        label.setTextColor(0xFFFFD54A);
+        label.setShadowLayer(dp(6), 0f, dp(2), 0xCC000000);
+
+        label.setX(gameRoot.getWidth() / 2f
+                + (float) ((Math.random() - 0.5) * dp(140)));
+        label.setY(gameRoot.getHeight() / 2f
+                - dp(60)
+                + (float) ((Math.random() - 0.5) * dp(120)));
+
+        gameRoot.addView(label);
+
+        label.animate()
+                .translationY(-dp(130))
+                .alpha(0f)
+                .setDuration(850)
+                .withEndAction(() -> {
+                    if (gameRoot != null) gameRoot.removeView(label);
+                })
+                .start();
+    }
+
+    private void gameKnockout() {
+        if (gameRoot == null) return;
+
+        if (gameWordLayer != null) {
+            gameWordLayer.removeAllViews();
+        }
+
+        TextView ko = new TextView(this);
+        ko.setText("ПОЛНЫЙ\nРАЗНОС");
+        ko.setTextSize(46f);
+        ko.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        ko.setTextColor(Color.WHITE);
+        ko.setGravity(Gravity.CENTER);
+        ko.setShadowLayer(dp(10), 0f, 0f, 0xFFFF2D8A);
+
+        gameRoot.addView(ko, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.CENTER));
+
+        ko.setScaleX(0.4f);
+        ko.setScaleY(0.4f);
+        ko.setAlpha(0f);
+
+        ko.animate()
+                .scaleX(1f)
+                .scaleY(1f)
+                .alpha(1f)
+                .setDuration(380)
+                .setInterpolator(new OvershootInterpolator(1.6f))
+                .start();
+
+        handler.postDelayed(() -> {
+            if (gameRoot != null) gameRoot.removeView(ko);
+
+            gameHp = gameMaxHp;
+            updateGameHp();
+            gameComboCount = 0;
+
+            if (gameCharacter != null) {
+                gameCharacter.animate()
+                        .scaleX(1f)
+                        .scaleY(1f)
+                        .setDuration(260)
+                        .start();
+            }
+
+            if (gameCombo != null) {
+                gameCombo.setText("ЖДЁМ ПОДАРКОВ");
+            }
+        }, 3500);
+    }
+
+    private void updateGameHp() {
+        if (gameHpBar != null) gameHpBar.setProgress(gameHp);
+
+        if (gameHpText != null) {
+            gameHpText.setText(gameHp + " / " + gameMaxHp);
+        }
+    }
+
+    private String censorWord(String text) {
+        if (text == null) return null;
+
+        String result = text;
+
+        for (String bad : GAME_BAD_WORDS) {
+            int index = result.toLowerCase(Locale.ROOT).indexOf(bad);
+
+            while (index >= 0) {
+                int end = Math.min(result.length(), index + bad.length());
+                StringBuilder masked =
+                        new StringBuilder(result.substring(0, index + 1));
+
+                for (int i = index + 1; i < end; i++) {
+                    masked.append('*');
+                }
+
+                masked.append(result.substring(end));
+                result = masked.toString();
+
+                index = result.toLowerCase(Locale.ROOT)
+                        .indexOf(bad, index + bad.length());
+            }
+        }
+
+        return result;
     }
 
     private void addDonationStats(double amount) {

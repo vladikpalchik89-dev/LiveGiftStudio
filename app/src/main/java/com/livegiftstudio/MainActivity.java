@@ -508,6 +508,22 @@ addMenuRow(
         v -> resetWidgetStats()
 );
 
+addSectionHeader("🎮 ИГРА «СЛОВЕСНЫЙ РАЗНОС»");
+
+addMenuRow(
+        "🎮\nИгра\nстарт/стоп", 0xFFFF1493,
+        "🧪\nТест\nслова", 0xFF9B20FF,
+        v -> toggleGame(),
+        v -> testGameWord()
+);
+
+addMenuRow(
+        "💥\nПрочность\nперсонажа", 0xFFFFB900,
+        "ℹ️\nКак\nпоказывать", 0xFF00C8FF,
+        v -> showGameHpSettings(),
+        v -> showGameHelp()
+);
+
 addSectionHeader("📚 ЗВУКИ И МЕДИА");
 
 addMenuRow(
@@ -5797,6 +5813,109 @@ private void showTikTokAccounts() {
 
                     message("Топ подарков сброшен");
                 })
+                .show();
+    }
+
+    // ===== ИГРА «СЛОВЕСНЫЙ РАЗНОС» =====
+
+    private void toggleGame() {
+        if (!OverlayService.isRunning()) {
+            new AlertDialog.Builder(this)
+                    .setTitle("🎮 Игра")
+                    .setMessage("Сначала включите оверлей и подключитесь к эфиру."
+                            + "\nИгра работает вместе с оверлеем.")
+                    .setPositiveButton("Понятно", null)
+                    .show();
+
+            return;
+        }
+
+        boolean enabled = !prefs.getBoolean("game_enabled", false);
+
+        prefs.edit()
+                .putBoolean("game_enabled", enabled)
+                .apply();
+
+        OverlayService.applyGamePrefs();
+
+        message(enabled
+                ? "Игра включена: подарки полетят в персонажа"
+                : "Игра выключена");
+    }
+
+    private void testGameWord() {
+        if (!OverlayService.isGameRunning()) {
+            message("Сначала включите игру");
+            return;
+        }
+
+        EditText input = new EditText(this);
+        input.setHint("Например: ЯЙЦО");
+        input.setText("ЯЙЦО");
+        input.setSingleLine(true);
+
+        new AlertDialog.Builder(this)
+                .setTitle("Тест слова")
+                .setMessage("Слово прилетит в персонажа")
+                .setView(input)
+                .setPositiveButton("Запустить", (dialog, which) -> {
+                    String word = input.getText().toString().trim();
+
+                    OverlayService.testGameWord(
+                            word.isEmpty() ? "ЯЙЦО" : word);
+                })
+                .setNegativeButton("Отмена", null)
+                .show();
+    }
+
+    private void showGameHpSettings() {
+        EditText input = new EditText(this);
+        input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        input.setSingleLine(true);
+        input.setText(String.valueOf(
+                prefs.getInt("game_hp", 1000)));
+
+        new AlertDialog.Builder(this)
+                .setTitle("💥 Прочность персонажа")
+                .setMessage("Сколько урона он выдержит до «ПОЛНОГО РАЗНОСА»."
+                        + "\nУрон = цена подарка в монетах.")
+                .setView(input)
+                .setPositiveButton("Сохранить", (dialog, which) -> {
+                    int hp;
+
+                    try {
+                        hp = Integer.parseInt(
+                                input.getText().toString().trim());
+                    } catch (Exception error) {
+                        message("Нужно число");
+                        return;
+                    }
+
+                    prefs.edit()
+                            .putInt("game_hp", Math.max(100, hp))
+                            .apply();
+
+                    OverlayService.applyGamePrefs();
+
+                    message("Прочность: " + Math.max(100, hp));
+                })
+                .setNegativeButton("Отмена", null)
+                .show();
+    }
+
+    private void showGameHelp() {
+        new AlertDialog.Builder(this)
+                .setTitle("ℹ️ Игра и эфир")
+                .setMessage("Игра — полноэкранное окно поверх телефона."
+                        + " Подарок = слово с цензурой летит в персонажа,"
+                        + " снимает прочность, идут комбо и «ПОЛНЫЙ РАЗНОС»."
+                        + "\n\nЗакрыть игру — кнопка ✕ в правом верхнем углу."
+                        + "\n\nВажно: TikTok с телефона снимает только камеру."
+                        + " Чтобы зрители видели игру, нужен захват экрана"
+                        + " (трансляция с ПК через TikTok LIVE Studio,"
+                        + " OBS или провод-зеркало). Иначе игру видите"
+                        + " только вы на телефоне.")
+                .setPositiveButton("Понятно", null)
                 .show();
     }
 
