@@ -865,6 +865,10 @@ if (type.equals("test_donation")) {
                             "🎁 " + gift + " × " + count
                                     + "\n@" + username;
 
+                    int giftCoins = getGiftCoins(gift);
+                    final int gameDamage = Math.max(1,
+                            giftCoins > 0 ? giftCoins : 10) * count;
+
                     handler.post(() -> {
                         if (!destroyed) {
                             showGift(message, gift);
@@ -872,11 +876,7 @@ if (type.equals("test_donation")) {
                             requestWidgetUpdate();
 
                             if (gameVisible) {
-                                int coins = getGiftCoins(gift);
-                                int damage = Math.max(1,
-                                        coins > 0 ? coins : 10) * count;
-
-                                spawnGameWord(gift, damage);
+                                spawnGameWord(gift, gameDamage);
                             }
 
                             speakText(
