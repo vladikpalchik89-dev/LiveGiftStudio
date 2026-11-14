@@ -331,9 +331,9 @@ private final String[][] giftCatalog = {
             scroll.addView(view);
 
             new AlertDialog.Builder(this)
-                    .setTitle("⚠️ Ошибка приложения")
+                    .setTitle(MainActivity.this.getString(R.string.s_oshibka_prilozheniya))
                     .setView(scroll)
-                    .setPositiveButton("Скопировать", (d, w) -> {
+                    .setPositiveButton(MainActivity.this.getString(R.string.s_skopirovat), (d, w) -> {
                         try {
                             android.content.ClipboardManager clipboard =
                                     (android.content.ClipboardManager)
@@ -344,11 +344,11 @@ private final String[][] giftCatalog = {
                                     android.content.ClipData
                                             .newPlainText("error", text));
 
-                            message("Текст ошибки скопирован");
+                            message(MainActivity.this.getString(R.string.s_tekst_oshibki_skopirovan));
                         } catch (Exception ignored) {
                         }
                     })
-                    .setNegativeButton("Закрыть", null)
+                    .setNegativeButton(MainActivity.this.getString(R.string.s_zakryt), null)
                     .show();
         } catch (Throwable ignored) {
         }
@@ -418,7 +418,7 @@ setBackgroundColor(
     container.addView(hero, heroParams);
 
     TextView title = new TextView(this);
-    title.setText("LiveGiftStudio");
+    title.setText(MainActivity.this.getString(R.string.s_livegiftstudio));
     title.setTextSize(31);
     title.setTypeface(null, android.graphics.Typeface.BOLD);
     title.setTextColor(Color.WHITE);
@@ -427,7 +427,7 @@ setBackgroundColor(
     hero.addView(title);
 
     TextView subtitle = new TextView(this);
-    subtitle.setText("PRO · инструменты для TikTok LIVE");
+    subtitle.setText(MainActivity.this.getString(R.string.s_pro_instrumenty_dlya_tiktok_live));
     subtitle.setTextSize(13);
     subtitle.setTextColor(Color.rgb(190, 200, 240));
     subtitle.setGravity(Gravity.CENTER);
@@ -435,7 +435,7 @@ setBackgroundColor(
     hero.addView(subtitle);
 
     TextView heroChips = new TextView(this);
-    heroChips.setText("🎁 подарки   🔊 звуки   ✨ анимации");
+    heroChips.setText(MainActivity.this.getString(R.string.s_podarki_zvuki_animacii));
     heroChips.setTextSize(12);
     heroChips.setTextColor(0xFF8FE3FF);
     heroChips.setGravity(Gravity.CENTER);
@@ -567,7 +567,7 @@ addMenuRow(
         v -> showMediaLibrary(),
         v -> {
             new AlertDialog.Builder(this)
-                    .setTitle("Загрузка медиа")
+                    .setTitle(MainActivity.this.getString(R.string.s_zagruzka_media))
                     .setItems(
                             new String[]{
                                     "📁 Загрузить папку",
@@ -599,7 +599,7 @@ addMenuRow(
         "🎵\nПодключение\nTikTok LIVE", 0xFF087BFF,
         "💰\nОткрыть\nдонаты", 0xFF00D6B7,       
 v -> {
-    message("Нажатие на кнопку TikTok LIVE");
+    message(MainActivity.this.getString(R.string.s_nazhatie_na_knopku_tiktok_live));
     showTikTokAccounts();
 },
         v -> openLink(DONATE_URL)
@@ -680,7 +680,7 @@ addMenuRow(
     };
 
     new AlertDialog.Builder(this)
-            .setTitle("🎞️ GIF и видео")
+            .setTitle(MainActivity.this.getString(R.string.s_gif_i_video))
             .setItems(options, (dialog, which) -> {
                 switch (which) {
                     case 0:
@@ -709,25 +709,25 @@ addMenuRow(
                         prefs.edit()
                                 .remove("animation_follower_uri")
                                 .apply();
-                        message("Анимация подписки сброшена");
+                        message(MainActivity.this.getString(R.string.s_animaciya_podpiski_sbroshena));
                         break;
 
                     case 6:
                         prefs.edit()
                                 .remove("animation_donation_uri")
                                 .apply();
-                        message("Анимация доната сброшена");
+                        message(MainActivity.this.getString(R.string.s_animaciya_donata_sbroshena));
                         break;
                 }
             })
-            .setNegativeButton("Закрыть", null)
+            .setNegativeButton(MainActivity.this.getString(R.string.s_zakryt), null)
             .show();
 }
 
 
 private void chooseAnimationFile(int requestCode) {
     new AlertDialog.Builder(this)
-            .setTitle("Откуда взять анимацию?")
+            .setTitle(MainActivity.this.getString(R.string.s_otkuda_vzyat_animaciyu))
             .setItems(new String[]{
                     "📚 Из медиатеки",
                     "📁 Выбрать файл на телефоне"
@@ -738,7 +738,7 @@ private void chooseAnimationFile(int requestCode) {
                     openAnimationFilePicker(requestCode);
                 }
             })
-            .setNegativeButton("Отмена", null)
+            .setNegativeButton(MainActivity.this.getString(R.string.s_otmena), null)
             .show();
 }
 
@@ -778,12 +778,12 @@ private void showMediaLibraryPicker(int requestCode) {
 
     if (labels.isEmpty()) {
         new AlertDialog.Builder(this)
-                .setTitle("📚 Медиатека пуста")
+                .setTitle(MainActivity.this.getString(R.string.s_mediateka_pusta))
                 .setMessage("Импортируй папку с GIF: "
                         + "меню → «Импорт папки GIF».")
-                .setPositiveButton("📥 Импорт папки",
+                .setPositiveButton(MainActivity.this.getString(R.string.s_import_papki),
                         (d, w) -> chooseMediaFolder())
-                .setNegativeButton("Закрыть", null)
+                .setNegativeButton(MainActivity.this.getString(R.string.s_zakryt), null)
                 .show();
         return;
     }
@@ -793,7 +793,7 @@ private void showMediaLibraryPicker(int requestCode) {
     layout.setPadding(dp(12), dp(8), dp(12), dp(8));
 
     EditText search = new EditText(this);
-    search.setHint("Поиск GIF: кот, смех, танец…");
+    search.setHint(MainActivity.this.getString(R.string.s_poisk_gif_kot_smeh_tanec));
     search.setSingleLine(true);
     layout.addView(search);
 
@@ -814,9 +814,9 @@ private void showMediaLibraryPicker(int requestCode) {
             LinearLayout.LayoutParams.MATCH_PARENT, dp(380)));
 
     final AlertDialog dialog = new AlertDialog.Builder(this)
-            .setTitle("🎞️ Анимация из медиатеки")
+            .setTitle(MainActivity.this.getString(R.string.s_animaciya_iz_mediateki))
             .setView(layout)
-            .setNegativeButton("Закрыть", null)
+            .setNegativeButton(MainActivity.this.getString(R.string.s_zakryt), null)
             .create();
 
     search.addTextChangedListener(new TextWatcher() {
@@ -878,7 +878,7 @@ private void applyAnimationFromLibrary(int requestCode, String uriString) {
         type = "donation";
     } else {
         if (selectedGiftKey == null) {
-            message("Сначала выбери подарок");
+            message(MainActivity.this.getString(R.string.s_snachala_vyberi_podarok));
             return;
         }
 
@@ -890,7 +890,7 @@ private void applyAnimationFromLibrary(int requestCode, String uriString) {
             .putString(key, uriString)
             .apply();
 
-    message("Анимация сохранена");
+    message(MainActivity.this.getString(R.string.s_animaciya_sohranena));
 
     Intent intent = new Intent(this, OverlayService.class);
     intent.putExtra("preview_animation", type);
@@ -934,7 +934,7 @@ private void openAnimationFilePicker(int requestCode) {
     try {
         startActivityForResult(intent, requestCode);
     } catch (Exception e) {
-        message("Не удалось открыть выбор файла");
+        message(MainActivity.this.getString(R.string.s_ne_udalos_otkryt_vybor_fayla));
     }
 }
 
@@ -954,7 +954,7 @@ private void testFollowSound() {
 }
 private void testSavedAnimation() {
     new AlertDialog.Builder(this)
-            .setTitle("▶ Проверка анимации")
+            .setTitle(MainActivity.this.getString(R.string.s_proverka_animacii))
             .setItems(
                     new String[]{
                             "🔔 Подписка",
@@ -971,7 +971,7 @@ private void testSavedAnimation() {
                         }
                     }
             )
-            .setNegativeButton("Отмена", null)
+            .setNegativeButton(MainActivity.this.getString(R.string.s_otmena), null)
             .show();
 }
 
@@ -979,7 +979,7 @@ private void testSavedAnimation() {
 private void testAnimation(String type) {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
             && !Settings.canDrawOverlays(this)) {
-        message("Разреши показ поверх других приложений");
+        message(MainActivity.this.getString(R.string.s_razreshi_pokaz_poverh_drugih_prilozheniy));
         startActivity(new Intent(
                 Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                 Uri.parse("package:" + getPackageName())));
@@ -994,20 +994,20 @@ private void testAnimation(String type) {
         key = "animation_donation_uri";
     } else if ("gift".equals(type)) {
         if (selectedGiftKey == null || selectedGiftKey.isEmpty()) {
-            message("Сначала выбери подарок");
+            message(MainActivity.this.getString(R.string.s_snachala_vyberi_podarok));
             return;
         }
 
         key = "animation_gift_" + selectedGiftKey;
     } else {
-        message("Неизвестный тип анимации");
+        message(MainActivity.this.getString(R.string.s_neizvestnyy_tip_animacii));
         return;
     }
 
     String uri = prefs.getString(key, "");
 
     if (uri.isEmpty()) {
-        message("Сначала выбери файл анимации");
+        message(MainActivity.this.getString(R.string.s_snachala_vyberi_fayl_animacii));
         return;
     }
 
@@ -1029,9 +1029,9 @@ private void testAnimation(String type) {
             startService(intent);
         }
 
-        message("Запускаю проверку анимации");
+        message(MainActivity.this.getString(R.string.s_zapuskayu_proverku_animacii));
     } catch (Exception e) {
-        message("Не удалось запустить анимацию");
+        message(MainActivity.this.getString(R.string.s_ne_udalos_zapustit_animaciyu));
         android.util.Log.e("LiveGiftStudio", "Animation preview error", e);
     }
 }
@@ -1047,7 +1047,7 @@ private void showAnimationGiftCatalog() {
     }
 
     new AlertDialog.Builder(this)
-            .setTitle("🎁 Выбери подарок")
+            .setTitle(MainActivity.this.getString(R.string.s_vyberi_podarok))
             .setItems(names, (dialog, which) -> {
                 selectedGiftKey = gifts.get(which)[0];
                 selectedGiftName = gifts.get(which)[1];
@@ -1075,16 +1075,14 @@ private void showAnimationGiftCatalog() {
                                                 .remove(key)
                                                 .apply();
 
-                                        message(
-                                                "Анимация подарка сброшена"
-                                        );
+                                        message(MainActivity.this.getString(R.string.s_animaciya_podarka_sbroshena));
                                     }
                                 }
                         )
-                        .setNegativeButton("Назад", null)
+                        .setNegativeButton(MainActivity.this.getString(R.string.s_nazad), null)
                         .show();
             })
-            .setNegativeButton("Отмена", null)
+            .setNegativeButton(MainActivity.this.getString(R.string.s_otmena), null)
             .show();
 }
 
@@ -1100,7 +1098,7 @@ private void showAppearanceSettings() {
     };
 
     new AlertDialog.Builder(this)
-            .setTitle("⚙️ Оформление LiveGiftStudio")
+            .setTitle(MainActivity.this.getString(R.string.s_oformlenie_livegiftstudio))
             .setItems(options, (dialog, which) -> {
                 switch (which) {
                     case 0:
@@ -1126,7 +1124,7 @@ private void showAppearanceSettings() {
                         break;
                 }
             })
-            .setNegativeButton("Закрыть", null)
+            .setNegativeButton(MainActivity.this.getString(R.string.s_zakryt), null)
             .show();
 }
 
@@ -1140,12 +1138,12 @@ private void chooseAppBackground() {
     };
 
     new AlertDialog.Builder(this)
-            .setTitle("Выбери фон")
+            .setTitle(MainActivity.this.getString(R.string.s_vyberi_fon))
             .setItems(names, (dialog, which) -> {
                 prefs.edit().putInt("app_bg_color", colors[which]).apply();
                 buildInterface();
             })
-            .setNegativeButton("Отмена", null)
+            .setNegativeButton(MainActivity.this.getString(R.string.s_otmena), null)
             .show();
 }
 
@@ -1160,12 +1158,12 @@ private void chooseButtonColor() {
     };
 
     new AlertDialog.Builder(this)
-            .setTitle("Выбери цвет кнопок")
+            .setTitle(MainActivity.this.getString(R.string.s_vyberi_cvet_knopok))
             .setItems(names, (dialog, which) -> {
                 prefs.edit().putInt("button_color", colors[which]).apply();
                 buildInterface();
             })
-            .setNegativeButton("Отмена", null)
+            .setNegativeButton(MainActivity.this.getString(R.string.s_otmena), null)
             .show();
 }
 
@@ -1174,12 +1172,12 @@ private void chooseButtonShape() {
     int[] radiuses = {4, 14, 25};
 
     new AlertDialog.Builder(this)
-            .setTitle("Форма кнопок")
+            .setTitle(MainActivity.this.getString(R.string.s_forma_knopok))
             .setItems(names, (dialog, which) -> {
                 prefs.edit().putInt("button_radius", radiuses[which]).apply();
                 buildInterface();
             })
-            .setNegativeButton("Отмена", null)
+            .setNegativeButton(MainActivity.this.getString(R.string.s_otmena), null)
             .show();
 }
 
@@ -1188,12 +1186,12 @@ private void chooseAppFontSize() {
     int[] sizes = {13, 16, 19, 22};
 
     new AlertDialog.Builder(this)
-            .setTitle("Размер текста")
+            .setTitle(MainActivity.this.getString(R.string.s_razmer_teksta))
             .setItems(names, (dialog, which) -> {
                 prefs.edit().putInt("app_font_size", sizes[which]).apply();
                 buildInterface();
             })
-            .setNegativeButton("Отмена", null)
+            .setNegativeButton(MainActivity.this.getString(R.string.s_otmena), null)
             .show();
 }
 
@@ -1232,16 +1230,16 @@ private void editButtonLabel() {
     };
 
     new AlertDialog.Builder(this)
-            .setTitle("Какую кнопку изменить?")
+            .setTitle(MainActivity.this.getString(R.string.s_kakuyu_knopku_izmenit))
             .setItems(buttons, (dialog, which) -> {
                 EditText input = new EditText(this);
-                input.setHint("Новый текст или эмодзи");
+                input.setHint(MainActivity.this.getString(R.string.s_novyy_tekst_ili_emodzi));
                 input.setSingleLine(false);
 
                 new AlertDialog.Builder(this)
-                        .setTitle("Новая надпись")
+                        .setTitle(MainActivity.this.getString(R.string.s_novaya_nadpis))
                         .setView(input)
-                        .setPositiveButton("Сохранить", (d, w) -> {
+                        .setPositiveButton(MainActivity.this.getString(R.string.s_sohranit), (d, w) -> {
                             String value = input.getText().toString().trim();
                             if (!value.isEmpty()) {
                                 prefs.edit()
@@ -1249,13 +1247,13 @@ private void editButtonLabel() {
         .apply();
 
 buildInterface();
-message("Надпись сохранена");
+message(MainActivity.this.getString(R.string.s_nadpis_sohranena));
                             }
                         })
-                        .setNegativeButton("Отмена", null)
+                        .setNegativeButton(MainActivity.this.getString(R.string.s_otmena), null)
                         .show();
             })
-            .setNegativeButton("Отмена", null)
+            .setNegativeButton(MainActivity.this.getString(R.string.s_otmena), null)
             .show();
 }
 
@@ -1274,7 +1272,7 @@ private void resetAppearance() {
 
     editor.apply();
     buildInterface();
-    message("Оформление сброшено");
+    message(MainActivity.this.getString(R.string.s_oformlenie_sbrosheno));
 }
       
 // ------------------------------------------------------------------
@@ -1314,13 +1312,13 @@ private void showCrashLog() {
                 getFilesDir(), "last_crash.txt");
 
         if (!file.exists()) {
-            message("Ошибок не было");
+            message(MainActivity.this.getString(R.string.s_oshibok_ne_bylo));
             return;
         }
 
         showCrashDialog(readFileText(file), file, false);
     } catch (Throwable error) {
-        message("Не удалось прочитать журнал");
+        message(MainActivity.this.getString(R.string.s_ne_udalos_prochitat_zhurnal));
     }
 }
 
@@ -1369,9 +1367,9 @@ private void showCrashDialog(
         scroll.addView(view);
 
         new AlertDialog.Builder(this)
-                .setTitle("⚠️ Прошлый запуск упал")
+                .setTitle(MainActivity.this.getString(R.string.s_proshlyy_zapusk_upal))
                 .setView(scroll)
-                .setPositiveButton("Скопировать", (d, w) -> {
+                .setPositiveButton(MainActivity.this.getString(R.string.s_skopirovat), (d, w) -> {
                     try {
                         android.content.ClipboardManager clipboard =
                                 (android.content.ClipboardManager)
@@ -1381,16 +1379,16 @@ private void showCrashDialog(
                                 android.content.ClipData.newPlainText(
                                         "crash", text));
 
-                        message("Текст ошибки скопирован");
+                        message(MainActivity.this.getString(R.string.s_tekst_oshibki_skopirovan));
                     } catch (Exception error) {
-                        message("Не удалось скопировать");
+                        message(MainActivity.this.getString(R.string.s_ne_udalos_skopirovat));
                     }
                 })
-                .setNeutralButton("Удалить", (d, w) -> {
+                .setNeutralButton(MainActivity.this.getString(R.string.s_udalit), (d, w) -> {
                     file.delete();
-                    message("Запись об ошибке удалена");
+                    message(MainActivity.this.getString(R.string.s_zapis_ob_oshibke_udalena));
                 })
-                .setNegativeButton("Закрыть", null)
+                .setNegativeButton(MainActivity.this.getString(R.string.s_zakryt), null)
                 .show();
     } catch (Throwable ignored) {
     }
@@ -1529,7 +1527,7 @@ private void showSoundLibrary() {
     };
 
     new AlertDialog.Builder(this)
-            .setTitle("🔊 Библиотека звуков")
+            .setTitle(MainActivity.this.getString(R.string.s_biblioteka_zvukov))
             .setItems(categories, (dialog, which) -> {
                 switch (which) {
                     case 0:
@@ -1546,7 +1544,7 @@ private void showSoundLibrary() {
                         break;
                 }
             })
-            .setNegativeButton("Закрыть", null)
+            .setNegativeButton(MainActivity.this.getString(R.string.s_zakryt), null)
             .show();
 }
 
@@ -1615,10 +1613,10 @@ private void showLibraryCategory(String category) {
             .setItems(items, (d, which) -> {
                 showLibrarySoundOptions(category, which);
             })
-            .setPositiveButton("➕ Добавить звук", (d, w) -> {
+            .setPositiveButton(MainActivity.this.getString(R.string.s_dobavit_zvuk), (d, w) -> {
                 chooseLibrarySound(category);
             })
-            .setNegativeButton("Назад", (d, w) -> {
+            .setNegativeButton(MainActivity.this.getString(R.string.s_nazad), (d, w) -> {
                 showSoundLibrary();
             })
             .create();
@@ -1664,7 +1662,7 @@ private void chooseLibrarySound(String category) {
 
         startActivityForResult(intent, requestCode);
     } catch (Exception e) {
-        message("Не удалось открыть выбор аудиофайла");
+        message(MainActivity.this.getString(R.string.s_ne_udalos_otkryt_vybor_audiofayla));
     }
 }
 
@@ -1675,7 +1673,7 @@ private void showLibrarySoundOptions(String category, int index) {
     JSONObject sound = sounds.optJSONObject(index);
 
     if (sound == null) {
-        message("Запись не найдена");
+        message(MainActivity.this.getString(R.string.s_zapis_ne_naydena));
         return;
     }
 
@@ -1698,7 +1696,7 @@ private void showLibrarySoundOptions(String category, int index) {
                             pauseLibrarySound();
                         } else if (which == 2) {
                             if (uri.isEmpty()) {
-                                message("Файл не найден");
+                                message(MainActivity.this.getString(R.string.s_fayl_ne_nayden));
                                 return;
                             }
 
@@ -1712,7 +1710,7 @@ private void showLibrarySoundOptions(String category, int index) {
                         }
                     }
             )
-            .setNegativeButton("Назад", (d, w) -> {
+            .setNegativeButton(MainActivity.this.getString(R.string.s_nazad), (d, w) -> {
                 showLibraryCategory(category);
             })
             .show();
@@ -1724,14 +1722,14 @@ private void playLibrarySound(String category, int index) {
     JSONObject sound = sounds.optJSONObject(index);
 
     if (sound == null) {
-        message("Звук не найден");
+        message(MainActivity.this.getString(R.string.s_zvuk_ne_nayden));
         return;
     }
 
     String uriText = sound.optString("uri", "");
 
     if (uriText.isEmpty()) {
-        message("Файл не найден");
+        message(MainActivity.this.getString(R.string.s_fayl_ne_nayden));
         return;
     }
 
@@ -1743,7 +1741,7 @@ private void playLibrarySound(String category, int index) {
         try {
             if (!previewPlayer.isPlaying()) {
                 previewPlayer.start();
-                message("Воспроизведение продолжено");
+                message(MainActivity.this.getString(R.string.s_vosproizvedenie_prodolzheno));
                 return;
             }
         } catch (Exception ignored) {}
@@ -1771,7 +1769,7 @@ private void playLibrarySound(String category, int index) {
 
         previewPlayer.setOnErrorListener((player, what, extra) -> {
             stopPreview();
-            message("Не удалось воспроизвести файл");
+            message(MainActivity.this.getString(R.string.s_ne_udalos_vosproizvesti_fayl));
             return true;
         });
 
@@ -1779,28 +1777,28 @@ private void playLibrarySound(String category, int index) {
 
     } catch (Exception e) {
         stopPreview();
-        message("Ошибка воспроизведения");
+        message(MainActivity.this.getString(R.string.s_oshibka_vosproizvedeniya));
     }
 }
 
 // Пауза
 private void pauseLibrarySound() {
     if (previewPlayer == null) {
-        message("Сейчас ничего не играет");
+        message(MainActivity.this.getString(R.string.s_seychas_nichego_ne_igraet));
         return;
     }
 
     try {
         if (previewPlayer.isPlaying()) {
             previewPlayer.pause();
-            message("⏸ Звук поставлен на паузу");
+            message(MainActivity.this.getString(R.string.s_zvuk_postavlen_na_pauzu));
         } else {
             previewPlayer.start();
-            message("▶ Воспроизведение продолжено");
+            message(MainActivity.this.getString(R.string.s_vosproizvedenie_prodolzheno_2));
         }
     } catch (Exception e) {
         stopPreview();
-        message("Не удалось поставить звук на паузу");
+        message(MainActivity.this.getString(R.string.s_ne_udalos_postavit_zvuk_na_pauzu));
     }
 }
 
@@ -1820,7 +1818,7 @@ private void deleteLibrarySound(String category, int index) {
             .apply();
 
     stopPreview();
-    message("Запись удалена");
+    message(MainActivity.this.getString(R.string.s_zapis_udalena));
 
     showLibraryCategory(category);
 }
@@ -1831,13 +1829,13 @@ private void deleteLibrarySound(String category, int index) {
         layout.setPadding(dp(14), dp(10), dp(14), dp(4));
 
         TextView hint = new TextView(this);
-        hint.setText("Нажми на подарок — выберешь ему звук");
+        hint.setText(MainActivity.this.getString(R.string.s_nazhmi_na_podarok_vyberesh_emu_zvuk));
         hint.setTextColor(Color.rgb(170, 185, 220));
         hint.setTextSize(13);
         layout.addView(hint);
 
         EditText search = new EditText(this);
-        search.setHint("🔍 Найти подарок...");
+        search.setHint(MainActivity.this.getString(R.string.s_nayti_podarok));
         search.setSingleLine(true);
         layout.addView(search);
 
@@ -1851,9 +1849,9 @@ private void deleteLibrarySound(String category, int index) {
                 dp(430)));
 
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("🎁 Подарки и звуки")
+                .setTitle(MainActivity.this.getString(R.string.s_podarki_i_zvuki))
                 .setView(layout)
-                .setNegativeButton("Закрыть", null)
+                .setNegativeButton(MainActivity.this.getString(R.string.s_zakryt), null)
                 .create();
 
         renderGiftGrid(grid, "", dialog);
@@ -1936,7 +1934,7 @@ private void deleteLibrarySound(String category, int index) {
 
         if (shown == 0) {
             TextView empty = new TextView(this);
-            empty.setText("Ничего не найдено");
+            empty.setText(MainActivity.this.getString(R.string.s_nichego_ne_naydeno));
             empty.setTextColor(Color.WHITE);
             empty.setGravity(Gravity.CENTER);
             empty.setPadding(0, dp(28), 0, dp(28));
@@ -2054,12 +2052,12 @@ private void deleteLibrarySound(String category, int index) {
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle("Звук для «" + giftName + "»")
                 .setView(layout)
-                .setNeutralButton("📄 Свой файл", (d, w) -> {
+                .setNeutralButton(MainActivity.this.getString(R.string.s_svoy_fayl), (d, w) -> {
                     selectedGiftKey = giftKey;
                     selectedGiftName = giftName;
                     chooseSound();
                 })
-                .setNegativeButton("Закрыть", null)
+                .setNegativeButton(MainActivity.this.getString(R.string.s_zakryt), null)
                 .create();
 
         addSoundRow(list, "🔊 Стандартный звук", null,
@@ -2139,12 +2137,12 @@ private void deleteLibrarySound(String category, int index) {
 
         if (labels.isEmpty()) {
             new AlertDialog.Builder(this)
-                    .setTitle("📚 Мои звуки")
+                    .setTitle(MainActivity.this.getString(R.string.s_moi_zvuki))
                     .setMessage("Пока пусто.\nИмпортируй папку со звуками — "
                             + "файлы добавятся все сразу.")
-                    .setPositiveButton("📥 Импорт папки",
+                    .setPositiveButton(MainActivity.this.getString(R.string.s_import_papki),
                             (d, w) -> chooseSoundsFolder())
-                    .setNegativeButton("Закрыть", null)
+                    .setNegativeButton(MainActivity.this.getString(R.string.s_zakryt), null)
                     .show();
             return;
         }
@@ -2154,7 +2152,7 @@ private void deleteLibrarySound(String category, int index) {
         layout.setPadding(dp(12), dp(8), dp(12), dp(8));
 
         EditText search = new EditText(this);
-        search.setHint("Поиск: смех, утка, бас…");
+        search.setHint(MainActivity.this.getString(R.string.s_poisk_smeh_utka_bas));
         search.setSingleLine(true);
         layout.addView(search);
 
@@ -2177,7 +2175,7 @@ private void deleteLibrarySound(String category, int index) {
         final AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle("📚 Звук для «" + giftName + "»")
                 .setView(layout)
-                .setNegativeButton("Закрыть", null)
+                .setNegativeButton(MainActivity.this.getString(R.string.s_zakryt), null)
                 .create();
 
         search.addTextChangedListener(new TextWatcher() {
@@ -2340,7 +2338,7 @@ private void deleteLibrarySound(String category, int index) {
             player.prepareAsync();
 
         } catch (Exception e) {
-            message("Не удалось воспроизвести звук");
+            message(MainActivity.this.getString(R.string.s_ne_udalos_vosproizvesti_zvuk));
         }
     }
 
@@ -2412,11 +2410,11 @@ private void deleteLibrarySound(String category, int index) {
         scroll.addView(layout);
 
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("🔤 Шрифт в оверлее")
+                .setTitle(MainActivity.this.getString(R.string.s_shrift_v_overlee))
                 .setView(scroll)
-                .setPositiveButton("👁 Пример", (d, w) ->
+                .setPositiveButton(MainActivity.this.getString(R.string.s_primer), (d, w) ->
                         previewOverlayText())
-                .setNegativeButton("Закрыть", null)
+                .setNegativeButton(MainActivity.this.getString(R.string.s_zakryt), null)
                 .create();
 
         for (int i = 0; i < labels.length; i++) {
@@ -2473,7 +2471,7 @@ private void deleteLibrarySound(String category, int index) {
         }
 
         new AlertDialog.Builder(this)
-                .setTitle("Размер текста в оверлее")
+                .setTitle(MainActivity.this.getString(R.string.s_razmer_teksta_v_overlee))
                 .setSingleChoiceItems(names, checked, (d, which) -> {
                     prefs.edit()
                             .putInt("overlay_text_size", sizes[which])
@@ -2482,14 +2480,14 @@ private void deleteLibrarySound(String category, int index) {
                     d.dismiss();
                     message("Размер текста: " + sizes[which]);
                 })
-                .setNegativeButton("Отмена", null)
+                .setNegativeButton(MainActivity.this.getString(R.string.s_otmena), null)
                 .show();
     }
 
     private void previewOverlayText() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
                 && !Settings.canDrawOverlays(this)) {
-            message("Разреши показ поверх других приложений");
+            message(MainActivity.this.getString(R.string.s_razreshi_pokaz_poverh_drugih_prilozheniy));
             startActivity(new Intent(
                     Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                     Uri.parse("package:" + getPackageName())));
@@ -2504,7 +2502,7 @@ private void deleteLibrarySound(String category, int index) {
         try {
             startService(intent);
         } catch (Exception e) {
-            message("Сервис не запущен");
+            message(MainActivity.this.getString(R.string.s_servis_ne_zapuschen));
         }
     }
 
@@ -2518,7 +2516,7 @@ private void deleteLibrarySound(String category, int index) {
         try {
             startActivityForResult(intent, PICK_SOUND);
         } catch (Exception e) {
-            message("Не удалось открыть выбор звука");
+            message(MainActivity.this.getString(R.string.s_ne_udalos_otkryt_vybor_zvuka));
         }
     }
 
@@ -2543,13 +2541,13 @@ if (requestCode == PICK_MEDIA_FOLDER) {
                 Intent.FLAG_GRANT_READ_URI_PERMISSION
         );
     } catch (Exception e) {
-        message("Не удалось открыть папку");
+        message(MainActivity.this.getString(R.string.s_ne_udalos_otkryt_papku));
         return;
     }
 
     // Копирование папки — долгая операция, в UI-потоке она вешала
     // приложение на несколько секунд (ANR).
-    message("Импорт начат, это может занять время");
+    message(MainActivity.this.getString(R.string.s_import_nachat_eto_mozhet_zanyat_vremya));
     executor.execute(() -> {
         int imported = importMediaFolder(folderUri);
 
@@ -2575,11 +2573,11 @@ if (requestCode == PICK_GIFT_ICONS_FOLDER) {
                 Intent.FLAG_GRANT_READ_URI_PERMISSION
         );
     } catch (Exception e) {
-        message("Не удалось открыть папку");
+        message(MainActivity.this.getString(R.string.s_ne_udalos_otkryt_papku));
         return;
     }
 
-    message("Импорт иконок начат");
+    message(MainActivity.this.getString(R.string.s_import_ikonok_nachat));
 
     executor.execute(() -> {
         int added = importGiftIconsFolder(folderUri);
@@ -2613,11 +2611,11 @@ if (requestCode == PICK_SOUNDS_FOLDER) {
                 Intent.FLAG_GRANT_READ_URI_PERMISSION
         );
     } catch (Exception e) {
-        message("Не удалось открыть папку");
+        message(MainActivity.this.getString(R.string.s_ne_udalos_otkryt_papku));
         return;
     }
 
-    message("Импорт звуков начат");
+    message(MainActivity.this.getString(R.string.s_import_zvukov_nachat));
     executor.execute(() -> {
         autoAssignedCount = 0;
         int imported = importSoundsFolder(folderUri);
@@ -2698,7 +2696,7 @@ if (requestCode == PICK_MEDIA_FILES) {
         key = "animation_donation_uri";
     } else {
         if (selectedGiftKey == null) {
-            message("Сначала выбери подарок");
+            message(MainActivity.this.getString(R.string.s_snachala_vyberi_podarok));
             return;
         }
 
@@ -2709,7 +2707,7 @@ if (requestCode == PICK_MEDIA_FILES) {
             .putString(key, uri.toString())
             .apply();
 
-    message("Анимация сохранена");
+    message(MainActivity.this.getString(R.string.s_animaciya_sohranena));
 
     return;
 }
@@ -2799,7 +2797,7 @@ if (requestCode >= 504 && requestCode <= 507) {
             message("Добавлено: " + fileName);
 
         } catch (Exception e) {
-            message("Не удалось сохранить запись");
+            message(MainActivity.this.getString(R.string.s_ne_udalos_sohranit_zapis));
         }
 
         showLibraryCategory(category);
@@ -2823,7 +2821,7 @@ if (requestCode >= 504 && requestCode <= 507) {
                         .putString("follow_sound_uri", uri.toString())
                         .apply();
 
-                message("Звук подписки сохранён");
+                message(MainActivity.this.getString(R.string.s_zvuk_podpiski_sohranen));
             }
             return;
         }
@@ -2845,7 +2843,7 @@ if (requestCode == PICK_DONATION_SOUND) {
                 .putString("donationalerts_sound_uri", uri.toString())
                 .apply();
 
-        message("Звук доната DonationAlerts сохранён");
+        message(MainActivity.this.getString(R.string.s_zvuk_donata_donationalerts_sohranen));
     }
     return;
 }
@@ -2857,7 +2855,7 @@ if (requestCode == PICK_DONATION_SOUND) {
         }
 
         if (selectedGiftKey == null) {
-            message("Сначала выбери подарок");
+            message(MainActivity.this.getString(R.string.s_snachala_vyberi_podarok));
             return;
         }
 
@@ -2878,7 +2876,7 @@ if (requestCode == PICK_DONATION_SOUND) {
 
     private void previewSavedSound() {
         if (selectedGiftKey == null) {
-            message("Сначала выбери подарок");
+            message(MainActivity.this.getString(R.string.s_snachala_vyberi_podarok));
             return;
         }
 
@@ -2886,7 +2884,7 @@ if (requestCode == PICK_DONATION_SOUND) {
                 "gift_sound_" + selectedGiftKey, null);
 
         if (saved == null) {
-            message("Сначала выбери звуковой файл");
+            message(MainActivity.this.getString(R.string.s_snachala_vyberi_zvukovoy_fayl));
             return;
         }
 
@@ -2904,14 +2902,14 @@ if (requestCode == PICK_DONATION_SOUND) {
 
             previewPlayer.setOnErrorListener((player, what, extra) -> {
                 stopPreview();
-                message("Не удалось воспроизвести файл");
+                message(MainActivity.this.getString(R.string.s_ne_udalos_vosproizvesti_fayl));
                 return true;
             });
 
             previewPlayer.prepareAsync();
         } catch (Exception e) {
             stopPreview();
-            message("Ошибка воспроизведения");
+            message(MainActivity.this.getString(R.string.s_oshibka_vosproizvedeniya));
         }
     }
 
@@ -3061,21 +3059,21 @@ if (requestCode == PICK_DONATION_SOUND) {
         });
 
         android.widget.CheckBox chatBox = new android.widget.CheckBox(this);
-        chatBox.setText("💬 Озвучивать чат");
+        chatBox.setText(MainActivity.this.getString(R.string.s_ozvuchivat_chat));
         chatBox.setTextColor(Color.WHITE);
         chatBox.setTextSize(16);
         chatBox.setChecked(prefs.getBoolean("chat_speech_enabled", true));
         layout.addView(chatBox);
 
         android.widget.CheckBox nickBox = new android.widget.CheckBox(this);
-        nickBox.setText("🏷 Называть ник автора");
+        nickBox.setText(MainActivity.this.getString(R.string.s_nazyvat_nik_avtora));
         nickBox.setTextColor(Color.WHITE);
         nickBox.setTextSize(16);
         nickBox.setChecked(prefs.getBoolean("chat_speech_nick", true));
         layout.addView(nickBox);
 
         Button personas = new Button(this);
-        personas.setText("🎭 Образы голоса");
+        personas.setText(MainActivity.this.getString(R.string.s_obrazy_golosa));
         personas.setOnClickListener(v -> {
             final String[] names = {
                     "🎤 Блогер — энергичный",
@@ -3108,7 +3106,7 @@ if (requestCode == PICK_DONATION_SOUND) {
             };
 
             new AlertDialog.Builder(this)
-                    .setTitle("🎭 Образы голоса")
+                    .setTitle(MainActivity.this.getString(R.string.s_obrazy_golosa))
                     .setItems(names, (d, which) -> {
                         pitch[0] = personaPitch[which];
                         rate[0] = personaRate[which];
@@ -3124,20 +3122,20 @@ if (requestCode == PICK_DONATION_SOUND) {
 
                         message("Образ: " + names[which]);
                     })
-                    .setNegativeButton("Закрыть", null)
+                    .setNegativeButton(MainActivity.this.getString(R.string.s_zakryt), null)
                     .show();
         });
         layout.addView(personas);
 
         Button test = new Button(this);
-        test.setText("▶ Проверить голос");
+        test.setText(MainActivity.this.getString(R.string.s_proverit_golos));
         test.setOnClickListener(v -> previewVoiceWith(
                 pitch[0], rate[0], volume[0],
                 prefs.getString("selected_voice_name", "")));
         layout.addView(test);
 
         Button natural = new Button(this);
-        natural.setText("↩️ Естественный голос");
+        natural.setText(MainActivity.this.getString(R.string.s_estestvennyy_golos));
         natural.setOnClickListener(v -> {
             pitch[0] = 1.0f;
             rate[0] = 0.95f;
@@ -3156,14 +3154,14 @@ if (requestCode == PICK_DONATION_SOUND) {
             previewVoiceWith(1.0f, 0.95f, 100,
                     prefs.getString("selected_voice_name", ""));
 
-            message("Вернул естественные тон и скорость");
+            message(MainActivity.this.getString(R.string.s_vernul_estestvennye_ton_i_skorost));
         });
         layout.addView(natural);
 
         new AlertDialog.Builder(this)
-                .setTitle("🎙️ Озвучка чата")
+                .setTitle(MainActivity.this.getString(R.string.s_ozvuchka_chata))
                 .setView(scroll)
-                .setPositiveButton("Сохранить", (dialog, which) -> {
+                .setPositiveButton(MainActivity.this.getString(R.string.s_sohranit), (dialog, which) -> {
                     prefs.edit()
                             .putFloat("voice_pitch", pitch[0])
                             .putFloat("voice_rate", rate[0])
@@ -3183,9 +3181,9 @@ if (requestCode == PICK_DONATION_SOUND) {
                     } catch (Exception ignored) {
                     }
 
-                    message("Настройки озвучки сохранены");
+                    message(MainActivity.this.getString(R.string.s_nastroyki_ozvuchki_sohraneny));
                 })
-                .setNegativeButton("Отмена", null)
+                .setNegativeButton(MainActivity.this.getString(R.string.s_otmena), null)
                 .show();
     }
 
@@ -3205,7 +3203,7 @@ if (requestCode == PICK_DONATION_SOUND) {
             float pitch, float rate, int volume, String voiceName) {
 
         if (voicePreview == null || !voicePreviewReady) {
-            message("Озвучка ещё не готова. Попробуй позже.");
+            message(MainActivity.this.getString(R.string.s_ozvuchka_esche_ne_gotova_poprobuy_pozzhe));
             return;
         }
 
@@ -3303,7 +3301,7 @@ if (requestCode == PICK_DONATION_SOUND) {
                             applyPreviewVoice(names.get(which));
                             testVoice(names.get(which));
                         })
-                .setPositiveButton("Сохранить", (dialog, which) -> {
+                .setPositiveButton(MainActivity.this.getString(R.string.s_sohranit), (dialog, which) -> {
                     String name = names.get(choice[0]);
 
                     prefs.edit()
@@ -3312,9 +3310,9 @@ if (requestCode == PICK_DONATION_SOUND) {
 
                     applyPreviewVoice(name);
                     showVoiceSettings();
-                    message("Голос сохранён");
+                    message(MainActivity.this.getString(R.string.s_golos_sohranen));
                 })
-                .setNegativeButton("Отмена", null)
+                .setNegativeButton(MainActivity.this.getString(R.string.s_otmena), null)
                 .show();
     }
 
@@ -3338,7 +3336,7 @@ if (requestCode == PICK_DONATION_SOUND) {
 
     private void testVoice(String voiceName) {
         if (voicePreview == null || !voicePreviewReady) {
-            message("Озвучка ещё не готова");
+            message(MainActivity.this.getString(R.string.s_ozvuchka_esche_ne_gotova));
             return;
         }
 
@@ -3405,7 +3403,7 @@ if (requestCode == PICK_DONATION_SOUND) {
         layout.addView(status);
 
         EditText input = new EditText(this);
-        input.setHint("Вставь access_token");
+        input.setHint(MainActivity.this.getString(R.string.s_vstav_access_token));
         input.setText(saved);
         input.setTextSize(13);
         input.setSingleLine(false);
@@ -3414,7 +3412,7 @@ if (requestCode == PICK_DONATION_SOUND) {
         layout.addView(input);
 
         Button authorize = new Button(this);
-        authorize.setText("🌐 Открыть ссылку разрешения");
+        authorize.setText(MainActivity.this.getString(R.string.s_otkryt_ssylku_razresheniya));
         authorize.setOnClickListener(v -> {
             String clientId = prefs.getString(
                     "da_client_id", "22326").trim();
@@ -3428,7 +3426,7 @@ if (requestCode == PICK_DONATION_SOUND) {
         layout.addView(authorize);
 
         Button paste = new Button(this);
-        paste.setText("📋 Вставить из буфера");
+        paste.setText(MainActivity.this.getString(R.string.s_vstavit_iz_bufera));
         paste.setOnClickListener(v -> {
             try {
                 android.content.ClipboardManager clipboard =
@@ -3438,7 +3436,7 @@ if (requestCode == PICK_DONATION_SOUND) {
                 CharSequence clip = clipboard.getText();
 
                 if (clip == null) {
-                    message("Буфер пуст");
+                    message(MainActivity.this.getString(R.string.s_bufer_pust));
                     return;
                 }
 
@@ -3448,7 +3446,7 @@ if (requestCode == PICK_DONATION_SOUND) {
 
                 message("Вставлено символов: " + token.length());
             } catch (Exception error) {
-                message("Не удалось прочитать буфер");
+                message(MainActivity.this.getString(R.string.s_ne_udalos_prochitat_bufer));
             }
         });
         layout.addView(paste);
@@ -3464,31 +3462,31 @@ if (requestCode == PICK_DONATION_SOUND) {
         layout.addView(hint);
 
         new AlertDialog.Builder(this)
-                .setTitle("🔑 Токен DonationAlerts")
+                .setTitle(MainActivity.this.getString(R.string.s_token_donationalerts))
                 .setView(layout)
-                .setPositiveButton("Сохранить", (dialog, which) -> {
+                .setPositiveButton(MainActivity.this.getString(R.string.s_sohranit), (dialog, which) -> {
                     String token = sanitizeDaToken(
                             input.getText().toString());
 
                     prefs.edit().putString("da_token", token).apply();
 
                     if (token.isEmpty()) {
-                        message("Токен удалён");
+                        message(MainActivity.this.getString(R.string.s_token_udalen));
                     } else {
-                        message("Токен сохранён, проверяю…");
+                        message(MainActivity.this.getString(R.string.s_token_sohranen_proveryayu));
                         checkDaToken(token);
                     }
                 })
-                .setNeutralButton("Проверить", (dialog, which) ->
+                .setNeutralButton(MainActivity.this.getString(R.string.s_proverit), (dialog, which) ->
                         checkDaToken(sanitizeDaToken(
                                 input.getText().toString())))
-                .setNegativeButton("Закрыть", null)
+                .setNegativeButton(MainActivity.this.getString(R.string.s_zakryt), null)
                 .show();
     }
 
     private void checkDaToken(String token) {
         if (token == null || token.trim().isEmpty()) {
-            message("Сначала вставь токен");
+            message(MainActivity.this.getString(R.string.s_snachala_vstav_token));
             return;
         }
 
@@ -3619,11 +3617,11 @@ if (requestCode == PICK_DONATION_SOUND) {
                 + "После этого донаты приходят прямо на телефон.";
 
         new AlertDialog.Builder(this)
-                .setTitle("📋 Как получить токен")
+                .setTitle(MainActivity.this.getString(R.string.s_kak_poluchit_token))
                 .setMessage(text)
-                .setPositiveButton("Открыть сайт", (dialog, which) ->
+                .setPositiveButton(MainActivity.this.getString(R.string.s_otkryt_sayt), (dialog, which) ->
                         openLink("https://www.donationalerts.com/application/clients"))
-                .setNegativeButton("Закрыть", null)
+                .setNegativeButton(MainActivity.this.getString(R.string.s_zakryt), null)
                 .show();
     }
 
@@ -3637,7 +3635,7 @@ if (requestCode == PICK_DONATION_SOUND) {
         try {
             startActivityForResult(intent, PICK_FOLLOW_SOUND);
         } catch (Exception e) {
-            message("Не удалось открыть выбор звука");
+            message(MainActivity.this.getString(R.string.s_ne_udalos_otkryt_vybor_zvuka));
         }
     }
     private void chooseDonationAlertSound() {
@@ -3650,7 +3648,7 @@ if (requestCode == PICK_DONATION_SOUND) {
     try {
         startActivityForResult(intent, PICK_DONATION_SOUND);
     } catch (Exception e) {
-        message("Не удалось открыть выбор звука доната");
+        message(MainActivity.this.getString(R.string.s_ne_udalos_otkryt_vybor_zvuka_donata));
     }
 }
 private void chooseMediaFolder() {
@@ -3661,7 +3659,7 @@ private void chooseMediaFolder() {
     try {
         startActivityForResult(intent, PICK_MEDIA_FOLDER);
     } catch (Exception e) {
-        message("Не удалось открыть выбор папки");
+        message(MainActivity.this.getString(R.string.s_ne_udalos_otkryt_vybor_papki));
     }
 }
 
@@ -3871,7 +3869,7 @@ private void chooseGiftIconsFolder() {
     try {
         startActivityForResult(intent, PICK_GIFT_ICONS_FOLDER);
     } catch (Exception error) {
-        message("Не удалось открыть выбор папки");
+        message(MainActivity.this.getString(R.string.s_ne_udalos_otkryt_vybor_papki));
     }
 }
 
@@ -4484,7 +4482,7 @@ private void distributeSoundsByNames() {
     }
 
     if (labels.isEmpty()) {
-        message("Сначала импортируй звуки");
+        message(MainActivity.this.getString(R.string.s_snachala_importiruy_zvuki));
         return;
     }
 
@@ -4531,7 +4529,7 @@ private void chooseSoundsFolder() {
     try {
         startActivityForResult(intent, PICK_SOUNDS_FOLDER);
     } catch (Exception e) {
-        message("Не удалось открыть выбор папки");
+        message(MainActivity.this.getString(R.string.s_ne_udalos_otkryt_vybor_papki));
     }
 }
 
@@ -4661,7 +4659,7 @@ private void chooseMediaFiles() {
     try {
         startActivityForResult(intent, PICK_MEDIA_FILES);
     } catch (Exception e) {
-        message("Не удалось открыть выбор файлов");
+        message(MainActivity.this.getString(R.string.s_ne_udalos_otkryt_vybor_faylov));
     }
 }
     
@@ -4746,7 +4744,7 @@ private boolean copyMediaToApp(Uri uri, String name, String mime) {
             new java.io.File(getFilesDir(), "media_library");
 
     if (!directory.exists() && !directory.mkdirs()) {
-        message("Не удалось создать хранилище");
+        message(MainActivity.this.getString(R.string.s_ne_udalos_sozdat_hranilische));
         return false;
     }
 
@@ -4813,19 +4811,19 @@ private void showMediaLibrary() {
         mediaLibrary = new JSONArray(
                 prefs.getString("media_library_items", "[]"));
     } catch (Exception e) {
-        message("Не удалось прочитать медиатеку.");
+        message(MainActivity.this.getString(R.string.s_ne_udalos_prochitat_mediateku));
         return;
     }
 
     if (mediaLibrary.length() == 0) {
         new AlertDialog.Builder(this)
-                .setTitle("📚 Моя медиатека")
+                .setTitle(MainActivity.this.getString(R.string.s_moya_mediateka))
                 .setMessage("Пока нет файлов.\nЗагрузи папку или отдельные файлы.")
-                .setPositiveButton("Загрузить папку",
+                .setPositiveButton(MainActivity.this.getString(R.string.s_zagruzit_papku),
                         (dialog, which) -> chooseMediaFolder())
-                .setNeutralButton("Загрузить файлы",
+                .setNeutralButton(MainActivity.this.getString(R.string.s_zagruzit_fayly),
                         (dialog, which) -> chooseMediaFiles())
-                .setNegativeButton("Закрыть", null)
+                .setNegativeButton(MainActivity.this.getString(R.string.s_zakryt), null)
                 .show();
         return;
     }
@@ -4849,7 +4847,7 @@ private void showMediaLibrary() {
     }
 
     new AlertDialog.Builder(this)
-            .setTitle("📚 Моя медиатека")
+            .setTitle(MainActivity.this.getString(R.string.s_moya_mediateka))
             .setItems(names, (dialog, which) -> {
                 final JSONObject item =
                         mediaLibrary.optJSONObject(which);
@@ -4864,14 +4862,14 @@ private void showMediaLibrary() {
         .setMessage("Тип: " + mime)
         .setView(createMediaPreview(mime, storedName))
                         
-                        .setPositiveButton("Назначить", (d, w) -> {
+                        .setPositiveButton(MainActivity.this.getString(R.string.s_naznachit), (d, w) -> {
                             
 if (mime == null || mime.isEmpty()) {
-    message("Не удалось определить тип файла.");
+    message(MainActivity.this.getString(R.string.s_ne_udalos_opredelit_tip_fayla));
     return;
 }
                             if (storedName.isEmpty()) {
-                                message("Не найден файл в медиатеке.");
+                                message(MainActivity.this.getString(R.string.s_ne_nayden_fayl_v_mediateke));
                                 return;
                             }
 
@@ -4880,7 +4878,7 @@ if (mime == null || mime.isEmpty()) {
                             File mediaFile = new File(mediaDir, storedName);
 
                             if (!mediaFile.exists()) {
-                                message("Файл не найден.");
+                                message(MainActivity.this.getString(R.string.s_fayl_ne_nayden_2));
                                 return;
                             }
 
@@ -4924,7 +4922,7 @@ if (mime == null || mime.isEmpty()) {
         }
 
         new AlertDialog.Builder(this)
-                .setTitle("Выбери подарок")
+                .setTitle(MainActivity.this.getString(R.string.s_vyberi_podarok_2))
                 .setItems(giftNames, (gd, giftIndex) -> {
                     String giftKey = gifts.get(giftIndex)[0];
 
@@ -4939,7 +4937,7 @@ if (mime == null || mime.isEmpty()) {
                             ? "Звук подарка назначен!"
                             : "Анимация подарка назначена!");
                 })
-                .setNegativeButton("Отмена", null)
+                .setNegativeButton(MainActivity.this.getString(R.string.s_otmena), null)
                 .show();
 
     } else {
@@ -4956,10 +4954,10 @@ if (mime == null || mime.isEmpty()) {
                 : "Анимация доната назначена!");
     }
 })
-.setNegativeButton("Отмена", null)
+.setNegativeButton(MainActivity.this.getString(R.string.s_otmena), null)
 .show();
 })
-                        .setNeutralButton("Загрузить ещё", (d, w) -> {
+                        .setNeutralButton(MainActivity.this.getString(R.string.s_zagruzit_esche), (d, w) -> {
                             new AlertDialog.Builder(this)
                                     .setItems(
                                             new String[]{
@@ -4975,15 +4973,15 @@ if (mime == null || mime.isEmpty()) {
                                             })
                                     .show();
                         })
-                        .setNegativeButton("Назад",
+                        .setNegativeButton(MainActivity.this.getString(R.string.s_nazad),
                                 (d, w) -> showMediaLibrary())
                         .show();
             })
-            .setPositiveButton("📁 Папка",
+            .setPositiveButton(MainActivity.this.getString(R.string.s_papka),
                     (dialog, which) -> chooseMediaFolder())
-            .setNeutralButton("📄 Файлы",
+            .setNeutralButton(MainActivity.this.getString(R.string.s_fayly),
                     (dialog, which) -> chooseMediaFiles())
-            .setNegativeButton("Закрыть", null)
+            .setNegativeButton(MainActivity.this.getString(R.string.s_zakryt), null)
             .show();
 }
 
@@ -5004,7 +5002,7 @@ private android.view.View createMediaPreview(
     if (!mediaFile.exists()) {
         android.widget.TextView error =
                 new android.widget.TextView(this);
-        error.setText("Файл не найден");
+        error.setText(MainActivity.this.getString(R.string.s_fayl_ne_nayden));
         error.setGravity(android.view.Gravity.CENTER);
         container.addView(error);
         return container;
@@ -5067,11 +5065,11 @@ private android.view.View createMediaPreview(
                 && !Settings.canDrawOverlays(this)) {
 
             new AlertDialog.Builder(this)
-                    .setTitle("Разрешение")
+                    .setTitle(MainActivity.this.getString(R.string.s_razreshenie))
                     .setMessage("Разреши приложению показывать анимацию "
                             + "поверх других приложений.")
-                    .setNegativeButton("Отмена", null)
-                    .setPositiveButton("Настройки", (d, w) -> {
+                    .setNegativeButton(MainActivity.this.getString(R.string.s_otmena), null)
+                    .setPositiveButton(MainActivity.this.getString(R.string.s_nastroyki), (d, w) -> {
                         Intent intent = new Intent(
                                 Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                                 Uri.parse("package:" + getPackageName()));
@@ -5091,16 +5089,16 @@ if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
 } else {
     startService(intent);
 }
-            message("Команда анимации отправлена");
+            message(MainActivity.this.getString(R.string.s_komanda_animacii_otpravlena));
         } catch (Exception e) {
-            message("Не удалось запустить анимацию");
+            message(MainActivity.this.getString(R.string.s_ne_udalos_zapustit_animaciyu));
         }
     }
 
 private void testDonation() {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
             && !Settings.canDrawOverlays(this)) {
-        message("Разреши показ поверх других приложений");
+        message(MainActivity.this.getString(R.string.s_razreshi_pokaz_poverh_drugih_prilozheniy));
         Intent settingsIntent = new Intent(
                 Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                 Uri.parse("package:" + getPackageName())
@@ -5118,9 +5116,9 @@ private void testDonation() {
         } else {
             startService(intent);
         }
-        message("Запущен тест доната 50 ₽");
+        message(MainActivity.this.getString(R.string.s_zapuschen_test_donata_50));
     } catch (Exception e) {
-        message("Не удалось запустить тест доната");
+        message(MainActivity.this.getString(R.string.s_ne_udalos_zapustit_test_donata));
     }
 }
 
@@ -5130,11 +5128,11 @@ private void testDonation() {
         form.setPadding(16, 8, 16, 8);
 
         EditText nameInput = new EditText(this);
-        nameInput.setHint("Твой ник в TikTok или Telegram");
+        nameInput.setHint(MainActivity.this.getString(R.string.s_tvoy_nik_v_tiktok_ili_telegram));
         form.addView(nameInput);
 
         EditText detailsInput = new EditText(this);
-        detailsInput.setHint("Описание заказа");
+        detailsInput.setHint(MainActivity.this.getString(R.string.s_opisanie_zakaza));
         detailsInput.setMinLines(2);
         form.addView(detailsInput);
 
@@ -5142,7 +5140,7 @@ private void testDonation() {
 
         if (amount == 0) {
             priceInput = new EditText(this);
-            priceInput.setHint("Цена в рублях");
+            priceInput.setHint(MainActivity.this.getString(R.string.s_cena_v_rublyah));
             priceInput.setInputType(2);
             form.addView(priceInput);
         }
@@ -5155,14 +5153,14 @@ private void testDonation() {
                         ? "Опиши услугу"
                         : "Стоимость: " + amount + " ₽")
                 .setView(form)
-                .setNegativeButton("Отмена", null)
-                .setPositiveButton("Отправить", (d, w) -> {
+                .setNegativeButton(MainActivity.this.getString(R.string.s_otmena), null)
+                .setPositiveButton(MainActivity.this.getString(R.string.s_otpravit), (d, w) -> {
                     String name = nameInput.getText().toString().trim();
                     String details = detailsInput.getText()
                             .toString().trim();
 
                     if (name.isEmpty() || details.isEmpty()) {
-                        message("Укажи ник и описание заказа");
+                        message(MainActivity.this.getString(R.string.s_ukazhi_nik_i_opisanie_zakaza));
                         return;
                     }
 
@@ -5174,12 +5172,12 @@ private void testDonation() {
                                     finalPriceInput.getText()
                                             .toString().trim());
                         } catch (Exception e) {
-                            message("Укажи корректную цену");
+                            message(MainActivity.this.getString(R.string.s_ukazhi_korrektnuyu_cenu));
                             return;
                         }
 
                         if (price < 0) {
-                            message("Цена не может быть отрицательной");
+                            message(MainActivity.this.getString(R.string.s_cena_ne_mozhet_byt_otricatelnoy));
                             return;
                         }
                     }
@@ -5206,7 +5204,7 @@ private void testDonation() {
             String service, int price, String client, String details) {
 
         if (APP_KEY.isEmpty()) {
-            message("Отправка заказа на сервер не настроена в этой сборке");
+            message(MainActivity.this.getString(R.string.s_otpravka_zakaza_na_server_ne_nastroena_v_etoy_sbor));
             return;
         }
 
@@ -5243,7 +5241,7 @@ private void testDonation() {
 
                 runOnUiThread(() -> {
                     if (code >= 200 && code < 300) {
-                        message("Заказ отправлен на сервер");
+                        message(MainActivity.this.getString(R.string.s_zakaz_otpravlen_na_server));
                     } else {
                         message("Сервер вернул ошибку: " + code);
                     }
@@ -5251,7 +5249,7 @@ private void testDonation() {
 
             } catch (Exception e) {
                 runOnUiThread(() ->
-                        message("Не удалось отправить заказ на сервер"));
+                        message(MainActivity.this.getString(R.string.s_ne_udalos_otpravit_zakaz_na_server)));
             } finally {
                 if (connection != null) {
                     connection.disconnect();
@@ -5268,7 +5266,7 @@ private void testDonation() {
             startActivity(Intent.createChooser(
                     intent, "Отправить заказ"));
         } catch (Exception e) {
-            message("Не удалось открыть меню отправки");
+            message(MainActivity.this.getString(R.string.s_ne_udalos_otkryt_menyu_otpravki));
         }
     }
 
@@ -5277,7 +5275,7 @@ private void testDonation() {
             startActivity(new Intent(
                     Intent.ACTION_VIEW, Uri.parse(link)));
         } catch (Exception e) {
-            message("Не удалось открыть ссылку");
+            message(MainActivity.this.getString(R.string.s_ne_udalos_otkryt_ssylku));
         }
     }
 
@@ -5305,7 +5303,7 @@ private void testDonation() {
             loadStats();
             updateStats();
         } catch (Exception e) {
-            message("Не удалось сохранить заказ");
+            message(MainActivity.this.getString(R.string.s_ne_udalos_sohranit_zakaz));
         }
     }
 
@@ -5343,29 +5341,29 @@ private void testDonation() {
         }
 
         new AlertDialog.Builder(this)
-                .setTitle("📋 История заказов")
+                .setTitle(MainActivity.this.getString(R.string.s_istoriya_zakazov))
                 .setMessage(text.toString())
-                .setPositiveButton("Закрыть", null)
+                .setPositiveButton(MainActivity.this.getString(R.string.s_zakryt), null)
                 .show();
     }
 
     private void addDonation(String type) {
         EditText input = new EditText(this);
-        input.setHint("Сумма в рублях");
+        input.setHint(MainActivity.this.getString(R.string.s_summa_v_rublyah));
         input.setInputType(2);
 
         new AlertDialog.Builder(this)
                 .setTitle(type.equals("gift")
                         ? "Записать подарок" : "Записать донат")
                 .setView(input)
-                .setNegativeButton("Отмена", null)
-                .setPositiveButton("Сохранить", (d, w) -> {
+                .setNegativeButton(MainActivity.this.getString(R.string.s_otmena), null)
+                .setPositiveButton(MainActivity.this.getString(R.string.s_sohranit), (d, w) -> {
                     try {
                         int amount = Integer.parseInt(
                                 input.getText().toString().trim());
 
                         if (amount < 0) {
-                            message("Сумма не может быть отрицательной");
+                            message(MainActivity.this.getString(R.string.s_summa_ne_mozhet_byt_otricatelnoy));
                             return;
                         }
 
@@ -5386,9 +5384,9 @@ private void testDonation() {
                         }
 
                         updateStats();
-                        message("Статистика обновлена");
+                        message(MainActivity.this.getString(R.string.s_statistika_obnovlena));
                     } catch (Exception e) {
-                        message("Введи сумму цифрами");
+                        message(MainActivity.this.getString(R.string.s_vvedi_summu_ciframi));
                     }
                 })
                 .show();
@@ -5420,7 +5418,7 @@ private void testDonation() {
         loadStats();
 
         new AlertDialog.Builder(this)
-                .setTitle("📊 Статистика")
+                .setTitle(MainActivity.this.getString(R.string.s_statistika))
                 .setMessage(
                         "🎁 Подарки: " + gifts + "\n"
                                 + "💰 Донаты: " + donations + "\n"
@@ -5429,16 +5427,16 @@ private void testDonation() {
                                 + "🎁 Сумма подарков: "
                                 + giftIncome + " ₽\n"
                                 + "📋 Заказы: " + orders)
-                .setPositiveButton("Закрыть", null)
+                .setPositiveButton(MainActivity.this.getString(R.string.s_zakryt), null)
                 .show();
     }
 
     private void resetStats() {
         new AlertDialog.Builder(this)
-                .setTitle("Сброс статистики")
-                .setMessage("Обнулить подарки, донаты и заказы?")
-                .setNegativeButton("Отмена", null)
-                .setPositiveButton("Сбросить", (d, w) -> {
+                .setTitle(MainActivity.this.getString(R.string.s_sbros_statistiki))
+                .setMessage(MainActivity.this.getString(R.string.s_obnulit_podarki_donaty_i_zakazy))
+                .setNegativeButton(MainActivity.this.getString(R.string.s_otmena), null)
+                .setPositiveButton(MainActivity.this.getString(R.string.s_sbrosit), (d, w) -> {
                     gifts = 0;
                     donations = 0;
                     donationIncome = 0;
@@ -5455,7 +5453,7 @@ private void testDonation() {
                             .apply();
 
                     updateStats();
-                    message("Статистика сброшена");
+                    message(MainActivity.this.getString(R.string.s_statistika_sbroshena));
                 })
                 .show();
     }
@@ -5550,7 +5548,7 @@ private void showTikTokAccounts() {
     }
 
     new AlertDialog.Builder(this)
-            .setTitle("🎵 Выбери активный аккаунт")
+            .setTitle(MainActivity.this.getString(R.string.s_vyberi_aktivnyy_akkaunt))
             .setItems(labels, (dialog, which) -> {
 
                 if (accounts[which].isEmpty()) {
@@ -5587,11 +5585,11 @@ private void showTikTokAccounts() {
                                     }
                                 }
                         )
-                        .setNegativeButton("Закрыть", null)
+                        .setNegativeButton(MainActivity.this.getString(R.string.s_zakryt), null)
                         .show();
             })
-            .setNegativeButton("Закрыть", null)
-            .setNeutralButton("🩺 Диагностика", (d, w) ->
+            .setNegativeButton(MainActivity.this.getString(R.string.s_zakryt), null)
+            .setNeutralButton(MainActivity.this.getString(R.string.s_diagnostika), (d, w) ->
                     showConnectionDiagnostics())
             .show();
 }
@@ -5608,13 +5606,13 @@ private void showTikTokAccounts() {
         layout.setPadding(dp(18), dp(10), dp(18), dp(10));
 
         EditText titleInput = new EditText(this);
-        titleInput.setHint("Название сбора");
+        titleInput.setHint(MainActivity.this.getString(R.string.s_nazvanie_sbora));
         titleInput.setText(prefs.getString(
                 "widget_goal_title", "Сбор"));
         layout.addView(titleInput);
 
         EditText targetInput = new EditText(this);
-        targetInput.setHint("Цель, например 5000");
+        targetInput.setHint(MainActivity.this.getString(R.string.s_cel_naprimer_5000));
         targetInput.setInputType(
                 android.text.InputType.TYPE_CLASS_NUMBER);
         targetInput.setText(String.valueOf(
@@ -5622,7 +5620,7 @@ private void showTikTokAccounts() {
         layout.addView(targetInput);
 
         EditText baseInput = new EditText(this);
-        baseInput.setHint("Уже собрано до приложения");
+        baseInput.setHint(MainActivity.this.getString(R.string.s_uzhe_sobrano_do_prilozheniya));
         baseInput.setInputType(
                 android.text.InputType.TYPE_CLASS_NUMBER);
         baseInput.setText(String.valueOf(
@@ -5630,7 +5628,7 @@ private void showTikTokAccounts() {
         layout.addView(baseInput);
 
         TextView metricLabel = new TextView(this);
-        metricLabel.setText("Что считаем:");
+        metricLabel.setText(MainActivity.this.getString(R.string.s_chto_schitaem));
         metricLabel.setPadding(0, dp(10), 0, dp(4));
         layout.addView(metricLabel);
 
@@ -5670,9 +5668,9 @@ private void showTikTokAccounts() {
         layout.addView(hint);
 
         new AlertDialog.Builder(this)
-                .setTitle("🎯 Цель сбора")
+                .setTitle(MainActivity.this.getString(R.string.s_cel_sbora))
                 .setView(layout)
-                .setPositiveButton("Сохранить", (dialog, which) -> {
+                .setPositiveButton(MainActivity.this.getString(R.string.s_sohranit), (dialog, which) -> {
                     String title = titleInput.getText()
                             .toString().trim();
 
@@ -5698,11 +5696,11 @@ private void showTikTokAccounts() {
 
                     OverlayService.refreshWidgetsFromPrefs();
 
-                    message("Цель сохранена");
+                    message(MainActivity.this.getString(R.string.s_cel_sohranena));
                 })
-                .setNeutralButton("Сбросить прогресс", (dialog, which) ->
+                .setNeutralButton(MainActivity.this.getString(R.string.s_sbrosit_progress), (dialog, which) ->
                         resetWidgetStats())
-                .setNegativeButton("Отмена", null)
+                .setNegativeButton(MainActivity.this.getString(R.string.s_otmena), null)
                 .show();
     }
 
@@ -5717,7 +5715,7 @@ private void showTikTokAccounts() {
         int limit = prefs.getInt("widget_likes_top", 5);
 
         new AlertDialog.Builder(this)
-                .setTitle("❤️ Топ по лайкам")
+                .setTitle(MainActivity.this.getString(R.string.s_top_po_laykam))
                 .setMessage("Всего лайков: " + total
                         + "\n\nТоп зрителей:\n" + top)
                 .setPositiveButton(on ? "Скрыть" : "Показать",
@@ -5750,7 +5748,7 @@ private void showTikTokAccounts() {
 
                             message("Показываю " + next + " мест");
                         })
-                .setNegativeButton("Сбросить", (dialog, which) -> {
+                .setNegativeButton(MainActivity.this.getString(R.string.s_sbrosit), (dialog, which) -> {
                     prefs.edit()
                             .putInt("stats_like_total", 0)
                             .putString("stats_like_users", "{}")
@@ -5758,7 +5756,7 @@ private void showTikTokAccounts() {
 
                     OverlayService.refreshWidgetsFromPrefs();
 
-                    message("Счётчики лайков сброшены");
+                    message(MainActivity.this.getString(R.string.s_schetchiki_laykov_sbrosheny));
                 })
                 .show();
     }
@@ -5775,7 +5773,7 @@ private void showTikTokAccounts() {
         boolean on = prefs.getBoolean("widget_top_on", true);
 
         new AlertDialog.Builder(this)
-                .setTitle("🏆 Топ по подаркам")
+                .setTitle(MainActivity.this.getString(R.string.s_top_po_podarkam))
                 .setMessage("Подарено монет: " + coins
                         + "\nПодарков: " + count
                         + "\n\nКто сколько:\n" + top)
@@ -5809,7 +5807,7 @@ private void showTikTokAccounts() {
 
                             message("Показываю " + next + " мест");
                         })
-                .setNegativeButton("Сбросить", (dialog, which) -> {
+                .setNegativeButton(MainActivity.this.getString(R.string.s_sbrosit), (dialog, which) -> {
                     prefs.edit()
                             .putInt("stats_gift_coins", 0)
                             .putInt("stats_gift_count", 0)
@@ -5818,7 +5816,7 @@ private void showTikTokAccounts() {
 
                     OverlayService.refreshWidgetsFromPrefs();
 
-                    message("Топ подарков сброшен");
+                    message(MainActivity.this.getString(R.string.s_top_podarkov_sbroshen));
                 })
                 .show();
     }
@@ -5828,10 +5826,10 @@ private void showTikTokAccounts() {
     private void toggleGame() {
         if (!OverlayService.isRunning()) {
             new AlertDialog.Builder(this)
-                    .setTitle("🎮 Игра")
+                    .setTitle(MainActivity.this.getString(R.string.s_igra))
                     .setMessage("Сначала включите оверлей и подключитесь к эфиру."
                             + "\nИгра работает вместе с оверлеем.")
-                    .setPositiveButton("Понятно", null)
+                    .setPositiveButton(MainActivity.this.getString(R.string.s_ponyatno), null)
                     .show();
 
             return;
@@ -5871,12 +5869,12 @@ private void showTikTokAccounts() {
                 OverlayService.DEFAULT_GAME_WORDS));
 
         new AlertDialog.Builder(this)
-                .setTitle("📝 Слова игры")
+                .setTitle(MainActivity.this.getString(R.string.s_slova_igry))
                 .setMessage("Каждое слово с новой строки."
                         + "\nПодарки берут слова отсюда и летят в персонажа."
                         + "\nСлова с матом озвучиваются «пип».")
                 .setView(input)
-                .setPositiveButton("Сохранить", (dialog, which) -> {
+                .setPositiveButton(MainActivity.this.getString(R.string.s_sohranit), (dialog, which) -> {
                     String text = input.getText().toString();
 
                     if (text.trim().isEmpty()) {
@@ -5887,41 +5885,41 @@ private void showTikTokAccounts() {
                             .putString("game_words", text)
                             .apply();
 
-                    message("Слова игры сохранены");
+                    message(MainActivity.this.getString(R.string.s_slova_igry_sohraneny));
                 })
-                .setNegativeButton("Сбросить", (dialog, which) -> {
+                .setNegativeButton(MainActivity.this.getString(R.string.s_sbrosit), (dialog, which) -> {
                     prefs.edit()
                             .putString("game_words",
                                     OverlayService.DEFAULT_GAME_WORDS)
                             .apply();
 
-                    message("Слова вернулись к списку с картинки");
+                    message(MainActivity.this.getString(R.string.s_slova_vernulis_k_spisku_s_kartinki));
                 })
                 .show();
     }
 
     private void testGameWord() {
         if (!OverlayService.isGameRunning()) {
-            message("Сначала включите игру");
+            message(MainActivity.this.getString(R.string.s_snachala_vklyuchite_igru));
             return;
         }
 
         EditText input = new EditText(this);
-        input.setHint("Например: ЯЙЦО");
-        input.setText("ЯЙЦО");
+        input.setHint(MainActivity.this.getString(R.string.s_naprimer_yayco));
+        input.setText(MainActivity.this.getString(R.string.s_yayco));
         input.setSingleLine(true);
 
         new AlertDialog.Builder(this)
-                .setTitle("Тест слова")
-                .setMessage("Слово прилетит в персонажа")
+                .setTitle(MainActivity.this.getString(R.string.s_test_slova))
+                .setMessage(MainActivity.this.getString(R.string.s_slovo_priletit_v_personazha))
                 .setView(input)
-                .setPositiveButton("Запустить", (dialog, which) -> {
+                .setPositiveButton(MainActivity.this.getString(R.string.s_zapustit), (dialog, which) -> {
                     String word = input.getText().toString().trim();
 
                     OverlayService.testGameWord(
                             word.isEmpty() ? "ЯЙЦО" : word);
                 })
-                .setNegativeButton("Отмена", null)
+                .setNegativeButton(MainActivity.this.getString(R.string.s_otmena), null)
                 .show();
     }
 
@@ -5933,18 +5931,18 @@ private void showTikTokAccounts() {
                 prefs.getInt("game_hp", 1000)));
 
         new AlertDialog.Builder(this)
-                .setTitle("💥 Прочность персонажа")
+                .setTitle(MainActivity.this.getString(R.string.s_prochnost_personazha))
                 .setMessage("Сколько урона он выдержит до «ПОЛНОГО РАЗНОСА»."
                         + "\nУрон = цена подарка в монетах.")
                 .setView(input)
-                .setPositiveButton("Сохранить", (dialog, which) -> {
+                .setPositiveButton(MainActivity.this.getString(R.string.s_sohranit), (dialog, which) -> {
                     int hp;
 
                     try {
                         hp = Integer.parseInt(
                                 input.getText().toString().trim());
                     } catch (Exception error) {
-                        message("Нужно число");
+                        message(MainActivity.this.getString(R.string.s_nuzhno_chislo));
                         return;
                     }
 
@@ -5956,13 +5954,13 @@ private void showTikTokAccounts() {
 
                     message("Прочность: " + Math.max(100, hp));
                 })
-                .setNegativeButton("Отмена", null)
+                .setNegativeButton(MainActivity.this.getString(R.string.s_otmena), null)
                 .show();
     }
 
     private void showGameHelp() {
         new AlertDialog.Builder(this)
-                .setTitle("ℹ️ Игра и эфир")
+                .setTitle(MainActivity.this.getString(R.string.s_igra_i_efir))
                 .setMessage("Игра — полноэкранное окно поверх телефона."
                         + " Подарок = слово с цензурой летит в персонажа,"
                         + " снимает прочность, идут комбо и «ПОЛНЫЙ РАЗНОС»."
@@ -5972,7 +5970,7 @@ private void showTikTokAccounts() {
                         + " (трансляция с ПК через TikTok LIVE Studio,"
                         + " OBS или провод-зеркало). Иначе игру видите"
                         + " только вы на телефоне.")
-                .setPositiveButton("Понятно", null)
+                .setPositiveButton(MainActivity.this.getString(R.string.s_ponyatno), null)
                 .show();
     }
 
@@ -6019,15 +6017,15 @@ private void showTikTokAccounts() {
 
         OverlayService.refreshWidgetsFromPrefs();
 
-        message("Виджеты вернулись на место, размер обычный");
+        message(MainActivity.this.getString(R.string.s_vidzhety_vernulis_na_mesto_razmer_obychnyy));
     }
 
     private void resetWidgetStats() {
         new AlertDialog.Builder(this)
-                .setTitle("🧹 Сбросить статистику")
+                .setTitle(MainActivity.this.getString(R.string.s_sbrosit_statistiku))
                 .setMessage("Обнулить лайки, монеты подарков и донаты?"
                         + "\nНастройки цели останутся.")
-                .setPositiveButton("Сбросить", (dialog, which) -> {
+                .setPositiveButton(MainActivity.this.getString(R.string.s_sbrosit), (dialog, which) -> {
                     prefs.edit()
                             .putInt("stats_like_total", 0)
                             .putString("stats_like_users", "{}")
@@ -6041,14 +6039,14 @@ private void showTikTokAccounts() {
 
                     OverlayService.refreshWidgetsFromPrefs();
 
-                    message("Статистика сброшена");
+                    message(MainActivity.this.getString(R.string.s_statistika_sbroshena));
                 })
-                .setNegativeButton("Отмена", null)
+                .setNegativeButton(MainActivity.this.getString(R.string.s_otmena), null)
                 .show();
     }
 
     private void testWidgets() {
-        message("Отправляю тестовые лайки и подарок…");
+        message(MainActivity.this.getString(R.string.s_otpravlyayu_testovye_layki_i_podarok));
 
         executor.execute(() -> {
             sendTestRequest("test-like?count=50&username=ТестЛайк");
@@ -6126,7 +6124,7 @@ private void showTikTokAccounts() {
     }
 
     private void showConnectionDiagnostics() {
-        message("Проверяю соединение…");
+        message(MainActivity.this.getString(R.string.s_proveryayu_soedinenie));
 
         executor.execute(() -> {
             String report;
@@ -6379,13 +6377,13 @@ private void showTikTokAccounts() {
         scroll.addView(view);
 
         new AlertDialog.Builder(this)
-                .setTitle("🩺 Диагностика соединения")
+                .setTitle(MainActivity.this.getString(R.string.s_diagnostika_soedineniya))
                 .setView(scroll)
-                .setPositiveButton("🔄 Обновить", (d, w) ->
+                .setPositiveButton(MainActivity.this.getString(R.string.s_obnovit), (d, w) ->
                         showConnectionDiagnostics())
-                .setNeutralButton("🎁 Тест подарка", (d, w) ->
+                .setNeutralButton(MainActivity.this.getString(R.string.s_test_podarka), (d, w) ->
                         sendTestGift())
-                .setNegativeButton("Закрыть", null)
+                .setNegativeButton(MainActivity.this.getString(R.string.s_zakryt), null)
                 .show();
     }
 
@@ -6409,7 +6407,7 @@ private void showTikTokAccounts() {
                         : "Сервер ответил: " + code));
             } catch (Exception error) {
                 runOnUiThread(() ->
-                        message("Не удалось отправить тест"));
+                        message(MainActivity.this.getString(R.string.s_ne_udalos_otpravit_test)));
             } finally {
                 if (connection != null) {
                     connection.disconnect();
@@ -6421,19 +6419,19 @@ private void showTikTokAccounts() {
 private void editTikTokAccount(int index) {
     EditText input = new EditText(this);
     input.setSingleLine(true);
-    input.setHint("Ник без @");
+    input.setHint(MainActivity.this.getString(R.string.s_nik_bez));
     input.setText(getTikTokAccounts()[index]);
 
     new AlertDialog.Builder(this)
             .setTitle("Аккаунт " + (index + 1))
             .setView(input)
-            .setNegativeButton("Отмена", null)
-            .setPositiveButton("Сохранить", (dialog, which) -> {
+            .setNegativeButton(MainActivity.this.getString(R.string.s_otmena), null)
+            .setPositiveButton(MainActivity.this.getString(R.string.s_sohranit), (dialog, which) -> {
                 String username = input.getText().toString()
                         .trim().replace("@", "");
 
                 if (username.isEmpty()) {
-                    message("Введи ник TikTok");
+                    message(MainActivity.this.getString(R.string.s_vvedi_nik_tiktok));
                     return;
                 }
 
@@ -6449,7 +6447,7 @@ private void editTikTokAccount(int index) {
    private static final String ACCOUNT_SWITCH_KEY = BuildConfig.SWITCH_KEY;
 private void switchServerAccount(String username) {
     if (ACCOUNT_SWITCH_KEY.isEmpty()) {
-        message("Переключение аккаунта не настроено в этой сборке");
+        message(MainActivity.this.getString(R.string.s_pereklyuchenie_akkaunta_ne_nastroeno_v_etoy_sborke));
         return;
     }
 
@@ -6505,7 +6503,7 @@ private void switchServerAccount(String username) {
 }
 
 private void forceReconnectNow() {
-    message("Прошу сервер подключиться заново…");
+    message(MainActivity.this.getString(R.string.s_proshu_server_podklyuchitsya_zanovo));
 
     executor.execute(() -> {
         long startedAt = System.currentTimeMillis();
@@ -6538,7 +6536,7 @@ private void forceReconnectNow() {
         }
 
         runOnUiThread(() -> {
-            message("Сервер подключается к TikTok заново");
+            message(MainActivity.this.getString(R.string.s_server_podklyuchaetsya_k_tiktok_zanovo));
 
             executor.execute(() -> {
                 try {
@@ -6631,24 +6629,24 @@ private String trySwitchAccount(String username) {
 
     private void showTikTokConnection() {
         EditText input = new EditText(this);
-        input.setHint("Например: @username");
+        input.setHint(MainActivity.this.getString(R.string.s_naprimer_username));
         input.setSingleLine(true);
         input.setInputType(1);
         input.setText(prefs.getString("tiktok_username", "vinnipyh99"));
 
         new AlertDialog.Builder(this)
-                .setTitle("📱 Подключение TikTok LIVE")
-                .setMessage("Введи ник TikTok без пароля. Сервер должен быть настроен на этот же ник в Render.")
+                .setTitle(MainActivity.this.getString(R.string.s_podklyuchenie_tiktok_live))
+                .setMessage(MainActivity.this.getString(R.string.s_vvedi_nik_tiktok_bez_parolya_server_dolzhen_byt_na))
                 .setView(input)
-                .setNegativeButton("Отмена", null)
-                .setPositiveButton("Сохранить и подключить", (dialog, which) -> {
+                .setNegativeButton(MainActivity.this.getString(R.string.s_otmena), null)
+                .setPositiveButton(MainActivity.this.getString(R.string.s_sohranit_i_podklyuchit), (dialog, which) -> {
                     String username = input.getText()
                             .toString()
                             .trim()
                             .replace("@", "");
 
                     if (username.isEmpty()) {
-                        message("Сначала введи ник TikTok");
+                        message(MainActivity.this.getString(R.string.s_snachala_vvedi_nik_tiktok));
                         return;
                     }
 
@@ -6666,7 +6664,7 @@ if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
     startService(serviceIntent);
 }
                     } catch (Exception e) {
-                        message("Ник сохранён, но сервис не запустился");
+                        message(MainActivity.this.getString(R.string.s_nik_sohranen_no_servis_ne_zapustilsya));
                         return;
                     }
 
@@ -6718,7 +6716,7 @@ if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                         message("В Render указан другой ник: @" + serverUsername
                                 + ". Проверь TIKTOK_USERNAME.");
                     } else if (!enabled) {
-                        message("Сервер работает, но включи TIKTOK_ENABLED=true в Render.");
+                        message(MainActivity.this.getString(R.string.s_server_rabotaet_no_vklyuchi_tiktok_enabled_true_v));
                     } else {
                         message("Сервер настроен на @" + username
                                 + ". Теперь проверь подключение во время эфира.");
@@ -6727,7 +6725,7 @@ if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
 
             } catch (Exception e) {
                 runOnUiThread(() ->
-                        message("Не удалось проверить сервер. Проверь интернет."));
+                        message(MainActivity.this.getString(R.string.s_ne_udalos_proverit_server_prover_internet)));
             } finally {
                 if (connection != null) {
                     connection.disconnect();
