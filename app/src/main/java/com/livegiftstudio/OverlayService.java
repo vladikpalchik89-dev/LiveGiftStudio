@@ -526,6 +526,36 @@ if ("yes".equals(testFollowSound)) {
         }
     }
 
+    // Донат из уведомления СберБанка (и тест со экрана настроек).
+    // Возвращает false, если оверлей не запущен — тогда показывать
+    // событие просто некуда.
+    public static boolean handleSberDonation(
+            double rub, String donor, String message) {
+
+        OverlayService service = instance;
+
+        if (service == null || service.destroyed) {
+            return false;
+        }
+
+        final String who = (donor == null || donor.trim().isEmpty())
+                ? "Сбер"
+                : donor.trim();
+
+        final String text = message == null ? "" : message;
+        final String amount = String.valueOf(Math.round(rub));
+        final double value = rub;
+
+        service.handler.post(() -> {
+            if (service.destroyed) return;
+
+            service.handleDonationValue(
+                    value, amount, "руб.", who, text);
+        });
+
+        return true;
+    }
+
     // Просьба подключиться к TikTok заново по открытому сокету.
     public static boolean sendReconnectRequest(String key) {
         WebSocket socket = activeSocket;
@@ -1988,6 +2018,27 @@ private void speakText(String text) {
 private void handleDonation(
         String donor, String amount, String currency, String text) {
 
+    double value = 0;
+
+    try {
+        value = Double.parseDouble(
+                String.valueOf(amount).replace(',', '.'));
+
+        if (!"RUB".equalsIgnoreCase(currency)) {
+            value = value * 90;
+        }
+    } catch (Exception ignored) {
+    }
+
+    handleDonationValue(value, amount, currency, donor, text);
+}
+
+// Донат с уже посчитанной суммой в рублях. Нужен источникам, которые
+// приходят не из сети (уведомление СберБанка), и тесту со Сбера.
+private void handleDonationValue(
+        double value, String amount, String currency,
+        String donor, String text) {
+
     String displayMessage = "💰 ДОНАТ " + amount + " "
             + currency + "\n@" + donor;
 
@@ -1995,17 +2046,9 @@ private void handleDonation(
         displayMessage += "\n💬 " + text;
     }
 
-    try {
-        double value = Double.parseDouble(
-                String.valueOf(amount).replace(',', '.'));
-
-        if (!"RUB".equalsIgnoreCase(currency)) {
-            value = value * 90;
-        }
-
+    if (value > 0) {
         addDonationStats(value);
         requestWidgetUpdate();
-    } catch (Exception ignored) {
     }
 
     final String finalMessage = displayMessage;
