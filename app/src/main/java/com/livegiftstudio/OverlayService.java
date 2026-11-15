@@ -550,7 +550,7 @@ if ("yes".equals(testFollowSound)) {
             if (service.destroyed) return;
 
             service.handleDonationValue(
-                    value, amount, "руб.", who, text);
+                    value, amount, "руб.", who, text, "sber");
         });
 
         return true;
@@ -2030,14 +2030,14 @@ private void handleDonation(
     } catch (Exception ignored) {
     }
 
-    handleDonationValue(value, amount, currency, donor, text);
+    handleDonationValue(value, amount, currency, donor, text, "event");
 }
 
 // Донат с уже посчитанной суммой в рублях. Нужен источникам, которые
 // приходят не из сети (уведомление СберБанка), и тесту со Сбера.
 private void handleDonationValue(
         double value, String amount, String currency,
-        String donor, String text) {
+        String donor, String text, String source) {
 
     String displayMessage = "💰 ДОНАТ " + amount + " "
             + currency + "\n@" + donor;
@@ -2050,6 +2050,8 @@ private void handleDonationValue(
         addDonationStats(value);
         requestWidgetUpdate();
     }
+
+    logDonor(donor, value, amount, currency, text, source);
 
     final String finalMessage = displayMessage;
     final String finalDonor = donor;
@@ -3220,6 +3222,60 @@ android.util.Log.e(
                 .putInt("stats_donation_rub",
                         prefs.getInt("stats_donation_rub", 0) + rub)
                 .apply();
+    }
+
+    // Журнал «Донатер дня»: каждый донат пишется одной строкой JSON,
+    // чтобы после эфира можно было быстро собрать историю в TikTok.
+    // Новые записи сверху, храним последние 50.
+    private void logDonor(
+            String donor, double rub, String amount,
+            String currency, String text, String source) {
+
+        // Тестовый донат не должен засорять журнал.
+        if ("Тест Сбера".equals(donor)) {
+            return;
+        }
+
+        try {
+            org.json.JSONArray log = null;
+
+            String raw = prefs.getString("donor_log", "");
+
+            if (!raw.isEmpty()) {
+                try {
+                    log = new org.json.JSONArray(raw);
+                } catch (Exception ignored) {
+                }
+            }
+
+            org.json.JSONObject entry = new org.json.JSONObject();
+            entry.put("at", System.currentTimeMillis());
+            entry.put("donor", donor == null ? "" : donor.trim());
+            entry.put("rub", Math.round(rub));
+            entry.put("amount", amount == null ? "" : amount);
+            entry.put("currency", currency == null ? "" : currency);
+            entry.put("text", text == null ? "" : text);
+            entry.put("source", source == null ? "" : source);
+
+            org.json.JSONArray next = new org.json.JSONArray();
+            next.put(entry);
+
+            if (log != null) {
+                for (int i = 0; i < log.length() && next.length() < 50; i++) {
+                    org.json.JSONObject old = log.optJSONObject(i);
+
+                    if (old != null) {
+                        next.put(old);
+                    }
+                }
+            }
+
+            prefs.edit()
+                    .putString("donor_log", next.toString())
+                    .apply();
+        } catch (Exception error) {
+            android.util.Log.w(TAG, "не удалось записать донатера", error);
+        }
     }
 
     private String goalMetric() {

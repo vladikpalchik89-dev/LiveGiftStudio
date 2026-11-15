@@ -3,6 +3,8 @@ package com.livegiftstudio;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.ContentUris;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -39,9 +41,11 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
@@ -592,6 +596,13 @@ addMenuRow(
         "🧪\nТест\nСбера", 0xFF00C8FF,
         v -> showSberSettings(),
         v -> testSberDonation()
+    );
+
+    addMenuRow(
+        "📸\nДонатер\nдня", 0xFFFF1493,
+        "🎬\nСторис\nдля TikTok", 0xFF00D6B7,
+        v -> showDonorDay(),
+        v -> showStoryKit()
     );
 
     addSectionHeader("🩺 ПОМОЩЬ");
@@ -5817,6 +5828,392 @@ private void showTikTokAccounts() {
                 .setNeutralButton("Тест",
                         (dialog, which) -> testSberDonation())
                 .setNegativeButton("Закрыть", null)
+                .show();
+    }
+
+    // === Донатер дня =================================================
+
+    private JSONArray donorLog() {
+        try {
+            String raw = prefs.getString("donor_log", "");
+
+            if (!raw.isEmpty()) {
+                return new JSONArray(raw);
+            }
+        } catch (Exception ignored) {
+        }
+
+        return new JSONArray();
+    }
+
+    private JSONObject donorHandles() {
+        try {
+            String raw = prefs.getString("donor_handles", "");
+
+            if (!raw.isEmpty()) {
+                return new JSONObject(raw);
+            }
+        } catch (Exception ignored) {
+        }
+
+        return new JSONObject();
+    }
+
+    private String donorHandle(String donor) {
+        String clean = donor == null ? "" : donor.trim();
+
+        if (clean.isEmpty()) {
+            return "";
+        }
+
+        return donorHandles().optString(clean, "");
+    }
+
+    private String normalizeHandle(String handle) {
+        String clean = handle == null ? "" : handle.trim();
+
+        while (clean.startsWith("@")) {
+            clean = clean.substring(1).trim();
+        }
+
+        return clean.replace(" ", "");
+    }
+
+    // Достаёт @ник из комментария к донату: «спасибо, @ivan_live».
+    private String handleFromText(String text) {
+        if (text == null || text.isEmpty()) {
+            return "";
+        }
+
+        java.util.regex.Matcher matcher = java.util.regex.Pattern
+                .compile("(?:^|\\s)@([A-Za-z0-9._]{2,30})")
+                .matcher(text);
+
+        return matcher.find() ? matcher.group(1) : "";
+    }
+
+    private void rememberDonorHandle(String donor, String handle) {
+        String cleanDonor = donor == null ? "" : donor.trim();
+        String cleanHandle = normalizeHandle(handle);
+
+        if (cleanDonor.isEmpty() || cleanHandle.isEmpty()) {
+            return;
+        }
+
+        try {
+            JSONObject map = donorHandles();
+            map.put(cleanDonor, cleanHandle);
+
+            prefs.edit()
+                    .putString("donor_handles", map.toString())
+                    .apply();
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void copyText(String label, String text) {
+        try {
+            ClipboardManager clipboard = (ClipboardManager)
+                    getSystemService(CLIPBOARD_SERVICE);
+
+            if (clipboard == null) {
+                message("Буфер обмена недоступен");
+                return;
+            }
+
+            clipboard.setPrimaryClip(
+                    ClipData.newPlainText(label, text));
+
+            message("Скопировано — вставь в TikTok");
+        } catch (Exception error) {
+            message("Не удалось скопировать");
+        }
+    }
+
+    private void openTikTokProfile(String handle) {
+        String clean = normalizeHandle(handle);
+
+        if (clean.isEmpty()) {
+            message("Сначала укажи @ донатера");
+            return;
+        }
+
+        try {
+            startActivity(new Intent(
+                    Intent.ACTION_VIEW,
+                    Uri.parse("https://www.tiktok.com/@" + Uri.encode(clean))));
+        } catch (Exception error) {
+            message("Не удалось открыть профиль @" + clean);
+        }
+    }
+
+    private void promptDonorHandle(final JSONObject entry) {
+        final String donor = entry.optString("donor", "");
+
+        String prefill = donorHandle(donor);
+
+        // Если донатер написал @ в комментарии к DonationAlerts,
+        // подставляем его сразу — остаётся только проверить.
+        if (prefill.isEmpty()) {
+            prefill = handleFromText(entry.optString("text", ""));
+        }
+
+        final EditText input = new EditText(this);
+        input.setSingleLine(true);
+        input.setHint("@ник_в_тиктоке");
+        input.setText(prefill);
+        input.setSelection(input.getText().length());
+
+        new AlertDialog.Builder(this)
+                .setTitle("TikTok-ник"
+                        + (donor.isEmpty() ? "" : " · " + donor))
+                .setMessage("Из уведомления Сбера ник не приходит — "
+                        + "только имя из банка. Впиши @, который донатер "
+                        + "оставил в комментарии к переводу. "
+                        + "Ник сохранится и подставится в подпись сторис.")
+                .setView(input)
+                .setPositiveButton("Сохранить", (dialog, which) -> {
+                    String handle = normalizeHandle(
+                            input.getText().toString());
+
+                    if (handle.isEmpty()) {
+                        message("Ник пустой");
+                        return;
+                    }
+
+                    rememberDonorHandle(donor, handle);
+                    message("Ник сохранён: @" + handle);
+                })
+                .setNeutralButton("Открыть профиль", (dialog, which) ->
+                        openTikTokProfile(input.getText().toString()))
+                .setNegativeButton("Отмена", null)
+                .show();
+    }
+
+    private String donorCaption(JSONObject entry) {
+        String donor = entry.optString("donor", "");
+        String handle = donorHandle(donor);
+        String who = handle.isEmpty() ? donor : "@" + handle;
+
+        if (who.isEmpty()) {
+            who = "донатер";
+        }
+
+        return "💰 " + entry.optLong("rub", 0) + " ₽ · " + who
+                + "\n💸 Донатер дня · LiveGiftStudio"
+                + "\n#tiktoklive #донат #livegiftstudio";
+    }
+
+    private void showDonorActions(final JSONObject entry) {
+        final String donor = entry.optString("donor", "");
+        final String handle = donorHandle(donor);
+        final long rub = entry.optLong("rub", 0);
+
+        String title = "💰 " + rub + " ₽ · "
+                + (donor.isEmpty() ? "без имени" : donor);
+
+        String setHandle = handle.isEmpty()
+                ? "✏️ Указать @ник донатера"
+                : "✏️ Изменить @ник (@" + handle + ")";
+
+        String[] items = {
+                setHandle,
+                "▶️ Открыть профиль в TikTok",
+                "📋 Копировать подпись для сторис",
+                "🖼 Как собрать сторис"
+        };
+
+        new AlertDialog.Builder(this)
+                .setTitle(title)
+                .setItems(items, (dialog, which) -> {
+                    switch (which) {
+                        case 0:
+                            promptDonorHandle(entry);
+                            break;
+                        case 1:
+                            openTikTokProfile(handle);
+                            break;
+                        case 2:
+                            copyText("Подпись сторис",
+                                    donorCaption(entry));
+                            break;
+                        default:
+                            showStoryKit();
+                            break;
+                    }
+                })
+                .setNegativeButton("Закрыть", null)
+                .show();
+    }
+
+    private void showDonorDay() {
+        JSONArray log = donorLog();
+
+        LinearLayout form = new LinearLayout(this);
+        form.setOrientation(LinearLayout.VERTICAL);
+        form.setPadding(dp(16), dp(8), dp(16), dp(8));
+
+        long total = 0;
+
+        for (int i = 0; i < log.length(); i++) {
+            JSONObject entry = log.optJSONObject(i);
+
+            if (entry != null) {
+                total += entry.optLong("rub", 0);
+            }
+        }
+
+        TextView summary = new TextView(this);
+        summary.setText(log.length() == 0
+                ? "Пока пусто. Донаты со Сбера и DonationAlerts "
+                        + "записываются сюда сами."
+                : "Записей: " + log.length() + " · всего " + total + " ₽");
+        summary.setTextColor(0xFF8FE3FF);
+        summary.setPadding(0, 0, 0, dp(10));
+        form.addView(summary);
+
+        SimpleDateFormat time = new SimpleDateFormat(
+                "dd.MM HH:mm", new Locale("ru", "RU"));
+
+        int shown = Math.min(log.length(), 15);
+
+        for (int i = 0; i < shown; i++) {
+            final JSONObject entry = log.optJSONObject(i);
+
+            if (entry == null) {
+                continue;
+            }
+
+            String donor = entry.optString("donor", "");
+            String handle = donorHandle(donor);
+
+            String source = "sber".equals(entry.optString("source", ""))
+                    ? "🏦 Сбер"
+                    : "💰 DonationAlerts";
+
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.VERTICAL);
+            row.setPadding(dp(12), dp(10), dp(12), dp(10));
+            row.setBackgroundColor(0x14141424);
+
+            TextView head = new TextView(this);
+            head.setText(entry.optLong("rub", 0) + " ₽  ·  "
+                    + (donor.isEmpty() ? "без имени" : donor));
+            head.setTextColor(0xFFFFFFFF);
+            head.setTextSize(16);
+            head.setTypeface(null, Typeface.BOLD);
+            row.addView(head);
+
+            TextView details = new TextView(this);
+            details.setText(source + " · "
+                    + time.format(new Date(entry.optLong("at", 0)))
+                    + (handle.isEmpty() ? " · @ не указан" : " · @" + handle));
+            details.setTextColor(handle.isEmpty() ? 0xFFFFB900 : 0xFF00D6B7);
+            details.setTextSize(12);
+            details.setPadding(0, dp(4), 0, 0);
+            row.addView(details);
+
+            row.setOnClickListener(v -> showDonorActions(entry));
+
+            LinearLayout.LayoutParams rowParams =
+                    new LinearLayout.LayoutParams(
+                            LinearLayout.LayoutParams.MATCH_PARENT,
+                            LinearLayout.LayoutParams.WRAP_CONTENT);
+            rowParams.setMargins(0, 0, 0, dp(8));
+
+            form.addView(row, rowParams);
+        }
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(form);
+
+        new AlertDialog.Builder(this)
+                .setTitle("📸 Донатер дня")
+                .setView(scroll)
+                .setPositiveButton("Подписи",
+                        (dialog, which) -> showStoryCaptions())
+                .setNeutralButton("Очистить", (dialog, which) -> {
+                    prefs.edit()
+                            .putString("donor_log", "[]")
+                            .apply();
+
+                    message("Журнал донатов очищен");
+                })
+                .setNegativeButton("Закрыть", null)
+                .show();
+    }
+
+    private void showStoryCaptions() {
+        JSONArray log = donorLog();
+        JSONObject last = log.optJSONObject(0);
+
+        long rub = last == null ? 0 : last.optLong("rub", 0);
+        String donor = last == null ? "" : last.optString("donor", "");
+        String handle = donorHandle(donor);
+        String who = handle.isEmpty() ? donor : "@" + handle;
+
+        if (who.isEmpty()) {
+            who = "донатер";
+        }
+
+        final String[] captions = {
+                "💰 " + rub + " ₽ · " + who
+                        + "\n💸 Донатер дня · LiveGiftStudio"
+                        + "\n#tiktoklive #донат #livegiftstudio",
+                "Он поддержал эфир — и попал в мою историю 😈"
+                        + "\n💰 " + rub + " ₽ · " + who
+                        + "\n#tiktoklive #донатердня",
+                "Спасибо за донат! 💸 " + rub + " ₽ · " + who
+                        + "\nСмотри эфир → #livegiftstudio"
+        };
+
+        String[] items = last == null
+                ? new String[]{"Нет донатов — сначала дождись перевода"}
+                : new String[]{
+                        "1 · Сумма и ник + хештеги",
+                        "2 · «Попал в историю»",
+                        "3 · «Спасибо за донат»"
+                };
+
+        new AlertDialog.Builder(this)
+                .setTitle("🎬 Подпись для сторис")
+                .setMessage(last == null
+                        ? "Журнал пуст."
+                        : "Готовые подписи под последний донат: "
+                                + rub + " ₽ · " + who)
+                .setItems(items, (dialog, which) -> {
+                    if (last == null) {
+                        message("Пока нечего копировать");
+                        return;
+                    }
+
+                    copyText("Подпись сторис", captions[which]);
+                })
+                .setNeutralButton("Как собрать",
+                        (dialog, which) -> showStoryKit())
+                .setNegativeButton("Закрыть", null)
+                .show();
+    }
+
+    private void showStoryKit() {
+        new AlertDialog.Builder(this)
+                .setTitle("🖼 Сторис из видео донатера")
+                .setMessage("Рамка: Pictures/LiveGiftStudio/story-frame.png"
+                        + "\n1080×1920, центр прозрачный — под ним видео."
+                        + "\n\n1. Запиши 4–6 сек со страницы донатера "
+                        + "(запись экрана)."
+                        + "\n2. CapCut → 9:16: клип снизу, рамка сверху "
+                        + "точка в точку."
+                        + "\n3. Сверху сумма, снизу @ник, звук sfx_coin "
+                        + "или sfx_tada."
+                        + "\n4. Экспорт 1080×1920 → TikTok → Story."
+                        + "\n\nТекст держи между 250 и 1849 px — "
+                        + "ниже кнопки TikTok."
+                        + "\n\nНик бери из комментария к переводу: "
+                        + "в донате нажми «Указать @ник».")
+                .setPositiveButton("Ок", null)
+                .setNeutralButton("Подписи",
+                        (dialog, which) -> showStoryCaptions())
                 .show();
     }
 
