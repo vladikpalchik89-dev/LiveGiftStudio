@@ -21,6 +21,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ListView;
@@ -582,6 +583,15 @@ addMenuRow(
                             })
                     .show();
         }
+    );
+
+    addSectionHeader("🏦 СБЕРБАНК");
+
+    addMenuRow(
+        "🏦\nДонаты\nсо Сбера", 0xFF00C853,
+        "🧪\nТест\nСбера", 0xFF00C8FF,
+        v -> showSberSettings(),
+        v -> testSberDonation()
     );
 
     addSectionHeader("🩺 ПОМОЩЬ");
@@ -5701,6 +5711,112 @@ private void showTikTokAccounts() {
                 .setNeutralButton(MainActivity.this.getString(R.string.s_sbrosit_progress), (dialog, which) ->
                         resetWidgetStats())
                 .setNegativeButton(MainActivity.this.getString(R.string.s_otmena), null)
+                .show();
+    }
+
+    private boolean sberAccessGranted() {
+        String enabled = Settings.Secure.getString(
+                getContentResolver(),
+                "enabled_notification_listeners");
+
+        return enabled != null && enabled.contains(getPackageName());
+    }
+
+    private void openSberAccessSettings() {
+        try {
+            startActivity(new Intent(
+                    Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS));
+        } catch (Exception error) {
+            message("Не удалось открыть настройки доступа");
+        }
+    }
+
+    private void testSberDonation() {
+        if (!OverlayService.isRunning()) {
+            message("Сначала запусти оверлей");
+            return;
+        }
+
+        boolean sent = OverlayService.handleSberDonation(
+                50, "Тест Сбера", "Проверка доната со Сбера");
+
+        message(sent
+                ? "Тестовый донат со Сбера отправлен"
+                : "Оверлей не отвечает");
+    }
+
+    private void showSberSettings() {
+        LinearLayout form = new LinearLayout(this);
+        form.setOrientation(LinearLayout.VERTICAL);
+        form.setPadding(dp(16), dp(8), dp(16), dp(8));
+
+        boolean granted = sberAccessGranted();
+
+        TextView status = new TextView(this);
+        status.setText(granted
+                ? "✅ Доступ к уведомлениям включён"
+                : "❌ Нет доступа к уведомлениям");
+        status.setTextColor(granted ? 0xFF00C853 : 0xFFFF1764);
+        status.setPadding(0, 0, 0, dp(8));
+        form.addView(status);
+
+        CheckBox enabled = new CheckBox(this);
+        enabled.setText("Показывать донаты со Сбера");
+        enabled.setChecked(prefs.getBoolean("sber_enabled", true));
+        form.addView(enabled);
+
+        CheckBox incomingOnly = new CheckBox(this);
+        incomingOnly.setText("Только входящие переводы и пополнения");
+        incomingOnly.setChecked(
+                prefs.getBoolean("sber_incoming_only", true));
+        form.addView(incomingOnly);
+
+        EditText minAmount = new EditText(this);
+        minAmount.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        minAmount.setHint("Минимальная сумма, ₽ (0 — любая)");
+        minAmount.setSingleLine(true);
+        minAmount.setText(String.valueOf(
+                prefs.getInt("sber_min_amount", 0)));
+        form.addView(minAmount);
+
+        TextView openAccess = new TextView(this);
+        openAccess.setText(granted
+                ? "⚙️ Настройки доступа к уведомлениям"
+                : "🔓 Разрешить доступ к уведомлениям");
+        openAccess.setTextColor(0xFF087BFF);
+        openAccess.setPadding(0, dp(12), 0, 0);
+        openAccess.setOnClickListener(v -> openSberAccessSettings());
+        form.addView(openAccess);
+
+        new AlertDialog.Builder(this)
+                .setTitle("🏦 Донаты со СберБанка")
+                .setMessage("Приложение читает push СберБанка о поступлении "
+                        + "и показывает их как донаты: оверлей, звук, "
+                        + "озвучка и сумма в цели сбора."
+                        + "\n\nРаботает, пока запущен оверлей.")
+                .setView(form)
+                .setPositiveButton("Сохранить", (dialog, which) -> {
+                    prefs.edit()
+                            .putBoolean("sber_enabled", enabled.isChecked())
+                            .putBoolean("sber_incoming_only",
+                                    incomingOnly.isChecked())
+                            .putInt("sber_min_amount", Math.max(0,
+                                    parseIntSafe(
+                                            minAmount.getText().toString(), 0)))
+                            .apply();
+
+                    if (enabled.isChecked() && !sberAccessGranted()) {
+                        message("Не забудь разрешить "
+                                + "доступ к уведомлениям");
+                        openSberAccessSettings();
+                        return;
+                    }
+
+                    message("Настройки Сбера сохранены");
+                })
+                .setNeutralButton("Тест",
+                        (dialog, which) -> testSberDonation())
+                .setNegativeButton("Закрыть", null)
                 .show();
     }
 
