@@ -25,8 +25,6 @@
     <string name="s_forma_knopok">Форма кнопок</string>
     <string name="s_gif_i_video">🎞️ GIF и видео</string>
     <string name="s_golos_sohranen">Голос сохранён</string>
-    <string name="s_igra">🎮 Игра</string>
-    <string name="s_igra_i_efir">ℹ️ Игра и эфир</string>
     <string name="s_import_ikonok_nachat">Импорт иконок начат</string>
     <string name="s_import_nachat_eto_mozhet_zanyat_vremya">Импорт начат, это может занять время</string>
     <string name="s_import_papki">📥 Импорт папки</string>
@@ -41,7 +39,6 @@
     <string name="s_moya_mediateka">📚 Моя медиатека</string>
     <string name="s_nadpis_sohranena">Надпись сохранена</string>
     <string name="s_naprimer_username">Например: @username</string>
-    <string name="s_naprimer_yayco">Например: ЯЙЦО</string>
     <string name="s_nastroyki">Настройки</string>
     <string name="s_nastroyki_ozvuchki_sohraneny">Настройки озвучки сохранены</string>
     <string name="s_nayti_podarok">🔍 Найти подарок...</string>
@@ -114,7 +111,6 @@
     <string name="s_ponyatno">Понятно</string>
     <string name="s_primer">👁 Пример</string>
     <string name="s_pro_instrumenty_dlya_tiktok_live">PRO · инструменты для TikTok LIVE</string>
-    <string name="s_prochnost_personazha">💥 Прочность персонажа</string>
     <string name="s_proshlyy_zapusk_upal">⚠️ Прошлый запуск упал</string>
     <string name="s_proshu_server_podklyuchitsya_zanovo">Прошу сервер подключиться заново…</string>
     <string name="s_proverit">Проверить</string>
@@ -136,12 +132,7 @@
     <string name="s_seychas_nichego_ne_igraet">Сейчас ничего не играет</string>
     <string name="s_shrift_v_overlee">🔤 Шрифт в оверлее</string>
     <string name="s_skopirovat">Скопировать</string>
-    <string name="s_slova_igry">📝 Слова игры</string>
-    <string name="s_slova_igry_sohraneny">Слова игры сохранены</string>
-    <string name="s_slova_vernulis_k_spisku_s_kartinki">Слова вернулись к списку с картинки</string>
-    <string name="s_slovo_priletit_v_personazha">Слово прилетит в персонажа</string>
     <string name="s_snachala_importiruy_zvuki">Сначала импортируй звуки</string>
-    <string name="s_snachala_vklyuchite_igru">Сначала включите игру</string>
     <string name="s_snachala_vstav_token">Сначала вставь токен</string>
     <string name="s_snachala_vvedi_nik_tiktok">Сначала введи ник TikTok</string>
     <string name="s_snachala_vyberi_fayl_animacii">Сначала выбери файл анимации</string>
@@ -157,7 +148,6 @@
     <string name="s_svoy_fayl">📄 Свой файл</string>
     <string name="s_tekst_oshibki_skopirovan">Текст ошибки скопирован</string>
     <string name="s_test_podarka">🎁 Тест подарка</string>
-    <string name="s_test_slova">Тест слова</string>
     <string name="s_token_donationalerts">🔑 Токен DonationAlerts</string>
     <string name="s_token_sohranen_proveryayu">Токен сохранён, проверяю…</string>
     <string name="s_token_udalen">Токен удалён</string>
@@ -183,7 +173,6 @@
     <string name="s_vyberi_fon">Выбери фон</string>
     <string name="s_vyberi_podarok">🎁 Выбери подарок</string>
     <string name="s_vyberi_podarok_2">Выбери подарок</string>
-    <string name="s_yayco">ЯЙЦО</string>
     <string name="s_zagruzit_esche">Загрузить ещё</string>
     <string name="s_zagruzit_fayly">Загрузить файлы</string>
     <string name="s_zagruzit_papku">Загрузить папку</string>
