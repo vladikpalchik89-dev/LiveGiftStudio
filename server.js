@@ -733,6 +733,9 @@ function forwardDonation(donation) {
 
   sendEvent({
     type: "donation",
+    // Отдельное поле, чтобы не перезаписать служебный id события
+    // из sendEvent() — он используется в /debug/last-events.
+    donation_id: id,
     username: String(donation.username || "Зритель"),
     amount: donation.amountMain ?? donation.amount ?? 0,
     currency: String(donation.currency || "RUB"),

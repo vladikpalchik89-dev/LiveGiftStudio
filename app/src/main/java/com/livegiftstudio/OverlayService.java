@@ -206,8 +206,10 @@ private void startForegroundNotification() {
     private final AtomicInteger pendingSpeech = new AtomicInteger();
     private volatile boolean chatSpeechEnabled = true;
 
+    // Один общий дедуп для WebSocket и прямого опроса DonationAlerts.
+    // Доступ из двух потоков: main (WS) и donationExecutor (опрос).
     private final java.util.Set<String> seenDonationIds =
-            new java.util.HashSet<>();
+            java.util.Collections.synchronizedSet(new java.util.HashSet<>());
     private final java.util.concurrent.ExecutorService donationExecutor =
             java.util.concurrent.Executors.newSingleThreadExecutor();
     private Runnable donationPollTask;
@@ -786,6 +788,11 @@ if (type.equals("test_donation")) {
                    
                     // Донат из DonationAlerts
                     if (type.equals("donation")) {
+                        if (!markDonationSeen(
+                                event.optString("donation_id", ""))) {
+                            return;
+                        }
+
                         handleDonation(
                                 event.optString("username", "Зритель"),
                                 event.optString("amount", "0"),
@@ -1974,6 +1981,36 @@ private void removeOverlay() {
 private void speakText(String text) {
     speakTextForUser(null, text);
 }
+/**
+ * Отмечает донат как уже виденный. Возвращает false, если он уже
+ * обрабатывался другим каналом (WS или опрос DonationAlerts).
+ */
+private boolean markDonationSeen(String id) {
+    if (id == null || id.isEmpty()) {
+        return true;
+    }
+
+    synchronized (seenDonationIds) {
+        if (seenDonationIds.contains(id)) {
+            return false;
+        }
+
+        seenDonationIds.add(id);
+
+        if (seenDonationIds.size() > 500) {
+            java.util.Iterator<String> it = seenDonationIds.iterator();
+            int extra = seenDonationIds.size() - 250;
+
+            while (extra-- > 0 && it.hasNext()) {
+                it.next();
+                it.remove();
+            }
+        }
+
+        return true;
+    }
+}
+
 private void handleDonation(
         String donor, String amount, String currency, String text) {
 
@@ -2123,8 +2160,7 @@ private void pollDonationsOnce() {
                 org.json.JSONObject donation = list.optJSONObject(i);
 
                 if (donation != null) {
-                    seenDonationIds.add(
-                            donation.optString("id", ""));
+                    markDonationSeen(donation.optString("id", ""));
                 }
             }
 
@@ -2141,11 +2177,9 @@ private void pollDonationsOnce() {
 
             String id = donation.optString("id", "");
 
-            if (id.isEmpty() || seenDonationIds.contains(id)) {
+            if (!markDonationSeen(id)) {
                 continue;
             }
-
-            seenDonationIds.add(id);
 
             handleDonation(
                     donation.optString("username", "Зритель"),
