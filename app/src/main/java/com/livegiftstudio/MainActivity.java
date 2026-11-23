@@ -72,6 +72,16 @@ private int menuRowIndex = 0;
                             60, java.util.concurrent.TimeUnit.SECONDS)
                     .build();
 
+    // Смена аккаунта должна быстро вернуть ошибку, а не видеть минуту
+    // на медленный Render. Общий httpClient оставлен для тяжёлых отчётов.
+    private final okhttp3.OkHttpClient switchHttpClient =
+            new okhttp3.OkHttpClient.Builder()
+                    .connectTimeout(
+                            10, java.util.concurrent.TimeUnit.SECONDS)
+                    .readTimeout(
+                            15, java.util.concurrent.TimeUnit.SECONDS)
+                    .build();
+
     private final android.util.LruCache<String, android.graphics.Bitmap>
             giftIconCache = new android.util.LruCache<String,
                     android.graphics.Bitmap>(
@@ -128,6 +138,12 @@ private String selectedAnimationType = "follower";
     private boolean voicePreviewReady = false;
 
     private final ExecutorService executor =
+            Executors.newSingleThreadExecutor();
+
+    // Диагностика поднимает /health с длинным таймаутом. Если переключение
+    // аккаунта делить с ней один поток, кнопка «Сделать активным» может
+    // часами висеть в очереди, показывая только «Переключаю…».
+    private final ExecutorService switchExecutor =
             Executors.newSingleThreadExecutor();
 
     private SharedPreferences prefs;
@@ -6125,9 +6141,6 @@ private void showTikTokAccounts() {
                                 (d, action) -> {
 
                                     if (action == 0) {
-                                        message("Переключаю сервер на @"
-                                                + accounts[which]);
-
                                         switchServerAccount(accounts[which]);
 
                                     } else if (action == 1) {
@@ -7366,23 +7379,34 @@ private void editTikTokAccount(int index) {
             })
             .show();
 }
-private void switchServerAccount(String username) {
+private void switchServerAccount(String rawUsername) {
     if (switchKey().isEmpty()) {
-        message(MainActivity.this.getString(R.string.s_pereklyuchenie_akkaunta_ne_nastroeno_v_etoy_sborke));
+        message(MainActivity.this.getString(
+                R.string.s_pereklyuchenie_akkaunta_ne_nastroeno_v_etoy_sborke));
+        return;
+    }
+
+    String username = String.valueOf(
+            rawUsername == null ? "" : rawUsername)
+            .trim()
+            .replaceFirst("^@", "");
+
+    // Сервер принимает только такие ники. Показываем ошибку сразу,
+    // а не после двух минут тишины с «Переключаю…» на экране.
+    if (!username.matches("[a-zA-Z0-9._]{2,24}")) {
+        showSwitchError("Некорректный ник: @" + username
+                + "\nРазрешены латиница, цифры, точка и _ (2–24 символа).");
         return;
     }
 
     message("Переключаю сервер на @" + username + "…");
 
-    executor.execute(() -> {
-        // 1. Через уже открытый сокет: он точно работает,
-        //    пока идут события эфира.
+    switchExecutor.execute(() -> {
+        // 1. Через уже открытый сокет, если он реально подключён.
         long startedAt = System.currentTimeMillis();
 
-        if (OverlayService.sendAccountSwitch(
-                username, switchKey())) {
-
-            while (System.currentTimeMillis() - startedAt < 12000) {
+        if (OverlayService.sendAccountSwitch(username, switchKey())) {
+            while (System.currentTimeMillis() - startedAt < 7000) {
                 if (OverlayService.switchResultAt >= startedAt) {
                     if (OverlayService.switchResultOk) {
                         applyActiveAccount(username);
@@ -7393,7 +7417,7 @@ private void switchServerAccount(String username) {
                 }
 
                 try {
-                    Thread.sleep(300);
+                    Thread.sleep(250);
                 } catch (InterruptedException ignored) {
                     Thread.currentThread().interrupt();
                     return;
@@ -7401,10 +7425,10 @@ private void switchServerAccount(String username) {
             }
         }
 
-        // 2. Обычный запрос, если сокет молчит.
+        // 2. Сокет молчит — идём обычным HTTP.
         String error = null;
 
-        for (int attempt = 0; attempt < 3; attempt++) {
+        for (int attempt = 0; attempt < 2; attempt++) {
             error = trySwitchAccount(username);
 
             if (error == null) {
@@ -7413,7 +7437,7 @@ private void switchServerAccount(String username) {
             }
 
             try {
-                Thread.sleep(2000);
+                Thread.sleep(1000);
             } catch (InterruptedException ignored) {
                 Thread.currentThread().interrupt();
                 return;
@@ -7424,10 +7448,20 @@ private void switchServerAccount(String username) {
 
         runOnUiThread(() -> {
             if (!isFinishing() && !isDestroyed()) {
-                message("Не удалось переключить: " + reason);
+                showSwitchError(reason);
             }
         });
     });
+}
+
+private void showSwitchError(String reason) {
+    if (isFinishing() || isDestroyed()) return;
+
+    new AlertDialog.Builder(this)
+            .setTitle("Не удалось переключить аккаунт")
+            .setMessage(String.valueOf(reason))
+            .setPositiveButton("Понятно", null)
+            .show();
 }
 
 private void forceReconnectNow() {
@@ -7543,7 +7577,7 @@ private String trySwitchAccount(String username) {
                 .build();
 
         try (okhttp3.Response response =
-                     httpClient.newCall(request).execute()) {
+                     switchHttpClient.newCall(request).execute()) {
             if (response.isSuccessful()) {
                 return null;
             }
