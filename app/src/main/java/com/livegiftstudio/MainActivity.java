@@ -5,6 +5,7 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
+import android.content.ContentValues;
 import android.content.ContentUris;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -13,6 +14,7 @@ import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.provider.MediaStore;
 import android.provider.Settings;
 import android.speech.tts.TextToSpeech;
@@ -37,6 +39,8 @@ import android.graphics.drawable.GradientDrawable;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -609,6 +613,13 @@ addMenuRow(
         "🩺\nДиагностика\nсоединения", 0xFF087BFF,
         v -> showCrashLog(),
         v -> showConnectionDiagnostics()
+    );
+
+    addMenuRow(
+        "📜\nЛог\nсобытий", 0xFF00C853,
+        "📤\nЭкспорт\nCSV", 0xFF00D6B7,
+        v -> showEventLog(),
+        v -> exportEventLog(true)
     );
 
     addSectionHeader("🎥 ЭФИР");
@@ -3412,6 +3423,173 @@ if (requestCode == PICK_DONATION_SOUND) {
                 .replace("'", "")
                 .replace(" ", "")
                 .trim();
+    }
+
+    private List<EventLog.Entry> filterEvents(
+            List<EventLog.Entry> rows, String fragment) {
+
+        List<EventLog.Entry> out = new ArrayList<>();
+
+        for (EventLog.Entry row : rows) {
+            if (row.type.toLowerCase(Locale.ROOT).contains(fragment)
+                    || row.text.toLowerCase(Locale.ROOT).contains(fragment)) {
+                out.add(row);
+            }
+        }
+
+        return out;
+    }
+
+    private void showEventList(
+            List<EventLog.Entry> rows, String title) {
+
+        SimpleDateFormat timeFormat =
+                new SimpleDateFormat("HH:mm:ss", Locale.getDefault());
+
+        List<String> lines = new ArrayList<>();
+
+        for (EventLog.Entry row : rows) {
+            lines.add(timeFormat.format(new Date(row.at))
+                    + "  " + row.type + "\n"
+                    + row.text);
+        }
+
+        ListView list = new ListView(this);
+        list.setAdapter(new ArrayAdapter<String>(
+                this,
+                android.R.layout.simple_list_item_1,
+                lines
+        ));
+
+        new AlertDialog.Builder(this)
+                .setTitle(title + " (" + rows.size() + ")")
+                .setView(list)
+                .setPositiveButton("Закрыть", null)
+                .show();
+    }
+
+    private void showEventLog() {
+        if (isFinishing() || isDestroyed()) return;
+
+        final List<EventLog.Entry> all = EventLog.snapshot();
+        String[] options = {
+                "Все события",
+                "Донаты",
+                "Подарки",
+                "Чат",
+                "Подписки",
+                "Экспорт в CSV",
+                "Экспорт в JSON",
+                "Очистить лог"
+        };
+
+        new AlertDialog.Builder(this)
+                .setTitle("📜 Лог событий (" + all.size() + ")")
+                .setItems(options, (dialog, which) -> {
+                    if (which == 5) {
+                        exportEventLog(true);
+                    } else if (which == 6) {
+                        exportEventLog(false);
+                    } else if (which == 7) {
+                        EventLog.clear();
+                        message("Лог событий очищен");
+                    } else if (which == 0) {
+                        showEventList(all, "Все события");
+                    } else {
+                        String[] fragments = {
+                                "", "donation", "gift", "chat", "follow"
+                        };
+                        String[] titles = {
+                                "", "Донаты", "Подарки", "Чат", "Подписки"
+                        };
+                        showEventList(
+                                filterEvents(all, fragments[which]),
+                                titles[which]
+                        );
+                    }
+                })
+                .setNegativeButton("Закрыть", null)
+                .show();
+    }
+
+    private void exportEventLog(final boolean csv) {
+        if (isFinishing() || isDestroyed()) return;
+
+        final List<EventLog.Entry> rows = EventLog.snapshot();
+
+        if (rows.isEmpty()) {
+            message("Лог событий пуст");
+            return;
+        }
+
+        final String content = csv
+                ? EventLog.toCsv(rows)
+                : EventLog.toJson(rows);
+        final String name = "livegiftstudio-events-"
+                + new SimpleDateFormat(
+                        "yyyyMMdd-HHmmss", Locale.ROOT).format(new Date())
+                + (csv ? ".csv" : ".json");
+
+        executor.execute(() -> {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    ContentValues values = new ContentValues();
+                    values.put(
+                            MediaStore.MediaColumns.DISPLAY_NAME, name);
+                    values.put(
+                            MediaStore.MediaColumns.MIME_TYPE,
+                            csv ? "text/csv" : "application/json");
+                    values.put(
+                            MediaStore.MediaColumns.RELATIVE_PATH,
+                            Environment.DIRECTORY_DOWNLOADS
+                                    + "/LiveGiftStudio");
+
+                    android.net.Uri uri = getContentResolver().insert(
+                            MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                            values);
+
+                    if (uri == null) {
+                        throw new IOException("Не удалось создать файл");
+                    }
+
+                    try (OutputStream out =
+                                 getContentResolver().openOutputStream(uri)) {
+                        if (out == null) {
+                            throw new IOException("Нет потока для записи");
+                        }
+
+                        out.write(content.getBytes(StandardCharsets.UTF_8));
+                    }
+
+                    final String path =
+                            "Download/LiveGiftStudio/" + name;
+
+                    runOnUiThread(() ->
+                            message("Экспортировано: " + path));
+                } else {
+                    File dir = new File(
+                            Environment.getExternalStorageDirectory(),
+                            "Download/LiveGiftStudio");
+
+                    if (!dir.exists()) {
+                        dir.mkdirs();
+                    }
+
+                    File file = new File(dir, name);
+
+                    try (FileOutputStream out = new FileOutputStream(file)) {
+                        out.write(content.getBytes(StandardCharsets.UTF_8));
+                    }
+
+                    runOnUiThread(() ->
+                            message("Экспортировано: "
+                                    + file.getAbsolutePath()));
+                }
+            } catch (Exception error) {
+                runOnUiThread(() ->
+                        message("Ошибка экспорта: " + error.getMessage()));
+            }
+        });
     }
 
     private void showCurrencyDialog() {

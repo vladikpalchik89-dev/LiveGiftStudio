@@ -66,7 +66,9 @@ public class SeenDonationIdsTest {
             seen.markSeen("id-" + i);
         }
 
-        assertTrue(seen.size() <= 250);
-        assertTrue(seen.size() > 0);
+        // Лимит — 500 записей; после одного прохода уборки остаётся ~250,
+        // затем ids добавляются снова до следующего порога.
+        assertTrue(seen.size() <= 500);
+        assertTrue(seen.size() >= 250);
     }
 }

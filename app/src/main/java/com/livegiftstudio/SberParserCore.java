@@ -14,7 +14,7 @@ public final class SberParserCore {
     private static final Pattern AMOUNT = Pattern.compile(
             "(\\d{1,3}(?:[\\s\\u00A0\\u202F]\\d{3})*(?:[.,]\\d{1,2})?"
                     + "|\\d+(?:[.,]\\d{1,2})?)"
-                    + "\\s*(?:₽|руб)");
+                    + "[\\s\\u00A0\\u202F]*(?:₽|руб)");
 
     /** Отправитель: «от ИВАН И.», «От: Иван». */
     private static final Pattern SENDER = Pattern.compile(
@@ -78,6 +78,7 @@ public final class SberParserCore {
                 || lower.contains("поступл")
                 || lower.contains("получен")
                 || lower.contains("перевед")
+                || lower.contains("перевел")
                 || lower.contains("перевод");
     }
 

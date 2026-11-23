@@ -58,6 +58,14 @@ import okhttp3.WebSocketListener;
 
 public class OverlayService extends Service {
 
+private PendingIntent serviceAction(String action, int requestCode) {
+    Intent intent = new Intent(this, OverlayService.class)
+            .setAction(action);
+
+    return PendingIntent.getService(
+            this, requestCode, intent, PendingIntent.FLAG_IMMUTABLE);
+}
+
 private void startForegroundNotification() {
     String channelId = "livegiftstudio_service";
 
@@ -97,6 +105,16 @@ private void startForegroundNotification() {
     PendingIntent stopPendingIntent = PendingIntent.getService(
             this, 1, stopIntent, PendingIntent.FLAG_IMMUTABLE);
 
+    // Пульт прямо в уведомлении: тесты и реконнект не требуют открытия меню.
+    PendingIntent testDonationPendingIntent =
+            serviceAction(ACTION_TEST_DONATION, 2);
+    PendingIntent testGiftPendingIntent =
+            serviceAction(ACTION_TEST_GIFT, 3);
+    PendingIntent reconnectPendingIntent =
+            serviceAction(ACTION_RECONNECT_WS, 4);
+    PendingIntent ttsMutePendingIntent =
+            serviceAction(ACTION_TOGGLE_TTS_MUTE, 5);
+
     Notification.Builder builder =
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
                     ? new Notification.Builder(this, channelId)
@@ -110,6 +128,22 @@ private void startForegroundNotification() {
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
             .setOngoing(true)
             .setContentIntent(contentIntent)
+            .addAction(
+                    android.R.drawable.ic_menu_send,
+                    "Тест донат",
+                    testDonationPendingIntent)
+            .addAction(
+                    android.R.drawable.ic_menu_gallery,
+                    "Тест подарок",
+                    testGiftPendingIntent)
+            .addAction(
+                    android.R.drawable.ic_menu_rotate,
+                    "Рестарт WS",
+                    reconnectPendingIntent)
+            .addAction(
+                    android.R.drawable.ic_btn_speak_now,
+                    "TTS 5 мин",
+                    ttsMutePendingIntent)
             .addAction(
                     android.R.drawable.ic_menu_close_clear_cancel,
                     "Остановить",
@@ -131,6 +165,14 @@ private void startForegroundNotification() {
         "com.livegiftstudio.STOP_SERVICE";
     public static final String ACTION_PREVIEW_TEXT =
         "com.livegiftstudio.PREVIEW_TEXT";
+    public static final String ACTION_TEST_DONATION =
+        "com.livegiftstudio.TEST_DONATION";
+    public static final String ACTION_TEST_GIFT =
+        "com.livegiftstudio.TEST_GIFT";
+    public static final String ACTION_RECONNECT_WS =
+        "com.livegiftstudio.RECONNECT_WS";
+    public static final String ACTION_TOGGLE_TTS_MUTE =
+        "com.livegiftstudio.TOGGLE_TTS_MUTE";
     private static final int NOTIFICATION_ID = 1001;
     private static final String SOCKET_URL =
             "wss://livegiftstudio.onrender.com/events";
@@ -223,6 +265,7 @@ private void startForegroundNotification() {
     // активный чат уводил озвучку на минуты вперёд.
     private final AtomicInteger pendingSpeech = new AtomicInteger();
     private volatile boolean chatSpeechEnabled = true;
+    private volatile long ttsMutedUntil = 0;
 
     // Один общий дедуп для WebSocket и прямого опроса DonationAlerts.
     // Доступ из двух потоков: main (WS) и donationExecutor (опрос).
@@ -366,6 +409,67 @@ public int onStartCommand(
 
         stopSelf();
         return START_NOT_STICKY;
+    }
+
+    if (intent != null
+            && ACTION_TEST_DONATION.equals(intent.getAction())) {
+
+        handler.post(() -> {
+            if (!destroyed) {
+                showGift(
+                        "💰 ДОНАТ 50 RUB\n@ТестовыйЗритель\n💬 Проверка озвучки!",
+                        "donation"
+                );
+                playDonationSound();
+                speakText("Тестовый донат от Тестового зрителя. "
+                        + "Сумма 50 рублей.");
+            }
+        });
+
+        return START_STICKY;
+    }
+
+    if (intent != null
+            && ACTION_TEST_GIFT.equals(intent.getAction())) {
+
+        handler.post(() -> {
+            if (!destroyed) {
+                showGift("🎁 ТЕСТ ПОДАРКА\n@ТестовыйЗритель", "rose");
+                playGiftSound("rose");
+            }
+        });
+
+        return START_STICKY;
+    }
+
+    if (intent != null
+            && ACTION_RECONNECT_WS.equals(intent.getAction())) {
+
+        handler.post(() -> {
+            if (!destroyed) {
+                reconnectAttempts = 0;
+                connectToServer();
+            }
+        });
+
+        return START_STICKY;
+    }
+
+    if (intent != null
+            && ACTION_TOGGLE_TTS_MUTE.equals(intent.getAction())) {
+
+        long now = System.currentTimeMillis();
+
+        if (ttsMutedUntil > now) {
+            ttsMutedUntil = 0;
+            android.util.Log.d(TAG, "Озвучка включена из уведомления");
+        } else {
+            ttsMutedUntil = now + 5L * 60 * 1000;
+            stopSpeech();
+            android.util.Log.d(TAG, "Озвучка выключена на 5 минут");
+        }
+
+        return START_STICKY;
     }
 
     if (intent != null
@@ -645,6 +749,10 @@ android.util.Log.d(
 
                     lastEventAt = System.currentTimeMillis();
                     lastEventType = type;
+
+                    // Журнал эфира: даже дубли и «switch_result» полезно
+                    // видеть, когда зритель жалуется на пропавший донат.
+                    EventLog.add(type, text);
 
                     // Ответ на переключение аккаунта по сокету.
                     if (type.equals("switch_result")) {
@@ -2188,6 +2296,7 @@ private void handleDonationValue(
     }
 
     logDonor(donor, value, amount, currency, text, source);
+    EventLog.add("donation_" + source, displayMessage);
 
     final String finalMessage = displayMessage;
     final String finalDonor = donor;
@@ -2458,6 +2567,11 @@ private void speakTextForUser(
 
         android.util.Log.e(TAG,
                 "SPEAK SKIPPED: TTS not ready or text empty");
+        return;
+    }
+
+    if (System.currentTimeMillis() < ttsMutedUntil) {
+        android.util.Log.d(TAG, "SPEAK SKIPPED: TTS выключен на 5 минут");
         return;
     }
 
