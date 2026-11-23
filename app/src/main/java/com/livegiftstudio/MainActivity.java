@@ -83,7 +83,27 @@ private int menuRowIndex = 0;
     private static final String SERVER_URL =
             "https://script.google.com/macros/s/AKfycbz9_7ApvKuZDZj8EGWNYvRaMxRi3DYQgsGigCrGLW3u9cthlqr7Q0FXBr8mwxxSms9S_A/exec";
 
-    private static final String APP_KEY = BuildConfig.ORDERS_KEY;
+    // Ключи сервера больше не встраиваются в APK. Пользователь вводит
+    // их один раз в меню «Ключи доступа» и они лежат только в SharedPreferences.
+    // BuildConfig-значения оставлены как fallback для старых сборок.
+    private static final String PREF_SWITCH_KEY = "server_switch_key";
+    private static final String PREF_ORDERS_KEY = "server_orders_key";
+
+    private String switchKey() {
+        String saved = prefs.getString(PREF_SWITCH_KEY, "");
+        if (saved != null && !saved.trim().isEmpty()) {
+            return saved.trim();
+        }
+        return BuildConfig.SWITCH_KEY;
+    }
+
+    private String ordersKey() {
+        String saved = prefs.getString(PREF_ORDERS_KEY, "");
+        if (saved != null && !saved.trim().isEmpty()) {
+            return saved.trim();
+        }
+        return BuildConfig.ORDERS_KEY;
+    }
 
     private static final int PICK_SOUND = 501;
     private static final int PICK_FOLLOW_SOUND = 502;
@@ -656,6 +676,21 @@ addMenuRow(
         "♻️\nСбросить\nоформление", 0xFF3949AB,
         v -> showAppearanceSettings(),
         v -> resetAppearance()
+);
+ addMenuRow(
+        "🔐\nКлючи\nдоступа", 0xFF00D6B7,
+        "🩺\nСтатус\nключей", 0xFF087BFF,
+        v -> showServerKeysDialog(),
+        v -> showServerKeysStatus()
+);
+ addMenuRow(
+        "💱\nКурс\nвалют", 0xFFFFB900,
+        "🔄\nОбновить\nкурс", 0xFF00C853,
+        v -> showCurrencyDialog(),
+        v -> {
+            OverlayService.refreshCurrencyRates();
+            message("Запросил обновление курса — обновится в течение нескольких секунд");
+        }
 );
     
     statsText = new TextView(this);
@@ -3379,6 +3414,175 @@ if (requestCode == PICK_DONATION_SOUND) {
                 .trim();
     }
 
+    private void showCurrencyDialog() {
+        if (isFinishing() || isDestroyed()) return;
+
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(dp(12), dp(8), dp(12), dp(8));
+
+        TextView info = new TextView(this);
+        long cachedAt = prefs.getLong("currency_rates_at", 0);
+        info.setText(cachedAt > 0
+                ? "Автокурс кэширован. Ниже — ручной запасной курс на случай, если API недоступен."
+                : "Автокурс ещё не получен. Задай ручной запасной курс — он будет использован, пока сеть недоступна.");
+        info.setTextColor(Color.rgb(190, 200, 240));
+        info.setTextSize(13);
+        layout.addView(info);
+
+        String[] codes = {"EUR", "USD", "KZT"};
+        String[] names = {"EUR → ₽", "USD → ₽", "KZT → ₽"};
+        final EditText[] inputs = new EditText[codes.length];
+
+        for (int i = 0; i < codes.length; i++) {
+            TextView label = new TextView(this);
+            label.setText(names[i]);
+            label.setTextColor(Color.WHITE);
+            label.setTextSize(14);
+            label.setPadding(0, dp(10), 0, dp(2));
+            layout.addView(label);
+
+            inputs[i] = new EditText(this);
+            inputs[i].setHint("рублей за 1 " + codes[i]);
+            inputs[i].setInputType(
+                    android.text.InputType.TYPE_CLASS_NUMBER
+                            | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
+            inputs[i].setTextSize(13);
+            inputs[i].setSingleLine(true);
+
+            float saved = prefs.getFloat("manual_rate_" + codes[i], 0f);
+            if (saved > 0) {
+                inputs[i].setText(String.valueOf(saved));
+            }
+
+            layout.addView(inputs[i]);
+        }
+
+        new AlertDialog.Builder(this)
+                .setTitle("💱 Ручной курс валют")
+                .setView(layout)
+                .setPositiveButton("Сохранить", (dialog, which) -> {
+                    android.content.SharedPreferences.Editor editor =
+                            prefs.edit();
+
+                    for (int i = 0; i < codes.length; i++) {
+                        String raw = inputs[i].getText().toString()
+                                .replace(',', '.').trim();
+                        float value = 0f;
+
+                        try {
+                            value = Float.parseFloat(raw);
+                        } catch (Exception ignored) {
+                        }
+
+                        if (value > 0) {
+                            editor.putFloat(
+                                    "manual_rate_" + codes[i], value);
+                        } else {
+                            editor.remove("manual_rate_" + codes[i]);
+                        }
+                    }
+
+                    editor.apply();
+                    message("Ручной курс сохранён");
+                })
+                .setNegativeButton("Отмена", null)
+                .show();
+    }
+
+    private String keyHint(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return "не задан";
+        }
+
+        String clean = value.trim();
+        String tail = clean.length() > 4
+                ? clean.substring(clean.length() - 4)
+                : clean;
+
+        return "…" + tail + " (" + clean.length() + " симв.)";
+    }
+
+    private void showServerKeysDialog() {
+        if (isFinishing() || isDestroyed()) return;
+
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(dp(12), dp(8), dp(12), dp(8));
+
+        TextView info = new TextView(this);
+        info.setText("Ключи больше не встраиваются в APK. Введи те же значения, что заданы на сервере (Render). Они сохранятся только на этом телефоне.");
+        info.setTextColor(Color.rgb(190, 200, 240));
+        info.setTextSize(13);
+        layout.addView(info);
+
+        TextView switchLabel = new TextView(this);
+        switchLabel.setText("Ключ переключения аккаунта:");
+        switchLabel.setTextColor(Color.WHITE);
+        switchLabel.setTextSize(14);
+        switchLabel.setPadding(0, dp(10), 0, dp(2));
+        layout.addView(switchLabel);
+
+        EditText switchInput = new EditText(this);
+        switchInput.setHint("x-switch-key");
+        switchInput.setText(prefs.getString(PREF_SWITCH_KEY, ""));
+        switchInput.setTextSize(13);
+        switchInput.setSingleLine(true);
+        layout.addView(switchInput);
+
+        TextView ordersLabel = new TextView(this);
+        ordersLabel.setText("Ключ заказов:");
+        ordersLabel.setTextColor(Color.WHITE);
+        ordersLabel.setTextSize(14);
+        ordersLabel.setPadding(0, dp(10), 0, dp(2));
+        layout.addView(ordersLabel);
+
+        EditText ordersInput = new EditText(this);
+        ordersInput.setHint("orders key");
+        ordersInput.setText(prefs.getString(PREF_ORDERS_KEY, ""));
+        ordersInput.setTextSize(13);
+        ordersInput.setSingleLine(true);
+        layout.addView(ordersInput);
+
+        new AlertDialog.Builder(this)
+                .setTitle("🔐 Ключи доступа к серверу")
+                .setView(layout)
+                .setPositiveButton("Сохранить", (dialog, which) -> {
+                    prefs.edit()
+                            .putString(PREF_SWITCH_KEY,
+                                    switchInput.getText().toString().trim())
+                            .putString(PREF_ORDERS_KEY,
+                                    ordersInput.getText().toString().trim())
+                            .apply();
+
+                    message("Ключи сохранены на этом устройстве");
+                })
+                .setNeutralButton("Очистить", (dialog, which) -> {
+                    prefs.edit()
+                            .remove(PREF_SWITCH_KEY)
+                            .remove(PREF_ORDERS_KEY)
+                            .apply();
+
+                    message("Сохранённые ключи удалены");
+                })
+                .setNegativeButton("Отмена", null)
+                .show();
+    }
+
+    private void showServerKeysStatus() {
+        if (isFinishing() || isDestroyed()) return;
+
+        String switchSource = prefs.getString(PREF_SWITCH_KEY, "")
+                .trim().isEmpty() ? "из сборки" : "с устройства";
+        String ordersSource = prefs.getString(PREF_ORDERS_KEY, "")
+                .trim().isEmpty() ? "из сборки" : "с устройства";
+
+        message("Переключение: " + keyHint(switchKey())
+                + " (" + switchSource + ")\nЗаказы: "
+                + keyHint(ordersKey())
+                + " (" + ordersSource + ")");
+    }
+
     private void showDaTokenDialog() {
         String saved = prefs.getString("da_token", "");
 
@@ -5214,7 +5418,7 @@ private void testDonation() {
     private void sendOrderToTelegram(
             String service, int price, String client, String details) {
 
-        if (APP_KEY.isEmpty()) {
+        if (ordersKey().isEmpty()) {
             message(MainActivity.this.getString(R.string.s_otpravka_zakaza_na_server_ne_nastroena_v_etoy_sbor));
             return;
         }
@@ -5224,7 +5428,7 @@ private void testDonation() {
 
             try {
                 JSONObject data = new JSONObject();
-                data.put("key", APP_KEY);
+                data.put("key", ordersKey());
                 data.put("service", service);
                 data.put("price", price);
                 data.put("client", client);
@@ -6410,7 +6614,7 @@ private void showTikTokAccounts() {
         try {
             okhttp3.Request request = new okhttp3.Request.Builder()
                     .url("https://livegiftstudio.onrender.com/" + path)
-                    .header("x-switch-key", ACCOUNT_SWITCH_KEY)
+                    .header("x-switch-key", switchKey())
                     .build();
 
             try (okhttp3.Response response =
@@ -6755,7 +6959,7 @@ private void showTikTokAccounts() {
                         "https://livegiftstudio.onrender.com/test-gift")
                         .openConnection();
                 connection.setRequestProperty(
-                        "x-switch-key", ACCOUNT_SWITCH_KEY);
+                        "x-switch-key", switchKey());
                 connection.setConnectTimeout(20000);
                 connection.setReadTimeout(20000);
 
@@ -6803,9 +7007,8 @@ private void editTikTokAccount(int index) {
             })
             .show();
 }
-   private static final String ACCOUNT_SWITCH_KEY = BuildConfig.SWITCH_KEY;
 private void switchServerAccount(String username) {
-    if (ACCOUNT_SWITCH_KEY.isEmpty()) {
+    if (switchKey().isEmpty()) {
         message(MainActivity.this.getString(R.string.s_pereklyuchenie_akkaunta_ne_nastroeno_v_etoy_sborke));
         return;
     }
@@ -6818,7 +7021,7 @@ private void switchServerAccount(String username) {
         long startedAt = System.currentTimeMillis();
 
         if (OverlayService.sendAccountSwitch(
-                username, ACCOUNT_SWITCH_KEY)) {
+                username, switchKey())) {
 
             while (System.currentTimeMillis() - startedAt < 12000) {
                 if (OverlayService.switchResultAt >= startedAt) {
@@ -6875,7 +7078,7 @@ private void forceReconnectNow() {
         long startedAt = System.currentTimeMillis();
         boolean answered = false;
 
-        if (OverlayService.sendReconnectRequest(ACCOUNT_SWITCH_KEY)) {
+        if (OverlayService.sendReconnectRequest(switchKey())) {
             while (System.currentTimeMillis() - startedAt < 8000) {
                 if (OverlayService.switchResultAt >= startedAt) {
                     answered = true;
@@ -6927,7 +7130,7 @@ private String tryReconnect() {
     try {
         okhttp3.Request request = new okhttp3.Request.Builder()
                 .url("https://livegiftstudio.onrender.com/reconnect")
-                .header("x-switch-key", ACCOUNT_SWITCH_KEY)
+                .header("x-switch-key", switchKey())
                 .post(okhttp3.RequestBody.create(
                         okhttp3.MediaType.parse(
                                 "application/json; charset=utf-8"),
@@ -6976,7 +7179,7 @@ private String trySwitchAccount(String username) {
 
         okhttp3.Request request = new okhttp3.Request.Builder()
                 .url("https://livegiftstudio.onrender.com/switch-account")
-                .header("x-switch-key", ACCOUNT_SWITCH_KEY)
+                .header("x-switch-key", switchKey())
                 .post(body)
                 .build();
 

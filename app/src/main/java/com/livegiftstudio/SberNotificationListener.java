@@ -10,8 +10,6 @@ import android.util.Log;
 import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Превращает push-уведомления СберБанка о поступлении денег в донаты
@@ -35,25 +33,7 @@ public class SberNotificationListener extends NotificationListenerService {
             "ru.sberbank.sberbank24"
     };
 
-    /** Сумма: «1 000 ₽», «1 000,50 ₽», «500 руб.». */
-    private static final Pattern AMOUNT = Pattern.compile(
-            "(\\d{1,3}(?:[\\s\\u00A0\\u202F]\\d{3})*(?:[.,]\\d{1,2})?"
-                    + "|\\d+(?:[.,]\\d{1,2})?)"
-                    + "\\s*(?:₽|руб)");
-
-    /** Отправитель: «от ИВАН И.», «от: Иван». */
-    private static final Pattern SENDER = Pattern.compile(
-            "(?:^|\\s)от[:\\s]+([А-ЯЁA-Z][А-ЯЁA-Zа-яёa-z\\s.\\-]{1,40})",
-            Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
-
-    private static final String[] BALANCE_MARKERS = {
-            "баланс", "остаток", "доступно"
-    };
-
-    private static final String[] OUTGOING_MARKERS = {
-            "списан", "оплат", "покупк", "перевод выполнен",
-            "вы перевели", "исходящ", "комисси"
-    };
+    // Правила разбора вынесены в SberParserCore и покрыты юнит-тестами.
 
     private final Set<String> seen = new LinkedHashSet<>();
 
@@ -164,27 +144,11 @@ public class SberNotificationListener extends NotificationListenerService {
     }
 
     private boolean isOutgoing(String lower) {
-        for (String marker : OUTGOING_MARKERS) {
-            if (lower.contains(marker)) {
-                return true;
-            }
-        }
-
-        return false;
+        return SberParserCore.isOutgoing(lower);
     }
 
     private boolean looksIncoming(String lower) {
-        if (lower.contains("пополн")
-                || lower.contains("зачисл")
-                || lower.contains("поступл")
-                || lower.contains("получен")
-                || lower.contains("перевед")) {
-            return true;
-        }
-
-        // «Перевод от Ивана» и просто «Вам перевод» — оба входящие.
-        // Исходящие уже отсеяны isOutgoing().
-        return lower.contains("перевод");
+        return SberParserCore.looksIncoming(lower);
     }
 
     /**
@@ -192,55 +156,15 @@ public class SberNotificationListener extends NotificationListenerService {
      * легко принять за сумму доната, поэтому режем строку по маркеру.
      */
     private String cutBalance(String text) {
-        String lower = text.toLowerCase(new Locale("ru", "RU"));
-        int cut = -1;
-
-        for (String marker : BALANCE_MARKERS) {
-            int index = lower.indexOf(marker);
-
-            if (index > 0 && (cut < 0 || index < cut)) {
-                cut = index;
-            }
-        }
-
-        return cut > 0 ? text.substring(0, cut) : text;
+        return SberParserCore.cutBalance(text);
     }
 
     private double parseAmount(String text) {
-        Matcher matcher = AMOUNT.matcher(text);
-
-        if (!matcher.find()) {
-            return 0;
-        }
-
-        String raw = matcher.group(1)
-                .replaceAll("[\\s\\u00A0\\u202F]", "")
-                .replace(',', '.');
-
-        try {
-            return Double.parseDouble(raw);
-        } catch (Exception error) {
-            return 0;
-        }
+        return SberParserCore.parseAmount(text);
     }
 
     private String extractSender(String text) {
-        Matcher matcher = SENDER.matcher(text);
-
-        if (!matcher.find()) {
-            return "Сбер";
-        }
-
-        String name = matcher.group(1)
-                .trim()
-                .replaceAll("[.,;:]+$", "")
-                .trim();
-
-        if (name.length() > 32) {
-            name = name.substring(0, 32).trim();
-        }
-
-        return name.isEmpty() ? "Сбер" : name;
+        return SberParserCore.extractSender(text);
     }
 
     private String extractText(Notification notification) {

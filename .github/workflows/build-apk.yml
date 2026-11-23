@@ -36,11 +36,13 @@ jobs:
           gradle-version: '8.9'
           cache-read-only: false
 
+      # Ключи сервера НЕ передаём в сборку: они попадали бы в публичный APK.
+      # Пользователь вводит их один раз в приложении → «Ключи доступа».
       - name: Build debug APK
-        env:
-          LGS_SWITCH_KEY: ${{ secrets.LGS_SWITCH_KEY }}
-          LGS_ORDERS_KEY: ${{ secrets.LGS_ORDERS_KEY }}
         run: gradle --no-daemon --stacktrace assembleDebug
+
+      - name: Unit tests
+        run: gradle --no-daemon test
 
       - name: Upload APK
         uses: actions/upload-artifact@v4

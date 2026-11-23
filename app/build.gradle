@@ -3,8 +3,9 @@ plugins {
     id 'com.android.application'
 }
 
-// Секреты не храним в репозитории: они приходят из переменных окружения
-// (GitHub Actions secrets) или из ~/.gradle/gradle.properties.
+// Поля остаются только для совместимости со старыми сборками и локальной
+// разработки. В CI секреты больше НЕ передаются: ключи вводятся в приложении
+// и хранятся в SharedPreferences, а не в публичном APK.
 def lgsSwitchKey = System.getenv("LGS_SWITCH_KEY") ?: project.findProperty("lgsSwitchKey") ?: ""
 def lgsOrdersKey = System.getenv("LGS_ORDERS_KEY") ?: project.findProperty("lgsOrdersKey") ?: ""
 
@@ -30,4 +31,6 @@ android {
 
 dependencies {
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+
+    testImplementation 'junit:junit:4.13.2'
 }

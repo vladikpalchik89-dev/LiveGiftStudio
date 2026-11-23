@@ -194,6 +194,24 @@ private void startForegroundNotification() {
 
     private volatile boolean widgetUpdateScheduled = false;
 
+    // Курсы валют: раз в час тянем с открытого API, храним кэш в prefs.
+    // Ручные значения из настроек используются как fallback без сети.
+    private static final long RATES_TTL_MS = 60L * 60 * 1000;
+    private static final String PREF_RATES_JSON = "currency_rates_json";
+    private static final String PREF_RATES_AT = "currency_rates_at";
+
+    private final OkHttpClient rateClient =
+            new okhttp3.OkHttpClient.Builder()
+                    .connectTimeout(8, TimeUnit.SECONDS)
+                    .readTimeout(8, TimeUnit.SECONDS)
+                    .build();
+
+    private volatile long ratesFetchedAt = 0;
+    private volatile long ratesAttemptAt = 0;
+    private volatile double rubPerEur = 0;
+    private volatile double rubPerUsd = 0;
+    private volatile double rubPerKzt = 0;
+
 
     private OkHttpClient client;
     private WebSocket webSocket;
@@ -208,8 +226,7 @@ private void startForegroundNotification() {
 
     // Один общий дедуп для WebSocket и прямого опроса DonationAlerts.
     // Доступ из двух потоков: main (WS) и donationExecutor (опрос).
-    private final java.util.Set<String> seenDonationIds =
-            java.util.Collections.synchronizedSet(new java.util.HashSet<>());
+    private final SeenDonationIds seenDonationIds = new SeenDonationIds();
     private final java.util.concurrent.ExecutorService donationExecutor =
             java.util.concurrent.Executors.newSingleThreadExecutor();
     private Runnable donationPollTask;
@@ -254,6 +271,9 @@ public void onCreate() {
 
     prefs = getSharedPreferences(
             "LiveGiftStudio", MODE_PRIVATE);
+
+    loadCachedRates();
+    donationExecutor.execute(this::refreshRatesIfNeeded);
 
     instance = this;
 
@@ -2013,25 +2033,112 @@ private boolean markDonationSeen(String id) {
         return true;
     }
 
-    synchronized (seenDonationIds) {
-        if (seenDonationIds.contains(id)) {
-            return false;
+    return seenDonationIds.markSeen(id);
+}
+
+private void loadCachedRates() {
+    try {
+        String json = prefs.getString(PREF_RATES_JSON, "");
+
+        if (json.isEmpty()) {
+            return;
         }
 
-        seenDonationIds.add(id);
-
-        if (seenDonationIds.size() > 500) {
-            java.util.Iterator<String> it = seenDonationIds.iterator();
-            int extra = seenDonationIds.size() - 250;
-
-            while (extra-- > 0 && it.hasNext()) {
-                it.next();
-                it.remove();
-            }
-        }
-
-        return true;
+        ratesFetchedAt = prefs.getLong(PREF_RATES_AT, 0);
+        applyRatesJson(json);
+    } catch (Exception error) {
+        android.util.Log.w(TAG, "Не удалось прочитать кэш курсов", error);
     }
+}
+
+private void applyRatesJson(String json) throws Exception {
+    JSONObject root = new JSONObject(json);
+
+    if (!"success".equalsIgnoreCase(root.optString("result", ""))) {
+        return;
+    }
+
+    JSONObject rates = root.optJSONObject("rates");
+
+    if (rates == null) {
+        return;
+    }
+
+    double rub = rates.optDouble("RUB", 0);
+    double eur = rates.optDouble("EUR", 0);
+    double usd = rates.optDouble("USD", 0);
+    double kzt = rates.optDouble("KZT", 0);
+
+    if (rub > 0 && eur > 0) rubPerEur = rub / eur;
+    if (rub > 0 && usd > 0) rubPerUsd = rub / usd;
+    if (rub > 0 && kzt > 0) rubPerKzt = rub / kzt;
+}
+
+private void refreshRatesIfNeeded() {
+    refreshRatesIfNeeded(false);
+}
+
+private void refreshRatesIfNeeded(boolean force) {
+    long now = System.currentTimeMillis();
+
+    if (!force && ratesFetchedAt > 0
+            && now - ratesFetchedAt < RATES_TTL_MS) {
+        return;
+    }
+
+    // Не копим десятки неудачных запросов подряд при каждом донате.
+    if (!force && now - ratesAttemptAt < 60L * 1000) {
+        return;
+    }
+
+    ratesAttemptAt = now;
+
+    Request request = new Request.Builder()
+            .url("https://open.er-api.com/v6/latest/USD")
+            .build();
+
+    try (Response response = rateClient.newCall(request).execute()) {
+        if (!response.isSuccessful() || response.body() == null) {
+            return;
+        }
+
+        String body = response.body().string();
+        applyRatesJson(body);
+
+        ratesFetchedAt = System.currentTimeMillis();
+        prefs.edit()
+                .putString(PREF_RATES_JSON, body)
+                .putLong(PREF_RATES_AT, ratesFetchedAt)
+                .apply();
+
+        android.util.Log.d(TAG, "Курсы валют обновлены");
+    } catch (Exception error) {
+        android.util.Log.w(TAG, "Курсы валют недоступны, используем ручной fallback", error);
+    }
+}
+
+private double manualRate(String code) {
+    try {
+        return prefs.getFloat("manual_rate_" + code, 0f);
+    } catch (Exception error) {
+        return 0;
+    }
+}
+
+private double rateFor(String code) {
+    if ("EUR".equals(code)) {
+        return rubPerEur > 0 ? rubPerEur : manualRate(code);
+    }
+
+    if ("USD".equals(code)) {
+        return rubPerUsd > 0 ? rubPerUsd : manualRate(code);
+    }
+
+    if ("KZT".equals(code)) {
+        return rubPerKzt > 0 ? rubPerKzt : manualRate(code);
+    }
+
+    return manualRate(code);
 }
 
 private void handleDonation(
@@ -2043,8 +2150,18 @@ private void handleDonation(
         value = Double.parseDouble(
                 String.valueOf(amount).replace(',', '.'));
 
-        if (!"RUB".equalsIgnoreCase(currency)) {
-            value = value * 90;
+        String code = currency == null
+                ? "RUB"
+                : currency.toUpperCase(java.util.Locale.ROOT).trim();
+
+        value = DonationMath.toRubles(
+                value, code,
+                rateFor("EUR"), rateFor("USD"), rateFor("KZT"));
+
+        // Если кэш пуст и ручной курс не задан — обновим его в фоне,
+        // но текущий донат уже посчитан по fallback (как есть).
+        if (ratesFetchedAt <= 0) {
+            donationExecutor.execute(this::refreshRatesIfNeeded);
         }
     } catch (Exception ignored) {
     }
@@ -2568,6 +2685,16 @@ android.util.Log.e(
 
     public static boolean isRunning() {
         return instance != null;
+    }
+
+    /** Принудительно обновить курс из приложения (кнопка в настройках). */
+    public static void refreshCurrencyRates() {
+        OverlayService service = instance;
+
+        if (service != null) {
+            service.donationExecutor.execute(
+                    () -> service.refreshRatesIfNeeded(true));
+        }
     }
 
 
