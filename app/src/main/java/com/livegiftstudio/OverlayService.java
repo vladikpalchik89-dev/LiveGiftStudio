@@ -275,7 +275,9 @@ private void startForegroundNotification() {
     private Runnable donationPollTask;
     private boolean donationPollStarted = false;
     private String donationPollToken = "";
-    private volatile String lastDonationPollError = "";
+    public static volatile String lastDonationPollError = "";
+    public static volatile boolean donationFailoverActive = false;
+    public static volatile long lastDonationPollAt = 0;
     private String lastGiftEventKey = "";
 private long lastGiftEventTime = 0;
     private Runnable removeTask;
@@ -749,6 +751,7 @@ android.util.Log.d(
 
                     lastEventAt = System.currentTimeMillis();
                     lastEventType = type;
+                    donationFailoverActive = false;
 
                     // Журнал эфира: даже дубли и «switch_result» полезно
                     // видеть, когда зритель жалуется на пропавший донат.
@@ -2331,7 +2334,19 @@ private void startDonationPolling() {
         public void run() {
             if (destroyed) return;
 
-            donationExecutor.execute(() -> pollDonationsOnce());
+            // Failover: опрос включается, только когда WebSocket молчит
+            // больше минуты. При живом канале он не нужен и раньше давал
+            // двойные донаты. Общий de-dup по donation_id всё равно страхует.
+            long silence = System.currentTimeMillis() - lastEventAt;
+            boolean wsAlive = wsConnected && silence < 60000;
+
+            donationFailoverActive = !wsAlive;
+
+            if (!wsAlive) {
+                lastDonationPollAt = System.currentTimeMillis();
+                donationExecutor.execute(
+                        OverlayService.this::pollDonationsOnce);
+            }
 
             handler.postDelayed(this, 15000);
         }

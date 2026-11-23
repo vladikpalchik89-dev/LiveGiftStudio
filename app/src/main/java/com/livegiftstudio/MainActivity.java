@@ -50,7 +50,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -620,6 +622,13 @@ addMenuRow(
         "📤\nЭкспорт\nCSV", 0xFF00D6B7,
         v -> showEventLog(),
         v -> exportEventLog(true)
+    );
+
+    addMenuRow(
+        "📊\nОтчёт\nоб эфире", 0xFF7928FF,
+        "📋\nСкопировать\nотчёт", 0xFF00D6B7,
+        v -> showStreamReport(),
+        v -> copyStreamReport()
     );
 
     addSectionHeader("🎥 ЭФИР");
@@ -3423,6 +3432,160 @@ if (requestCode == PICK_DONATION_SOUND) {
                 .replace("'", "")
                 .replace(" ", "")
                 .trim();
+    }
+
+    private String buildStreamReport() {
+        StringBuilder out = new StringBuilder();
+        out.append("📊 ОТЧЁТ ОБ ЭФИРЕ\n");
+        out.append(new SimpleDateFormat(
+                "dd.MM.yyyy HH:mm", Locale.getDefault()).format(new Date()))
+                .append("\n\n");
+
+        List<EventLog.Entry> events = EventLog.snapshot();
+
+        long first = 0;
+        long last = 0;
+        int gifts = 0;
+        int donations = 0;
+        int follows = 0;
+        int chats = 0;
+        int likes = 0;
+
+        Map<Long, Integer> perMinute = new HashMap<>();
+
+        for (EventLog.Entry row : events) {
+            if (first == 0 || row.at < first) first = row.at;
+            if (row.at > last) last = row.at;
+
+            String type = row.type.toLowerCase(Locale.ROOT);
+
+            if (type.contains("gift")) gifts++;
+            if (type.contains("donation")) donations++;
+            if (type.contains("follow")) follows++;
+            if (type.contains("chat")) chats++;
+            if (type.contains("like")) likes++;
+
+            long minute = row.at / 60000L;
+            Integer count = perMinute.get(minute);
+            perMinute.put(minute, count == null ? 1 : count + 1);
+        }
+
+        if (first > 0 && last >= first) {
+            long minutes = Math.max(1, (last - first) / 60000L);
+            out.append("Длительность по событиям: ")
+                    .append(minutes).append(" мин\n");
+        }
+
+        int peak = 0;
+
+        for (Integer count : perMinute.values()) {
+            if (count != null && count > peak) peak = count;
+        }
+
+        out.append("Пик активности: ")
+                .append(peak).append(" событий/мин\n")
+                .append("Подарков: ").append(gifts).append('\n')
+                .append("Подписок: ").append(follows).append('\n')
+                .append("Сообщений чата: ").append(chats).append('\n')
+                .append("Лайков: ").append(likes).append('\n')
+                .append("Донат-событий (включая дубли): ")
+                .append(donations).append('\n');
+
+        double total = 0;
+        int uniqueDonors = 0;
+        Map<String, Double> byDonor = new HashMap<>();
+
+        try {
+            String raw = prefs.getString("donor_log", "[]");
+            org.json.JSONArray log = new org.json.JSONArray(raw);
+
+            for (int i = 0; i < log.length(); i++) {
+                org.json.JSONObject item = log.optJSONObject(i);
+
+                if (item == null) continue;
+
+                String donor = item.optString("donor", "Без ника");
+                double rub = item.optDouble("rub", 0);
+
+                total += rub;
+
+                Double old = byDonor.get(donor);
+                byDonor.put(donor, (old == null ? 0 : old) + rub);
+            }
+
+            uniqueDonors = byDonor.size();
+        } catch (Exception ignored) {
+        }
+
+        out.append("\n💰 Сумма донатов: ")
+                .append(Math.round(total)).append(" ₽\n")
+                .append("Уникальных донатеров: ")
+                .append(uniqueDonors).append('\n');
+
+        List<Map.Entry<String, Double>> top =
+                new ArrayList<>(byDonor.entrySet());
+
+        Collections.sort(top, new Comparator<Map.Entry<String, Double>>() {
+            @Override
+            public int compare(
+                    Map.Entry<String, Double> left,
+                    Map.Entry<String, Double> right) {
+
+                return Double.compare(right.getValue(), left.getValue());
+            }
+        });
+
+        out.append("\n🏆 ТОП-5 ДОНАТЕРОВ\n");
+
+        if (top.isEmpty()) {
+            out.append("пока нет донатов\n");
+        } else {
+            for (int i = 0; i < Math.min(5, top.size()); i++) {
+                Map.Entry<String, Double> row = top.get(i);
+
+                out.append(i + 1).append(". @")
+                        .append(row.getKey())
+                        .append(" — ")
+                        .append(Math.round(row.getValue()))
+                        .append(" ₽\n");
+            }
+        }
+
+        return out.toString();
+    }
+
+    private void showStreamReport() {
+        if (isFinishing() || isDestroyed()) return;
+
+        final String report = buildStreamReport();
+
+        new AlertDialog.Builder(this)
+                .setTitle("Отчёт об эфире")
+                .setMessage(report)
+                .setPositiveButton("Скопировать", (dialog, which) ->
+                        copyReportText(report))
+                .setNeutralButton("Лог событий", (dialog, which) ->
+                        showEventLog())
+                .setNegativeButton("Закрыть", null)
+                .show();
+    }
+
+    private void copyStreamReport() {
+        if (isFinishing() || isDestroyed()) return;
+
+        copyReportText(buildStreamReport());
+    }
+
+    private void copyReportText(String report) {
+        ClipboardManager clipboard =
+                (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+
+        if (clipboard != null) {
+            clipboard.setPrimaryClip(
+                    ClipData.newPlainText("LiveGiftStudio", report));
+        }
+
+        message("Отчёт скопирован");
     }
 
     private List<EventLog.Entry> filterEvents(
@@ -6919,6 +7082,24 @@ private void showTikTokAccounts() {
                     .append(" (")
                     .append(ago(now - OverlayService.lastEventAt))
                     .append(" назад)\n");
+        }
+
+        out.append("Резервный опрос донатов: ")
+                .append(OverlayService.donationFailoverActive
+                        ? "✅ активен (WS молчит)"
+                        : "выключен (WS работает)")
+                .append('\n');
+
+        if (!OverlayService.lastDonationPollError.isEmpty()) {
+            out.append("Ошибка опроса: ")
+                    .append(OverlayService.lastDonationPollError)
+                    .append('\n');
+        }
+
+        if (OverlayService.lastDonationPollAt > 0) {
+            out.append("Последний опрос: ")
+                    .append(ago(now - OverlayService.lastDonationPollAt))
+                    .append(" назад\n");
         }
 
         out.append("\nСЕРВЕР\n");
