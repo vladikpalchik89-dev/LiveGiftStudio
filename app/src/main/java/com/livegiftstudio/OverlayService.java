@@ -557,9 +557,15 @@ if ("yes".equals(testFollowSound)) {
                     .build();
         }
 
-        if (webSocket != null) {
-            webSocket.cancel();
-            webSocket = null;
+        // Сначала отвязываем старый сокет от общего состояния, потом
+        // закрываем. Иначе его onFailure/onClosed может сработать после
+        // создания нового и сбросить флаги уже нового соединения.
+        WebSocket oldSocket = webSocket;
+        webSocket = null;
+        activeSocket = null;
+
+        if (oldSocket != null) {
+            oldSocket.cancel();
         }
 
         Request request = new Request.Builder()
@@ -574,6 +580,11 @@ if ("yes".equals(testFollowSound)) {
 public void onOpen(
         WebSocket socket,
         Response response) {
+
+    if (socket != webSocket) {
+        socket.close(1000, "stale socket");
+        return;
+    }
 
     android.util.Log.d(
             TAG,
@@ -596,7 +607,11 @@ public void onOpen(
             @Override
             public void onMessage(
                     WebSocket socket, String text) {
-                
+
+                if (socket != webSocket) {
+                    return;
+                }
+
 android.util.Log.d(
         TAG,
         "WEBSOCKET EVENT: " + text
@@ -900,6 +915,10 @@ public void onFailure(
         Throwable error,
         Response response) {
 
+    if (socket != webSocket) {
+        return;
+    }
+
     int httpCode = -1;
 
     if (response != null) {
@@ -930,6 +949,10 @@ public void onFailure(
                     WebSocket socket,
                     int code,
                     String reason) {
+
+                if (socket != webSocket) {
+                    return;
+                }
 
                 android.util.Log.d(
                         TAG,
@@ -3478,6 +3501,8 @@ private static class GifView extends View {
         Movie loadedMovie;
         try {
             loadedMovie = Movie.decodeStream(input);
+        } catch (OutOfMemoryError error) {
+            throw new java.io.IOException("GIF слишком большой");
         } finally {
             input.close();
         }

@@ -34,6 +34,18 @@ let reconnectTimer = null;
 let connecting = false;
 let stopped = false;
 
+// package-lock фиксирует tiktok-live-connector@2.5.0 с "type": "module".
+// На Node 20.x обычный require() падает с ERR_REQUIRE_ESM, поэтому грузим
+// модуль динамически и кэшируем результат.
+let connectorModule = null;
+
+async function loadTikTokConnector() {
+  if (!connectorModule) {
+    connectorModule = await import("tiktok-live-connector");
+  }
+  return connectorModule;
+}
+
 let donationAlertsSocket = null;
 let donationAlertsTimer = null;
 
@@ -632,8 +644,9 @@ async function startDonationAlerts() {
     const { DASocket, EventName } =
       require("donationalerts-api");
 
+    // Адрес socket-сервера библиотека определяет сама по токену.
+    // Хардкод socket7 мог привести к тихой потере донатов.
     const socket = new DASocket(token, {
-      socketUrl: "wss://socket7.donationalerts.ru",
       autoConnect: false
     });
 
@@ -927,7 +940,7 @@ function scheduleReconnect(reason) {
 }
 
 
-function startTikTok() {
+async function startTikTok() {
   if (stopped || process.env.TIKTOK_ENABLED !== "true") {
     console.log("TikTok connection paused. Set TIKTOK_ENABLED=true to enable.");
     return;
@@ -939,7 +952,7 @@ function startTikTok() {
   console.log("TikTok connect attempt:", username);
 
   try {
-    const connector = require("tiktok-live-connector");
+    const connector = await loadTikTokConnector();
     const TikTokLiveConnection = connector.TikTokLiveConnection;
     const WebcastEvent = connector.WebcastEvent || {};
     const ControlEvent = connector.ControlEvent || {};

@@ -4116,13 +4116,26 @@ public void onRequestPermissionsResult(
     super.onRequestPermissionsResult(
             requestCode, permissions, grantResults);
 
-    if (requestCode == 901
-            && grantResults.length > 0
-            && grantResults[0]
-                    == android.content.pm.PackageManager
-                            .PERMISSION_GRANTED) {
+    if (requestCode == 901 && grantResults.length > 0) {
+        boolean audioGranted = grantResults[0]
+                == android.content.pm.PackageManager.PERMISSION_GRANTED;
+        boolean allGranted = audioGranted;
 
-        autoImportFromPhoneFolder();
+        for (int result : grantResults) {
+            if (result != android.content.pm.PackageManager
+                    .PERMISSION_GRANTED) {
+                allGranted = false;
+                break;
+            }
+        }
+
+        if (audioGranted) {
+            if (!allGranted) {
+                message("Звуки импортирую, картинки пропущу — нет разрешения на изображения");
+            }
+
+            autoImportFromPhoneFolder();
+        }
     }
 }
 
@@ -5527,6 +5540,7 @@ private String[] getTikTokAccounts() {
 
 
 private void showTikTokAccounts() {
+    if (isFinishing() || isDestroyed()) return;
 
     String[] accounts = getTikTokAccounts();
     String active = prefs.getString(
@@ -6461,6 +6475,8 @@ private void showTikTokAccounts() {
     }
 
     private void showConnectionDiagnostics() {
+        if (isFinishing() || isDestroyed()) return;
+
         message(MainActivity.this.getString(R.string.s_proveryayu_soedinenie));
 
         executor.execute(() -> {
@@ -6474,7 +6490,11 @@ private void showTikTokAccounts() {
 
             final String text = report;
 
-            runOnUiThread(() -> showDiagnosticsDialog(text));
+            runOnUiThread(() -> {
+                if (!isFinishing() && !isDestroyed()) {
+                    showDiagnosticsDialog(text);
+                }
+            });
         });
     }
 
@@ -6702,6 +6722,8 @@ private void showTikTokAccounts() {
     }
 
     private void showDiagnosticsDialog(String report) {
+        if (isFinishing() || isDestroyed()) return;
+
         TextView view = new TextView(this);
         view.setText(report);
         view.setTextSize(12);
@@ -6811,6 +6833,8 @@ private void switchServerAccount(String username) {
                 try {
                     Thread.sleep(300);
                 } catch (InterruptedException ignored) {
+                    Thread.currentThread().interrupt();
+                    return;
                 }
             }
         }
@@ -6829,13 +6853,18 @@ private void switchServerAccount(String username) {
             try {
                 Thread.sleep(2000);
             } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+                return;
             }
         }
 
         final String reason = error;
 
-        runOnUiThread(() -> message(
-                "Не удалось переключить: " + reason));
+        runOnUiThread(() -> {
+            if (!isFinishing() && !isDestroyed()) {
+                message("Не удалось переключить: " + reason);
+            }
+        });
     });
 }
 
@@ -6856,6 +6885,8 @@ private void forceReconnectNow() {
                 try {
                     Thread.sleep(300);
                 } catch (InterruptedException ignored) {
+                    Thread.currentThread().interrupt();
+                    return;
                 }
             }
         }
@@ -6866,8 +6897,11 @@ private void forceReconnectNow() {
             if (error != null) {
                 final String reason = error;
 
-                runOnUiThread(() -> message(
-                        "Не удалось переподключить: " + reason));
+                runOnUiThread(() -> {
+                    if (!isFinishing() && !isDestroyed()) {
+                        message("Не удалось переподключить: " + reason);
+                    }
+                });
                 return;
             }
         }
@@ -6879,6 +6913,8 @@ private void forceReconnectNow() {
                 try {
                     Thread.sleep(6000);
                 } catch (InterruptedException ignored) {
+                    Thread.currentThread().interrupt();
+                    return;
                 }
 
                 runOnUiThread(() -> showConnectionDiagnostics());
@@ -6913,6 +6949,8 @@ private String tryReconnect() {
 
 private void applyActiveAccount(String username) {
     runOnUiThread(() -> {
+        if (isFinishing() || isDestroyed()) return;
+
         prefs.edit()
                 .putString("active_tiktok_account", username)
                 .putString("tiktok_username", username)
@@ -7104,7 +7142,9 @@ protected void onStop() {
             voicePreview = null;
         }
 
-        executor.shutdown();
+        // Предыдущие задачи могут спать в Thread.sleep — обычный shutdown()
+        // даёт им договорить и показать диалог уже после гибели Activity.
+        executor.shutdownNow();
         super.onDestroy();
     }
     @Override

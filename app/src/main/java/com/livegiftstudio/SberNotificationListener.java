@@ -43,7 +43,8 @@ public class SberNotificationListener extends NotificationListenerService {
 
     /** Отправитель: «от ИВАН И.», «от: Иван». */
     private static final Pattern SENDER = Pattern.compile(
-            "(?:^|\\s)от[:\\s]+([А-ЯЁA-Z][А-ЯЁA-Zа-яёa-z\\s.\\-]{1,40})");
+            "(?:^|\\s)от[:\\s]+([А-ЯЁA-Z][А-ЯЁA-Zа-яёa-z\\s.\\-]{1,40})",
+            Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
 
     private static final String[] BALANCE_MARKERS = {
             "баланс", "остаток", "доступно"
@@ -176,11 +177,14 @@ public class SberNotificationListener extends NotificationListenerService {
         if (lower.contains("пополн")
                 || lower.contains("зачисл")
                 || lower.contains("поступл")
-                || lower.contains("получен")) {
+                || lower.contains("получен")
+                || lower.contains("перевед")) {
             return true;
         }
 
-        return lower.contains("перевод") && lower.contains(" от");
+        // «Перевод от Ивана» и просто «Вам перевод» — оба входящие.
+        // Исходящие уже отсеяны isOutgoing().
+        return lower.contains("перевод");
     }
 
     /**
